@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CH-149-615 Weight &amp; Balance</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png" />
+  <meta name="theme-color" content="#0d0d0d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="615 W&amp;B" />
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<!-- ───────────── OPENING SCREEN / DISCLAIMER ─────────────
+     Shown on a genuinely new session (first launch, or after End Session),
+     and again whenever the config data version changes. Dismiss-to-continue.
+     Populated and gated by app.js (maybeShowSplash). -->
+<div id="splashOverlay" class="splash-overlay" hidden>
+  <div class="splash-card" role="dialog" aria-modal="true" aria-labelledby="splashTitle">
+    <div class="splash-head">
+      <div class="splash-dot"></div>
+      <div>
+        <div id="splashTitle" class="splash-title">CH-149-615 Weight &amp; Balance</div>
+        <div class="splash-sub">Pre-departure planning tool · Data from DLTP 101C-615</div>
+      </div>
+    </div>
+
+    <div class="splash-versions">
+      <div class="splash-vbox">
+        <div class="splash-vlabel">APP VERSION</div>
+        <div class="splash-vnum" id="splashAppVer">—</div>
+        <div class="splash-vdesc">The <b>software</b> — the calculation logic and interface.
+          Changes when the app's code is updated.</div>
+      </div>
+      <div class="splash-vbox">
+        <div class="splash-vlabel">CONFIGURATION VERSION</div>
+        <div class="splash-vnum" id="splashCfgVer">—</div>
+        <div class="splash-vdesc">The <b>aircraft data</b> — arms, weights, envelope, equipment, presets.
+          Changes when the squadron custodian publishes updated data.</div>
+      </div>
+    </div>
+
+    <div class="splash-note" id="splashCfgNote"></div>
+
+    <div class="splash-disclaimer">
+      This application is a <b>planning aid</b>. It does not connect to, command, or
+      replace any aircraft system. The Flight Engineer remains responsible for entering
+      and confirming all values in the MCDU through the aircraft's own certified process.
+      Verify the configuration version above is the current published data before use.
+    </div>
+
+    <button class="splash-btn" id="splashAck">I understand — continue</button>
+  </div>
+</div>
+
+<header>
+  <div class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="title">
+        <b>CH-149-615 Weight &amp; Balance</b>
+        <span>Data from DLTP 101C-615 <span id="appVersionTag" class="mono small"></span></span>
+      </div>
+    </div>
+
+    <div class="pill" id="statusPill">
+      <span class="mono" id="pillTail">No tail</span>
+      <span class="badge" id="pillBadge">Not selected</span>
+      <span class="mono small" id="pillPreset">—</span>
+    </div>
+
+    <button class="themeToggle" id="themeToggle" title="Toggle light/dark theme">
+      <span id="themeToggleIcon">☀</span>
+    </button>
+
+    <div class="tabs" id="tabs"></div>
+  </div>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section id="tab_HOME" class="grid">
+    <div class="card">
+      <h2>Home <small>Select a tail (or SIM/IPT)</small></h2>
+      <div class="callout">
+        <b>Aircraft status:</b>
+        <span class="badge">Available</span> has no active accepted W&amp;B.
+        <span class="badge good">Accepted</span> has aircraft data accepted and a W&amp;B in progress.
+        <span class="badge warn">Signed out</span> has a certified W&amp;B and has not been returned.
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn" id="btnHomeRefresh">Refresh display</button>
+        <div class="small">Tip: once you select a tail, Home becomes less important — you can still come back anytime.</div>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <div class="small" id="configVersionInfo"></div>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn bad" id="btnEndSession">End Session &amp; Clear All</button>
+        <div class="small" id="sessionPersistInfo">Sessions are saved automatically and survive the app being closed. End Session wipes all tails back to defaults.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Tails</h2>
+      <div id="tailList" class="chips"></div>
+      <div class="hr"></div>
+      <div class="twoCol">
+        <div>
+          <div class="lbl">Force Return Reason (only if you take a tail that is signed out)</div>
+          <input id="forceReturnReason" placeholder="Reason (required for forced return)"/>
+        </div>
+        <div>
+          <div class="lbl">Quick Actions</div>
+          <div class="row">
+            <button class="btn warn" id="btnReturnToAvailableHome">Return selected tail to Available</button>
+            <button class="btn bad" id="btnClearSelection">Clear selection</button>
+          </div>
+        </div>
+      </div>
+      <div class="small" style="margin-top:8px;">
+        “Return to Available” is your explicit return action (end-of-day / end-of-crew).
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCEPT -->
+  <section id="tab_ACCEPT" class="grid hide">
+    <div class="card">
+      <h2>Accept Aircraft Data <small>Establish the starting weight, CG and fuel</small></h2>
+      <div class="callout">
+        Enter the aircraft Basic Weight, Basic CG and recorded fuel using the selected source. Enter your service number and accept the aircraft data to begin the W&amp;B calculation.
+        <div class="small" style="margin-top:6px;">
+          Acceptance establishes the starting point for this calculation. Changing the selected source, accepted values, or equipment included in Recorded Aircraft Basic Weight requires acceptance again.
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div>
+        <div class="lbl">Which Basic Weight and CG are you using?</div>
+        <div class="row" style="margin-top:6px;">
+          <label><input type="radio" name="basicWeightBasis" value="MAINTENANCE"> <b>Recorded Aircraft Basic Weight</b></label>
+          <label><input type="radio" name="basicWeightBasis" value="RFM"> <b>RFM Basic Weight (Beta Testing)</b></label>
+        </div>
+        <div class="callout" id="basisDescription" style="margin-top:10px;"></div>
+        <div id="maintenanceExceptionsHost" style="margin-top:10px;"></div>
+      </div>
+      <div class="hr"></div>
+      <div class="twoCol">
+        <div>
+          <div class="lbl">Basic Weight (kg)</div>
+          <input id="accBasicW" inputmode="numeric" placeholder="e.g., 10075"/>
+        </div>
+        <div>
+          <div class="lbl">Basic CG (mm)</div>
+          <input id="accBasicCG" inputmode="numeric" placeholder="e.g., 8475"/>
+        </div>
+        <div>
+          <div class="lbl">Fuel Total from Log (kg)</div>
+          <input id="accFuel" inputmode="numeric" placeholder="e.g., 1800"/>
+          <div class="small muted" style="margin-top:6px;">Initializes the Fuel tab for planning and AUW/CG calculations. Fuel is not included in Operating Weight.</div>
+        </div>
+        <div>
+          <div class="lbl">FE Service Number</div>
+          <input id="accSvc" class="mono" placeholder="e.g., X12345678"/>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn good" id="btnAccept">ACCEPT AIRCRAFT DATA</button>
+        <span class="small" id="acceptStateText"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONFIG -->
+  <section id="tab_CONFIG" class="grid hide">
+    <div class="card">
+      <h2>Config <small>Workload reducer (destructive apply)</small></h2>
+      <div class="row">
+        <button class="btn" data-preset="SAR3" id="btnPresetSAR3">SAR-3 Pax</button>
+        <button class="btn" data-preset="SAR10" id="btnPresetSAR10">SAR-10 Pax</button>
+        <button class="btn" data-preset="CASEVAC" id="btnPresetCASEVAC">CASEVAC</button>
+        <button class="btn" data-preset="TRANSPORT" id="btnPresetTRANSPORT">Transport</button>
+      </div>
+      <div class="small" style="margin-top:10px;">
+        Selecting a preset replaces: installed seats, role-fit state, mission equipment baseline.
+        (No confirmation; apply a different preset if you tapped the wrong one.)
+      </div>
+      <div id="presetImageHost" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="card" style="padding:14px;">
+  <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+    <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+    <button class="btn small" id="envToggleConfig" type="button">Collapse</button>
+  </div>
+  <div id="envWrapConfig" style="margin-top:10px;">
+    <canvas id="envCanvasConfig"></canvas>
+    <div class="small" style="margin-top:8px;" id="envNotesConfig"></div>
+  </div>
+</div>
+
+<div class="card"> 
+      <h2>Role Fit <small>Installed on this tail</small></h2>
+      <div class="callout" id="roleFitBasisMessage" style="margin-bottom:10px;"></div>
+      <div id="roleFitList"></div>
+      <div class="hr"></div>
+      <div class="small">
+        Role-fit changes are reflected immediately in the current calculation and the next PDF output.
+      </div>
+    </div>
+
+
+    <div class="card">
+      <h2>Summary</h2>
+      <div class="kpi" id="configKpi"></div>
+    </div>
+  </section>
+
+  <!-- MISSION EQUIPMENT --> 
+  <section id="tab_MISSION" class="grid hide">
+
+    <div class="card" style="padding:14px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+        <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+        <button class="btn small" id="envToggleMission" type="button">Collapse</button>
+      </div>
+      <div id="envWrapMission" style="margin-top:10px;">
+        <canvas id="envCanvasMission"></canvas>
+        <div class="small" style="margin-top:8px;" id="envNotesMission"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mission Equipment <small>Toggle on/off and stowage locations</small></h2>
+      <div class="callout">
+        This tab should make it obvious what’s <b>ON</b> vs <b>OFF</b>, and show its effect on Operating/AUW.
+      </div>
+      <div class="hr"></div>
+      <div id="missionEquipList"></div>
+    </div>
+
+
+<div class="card"> 
+      <h2>Totals by Stowage <small>(quick check)</small></h2>
+      <div id="stowageTotals"></div>
+      <div class="hr"></div>
+      <div class="kpi" id="missionKpi"></div>
+    </div>
+  </section>
+
+
+  <!-- SEATS -->
+  <section id="tab_SEATS" class="grid hide">
+
+    <div class="card" style="padding:14px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+        <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+        <button class="btn small" id="envToggleSeats" type="button">Collapse</button>
+      </div>
+      <div id="envWrapSeats" style="margin-top:10px;">
+        <canvas id="envCanvasSeats"></canvas>
+        <div class="small" style="margin-top:8px;" id="envNotesSeats"></div>
+      </div>
+    </div>
+
+        
+    <!-- SEAT REFERENCE — crew & pax position schematics -->
+    <details id="panelSeatReference" class="card collapsible">
+      <summary><h2 style="margin:0; display:inline;">Seat Position Reference</h2></summary>
+      <div class="small" style="margin:8px 0 10px 0;">
+        Crew and passenger seat positions by bay (from RFM / schematics).
+      </div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:1 1 280px; min-width:240px;">
+          <div class="small muted" style="margin-bottom:6px;">Crew Seat Positions (C1&ndash;C6)</div>
+          <img
+            src="images/Schematic_SAR_Crew.png"
+            alt="Crew seat positions and bay reference"
+            style="width:100%; height:auto; border-radius:10px; display:block;"
+          />
+        </div>
+        <div style="flex:1 1 280px; min-width:240px;">
+          <div class="small muted" style="margin-bottom:6px;">Passenger Seat Positions</div>
+          <img
+            src="images/Schematic_Pax_Seats.png"
+            alt="Passenger seat positions and bay reference"
+            style="width:100%; height:auto; border-radius:10px; display:block;"
+          />
+        </div>
+      </div>
+    </details>
+
+                <details class="card collapsible">
+      <summary><h2 style="margin:0; display:inline;">Crew Seats (C1–C6)</h2></summary>
+      <div id="seatListCrew" style="margin-top:10px;"></div>
+    </details>
+
+    <details class="card collapsible">
+      <summary><h2 style="margin:0; display:inline;">Passenger Seats (P1–P18)</h2></summary>
+      <div id="seatListPax" style="margin-top:10px;"></div>
+    </details>
+
+
+    <!-- Master render target (hidden). Seat logic still writes here; we only redistribute DOM nodes UI-only. -->
+    <div id="seatList" style="display:none;"></div>
+
+
+  </section>
+
+  <!-- FUEL -->
+  <section id="tab_FUEL" class="grid hide">
+
+    <div class="card" style="padding:14px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+        <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+        <button class="btn small" id="envToggleFuel" type="button">Collapse</button>
+      </div>
+      <div id="envWrapFuel" style="margin-top:10px;">
+        <canvas id="envCanvasFuel"></canvas>
+        <div class="small" style="margin-top:8px;" id="envNotesFuel"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Fuel <small>Total applies stage mapping (manual tank edit overrides)</small></h2>
+
+      <div class="twoCol">
+        <div>
+          <div class="lbl">Set Total Fuel (kg)</div>
+          <input id="fuelTotalInput" inputmode="numeric" placeholder="e.g., 2200"/>
+          <div class="small" style="margin-top:6px;">
+            If you edit any individual tank, the app switches to <b>Manual Tank Mode</b>.
+          </div>
+        </div>
+        <div>
+          <div class="lbl">Landing Fuel (kg)</div>
+          <input id="landingFuelInput" inputmode="numeric" placeholder="e.g., 300"/>
+          <div class="small" style="margin-top:6px;">
+            Landing fuel affects predicted CG path + endurance/range.
+          </div>
+        </div>
+      </div>
+<div id="fuelBriefKpi"></div>
+
+      <div class="hr"></div>
+      <div class="twoCol">
+        <div>
+          <h2 style="margin-top:0">Tanks</h2>
+          <div id="tankTable"></div>
+          <div class="small" style="margin-top:6px;" id="tankModeText"></div>
+        </div>
+        <div>
+          <h2 style="margin-top:0">Fuel Burn / Endurance</h2>
+          <div class="twoCol">
+            <div>
+              <div class="lbl">Observed Total Fuel (kg)</div>
+              <input id="burnFuelObs" inputmode="numeric" placeholder="Enter current fuel total"/>
+            </div>
+            <div>
+              <div class="lbl">Ground Speed (kt)</div>
+              <input id="burnGSObs" inputmode="numeric" placeholder="e.g., 120"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <button class="btn" id="btnAddBurnObs">Add observation (logs time)</button>
+            <button class="btn bad" id="btnClearBurn">Clear session</button>
+          </div>
+          <div class="hr"></div>
+          <div class="kpi" id="burnKpi"></div>
+          <div class="small" id="burnSmall"></div>
+<div id="burnLog"></div>
+        </div>
+      </div>
+    </div>
+
+    
+  </section>
+
+  <!-- LOAD PLANNING (Cabin & Cargo) --> 
+<section id="tab_CARGO" class="grid hide">
+
+  <div class="card" style="padding:14px;">
+    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+      <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+      <button class="btn small" id="envToggleCargo" type="button">Collapse</button>
+    </div>
+    <div id="envWrapCargo" style="margin-top:10px;">
+      <canvas id="envCanvasCargo"></canvas>
+      <div class="small" style="margin-top:8px;" id="envNotesCargo"></div>
+    </div>
+  </div>
+
+  <!-- BAY REFERENCE — directly under the envelope graphic -->
+  <details id="panelBayReference" class="card">
+    <summary><strong>Bay Reference</strong></summary>
+    <div class="small" style="margin:8px 0 10px 0;">
+      Bay arm reference and seat positions (from RFM / schematics).
+    </div>
+    <div id="bayReferenceBlock" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+      <div style="flex:1 1 280px; min-width:240px;">
+        <div class="small muted" style="margin-bottom:6px;">Crew Seat Positions (C1&ndash;C6) by Bay</div>
+        <img
+          src="images/Schematic_SAR_Crew.png"
+          alt="Crew seat positions and bay reference"
+          style="width:100%; height:auto; border-radius:10px; display:block;"
+        />
+      </div>
+      <div style="flex:1 1 280px; min-width:240px;">
+        <div class="small muted" style="margin-bottom:6px;">Passenger Seat Positions by Bay</div>
+        <img
+          src="images/Schematic_Pax_Seats.png"
+          alt="Passenger seat positions and bay reference"
+          style="width:100%; height:auto; border-radius:10px; display:block;"
+        />
+      </div>
+    </div>
+  </details>
+
+
+  <div class="card">
+    <h2>LOAD PLANNING <small>Cabin &amp; Cargo (MCDU mirrors)</small></h2>
+
+    <div class="callout">
+      This tab prioritizes transcription accuracy: MCDU pages are mirrored below.
+      Edit panels are collapsed unless you need to change inputs.
+    </div>
+
+    <div class="hr"></div>
+
+    <!-- MCDU MIRRORS (always visible) -->
+    <div class="row" style="gap:12px; align-items:flex-start; flex-wrap:wrap;">
+      <div style="flex:1; min-width:320px;">
+        <h3 style="margin:0 0 8px 0;">MCDU CARGO <small>(mirror)</small></h3>
+        <div id="mcduCargoMirror" class="mcdu"></div>
+      </div>
+      <div style="flex:1; min-width:320px;">
+        <h3 style="margin:0 0 8px 0;">MCDU CABIN / AMS CABIN <small>(mirror)</small></h3>
+        <div id="mcduCabinMirror" class="mcdu"></div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <!-- EDIT PANELS (collapsed) -->
+    <details id="panelEditZones">
+      <summary><strong>Edit Stowage Shelves / Zones</strong></summary>
+      <div class="small" style="margin:8px 0 10px 0;">
+        Discrete shelf/zone loads (Role Fit + Mission Equipment). These affect Operating Weight/Distance and therefore AUW CG.
+      </div>
+      <div id="zoneEditFields"></div>
+    </details>
+
+    <div class="hr"></div>
+
+    <details id="panelEditCargo">
+      <summary><strong>Edit Cargo 1–4</strong></summary>
+      <div class="small" style="margin:8px 0 10px 0;">
+        Tactical entries. Each has weight and distance. These mirror to MCDU CARGO.
+      </div>
+      <div id="cargoEditFields"></div>
+    </details>
+
+    <div class="hr"></div>
+
+    <details id="panelEditCabin">
+
+
+
+      <summary><strong>Edit CABIN Bays (BAY 1–6, 5.5, REAR)</strong></summary>
+      <div class="small" style="margin:8px 0 10px 0;">
+        Bay weights are tactical. Use ADD DELTA for quick adjustments; delta applies and then clears.
+      </div>
+      <div id="cabinBayEditFields"></div>
+    </details>
+
+    <div class="hr"></div>
+  </div>
+</section>
+
+  <!-- CERTIFY -->
+  <section id="tab_CERTIFY" class="grid hide">
+
+    <!-- ═══ STEP 1: Enter these INTO the MCDU ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">1</span>
+        <div>
+          <h2 style="margin:0;">Enter These Values Into the MCDU</h2>
+          <div class="small muted">Type Operating Weight and Distance (CG) into the aircraft MCDU.</div>
+        </div>
+      </div>
+      <div id="mcduInputsExpected" style="margin-top:14px;"></div>
+      <div style="margin-top:10px;">
+        <div id="mcduAuwCgReplica"></div>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 2: Read back FROM the MCDU ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">2</span>
+        <div>
+          <h2 style="margin:0;">Read Back Values From the MCDU</h2>
+          <div class="small muted">Enter exactly what the aircraft MCDU now displays.</div>
+        </div>
+      </div>
+      <div class="twoCol" style="margin-top:14px;">
+        <div>
+          <div class="lbl">MCDU AUW (kg)</div>
+          <input id="mcduAUW" inputmode="numeric" placeholder="as shown on MCDU"/>
+        </div>
+        <div>
+          <div class="lbl">MCDU CG (mm)</div>
+          <input id="mcduCG" inputmode="numeric" placeholder="as shown on MCDU"/>
+        </div>
+        <div>
+          <div class="lbl">MCDU Fuel total (kg)</div>
+          <input id="mcduFuel" inputmode="numeric" placeholder="as shown on MCDU"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 3: Cross-check ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">3</span>
+        <div>
+          <h2 style="margin:0;">Cross-Check</h2>
+          <div class="small muted">Tolerances: AUW ±100 kg · CG ±20 mm · Fuel ±100 kg.</div>
+        </div>
+      </div>
+      <div id="certifyCrossCheck" style="margin-top:14px;"></div>
+    </div>
+
+    <!-- ═══ STEP 4: Sign & certify ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">4</span>
+        <div>
+          <h2 style="margin:0;">Sign &amp; Certify</h2>
+          <div class="small muted">Enter your Service #, then certify. Download PDF when complete.</div>
+        </div>
+      </div>
+      <div style="margin-top:14px; max-width:360px;">
+        <div class="lbl">FE Service #</div>
+        <input id="certSvc" class="mono" placeholder="e.g., X12345678"/>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn good" id="btnCertify">CERTIFY</button>
+        <button class="btn warn" id="btnReturnToAvailableCert">Return to Available</button>
+        <button class="btn" id="btnPrintPDF" onclick="generateWBReport()" style="background:rgba(98,168,255,.18);border-color:rgba(98,168,255,.55);">&#8659; Save W&amp;B PDF</button>
+      </div>
+      <div class="small" id="certMsg" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- Envelope reference -->
+    <div class="card" style="padding:14px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+        <h2 style="margin:0;">Envelope &amp; Predicted CG Path <small>(reference)</small></h2>
+        <button class="btn small" id="envToggleCertify" type="button">Collapse</button>
+      </div>
+      <div id="envWrapCertify" style="margin-top:10px;">
+        <canvas id="envCanvasCertify"></canvas>
+        <div class="small" style="margin-top:8px;" id="envNotesCertify"></div>
+      </div>
+    </div>
+
+    <!-- Hidden KPI holder + breakdown (kept for backward compatibility with existing logic) -->
+    <div class="hide">
+      <div class="kpi" id="certKpi"></div>
+      <div id="mcduBreakdown"></div>
+    </div>
+
+  </section>
+
+  <!-- CUSTODIAN EDITOR -->
+  <section id="tab_EDITOR" class="grid hide">
+    <div id="editorHost"></div>
+  </section>
+</main>
+
+<script src="jspdf.umd.min.js"></script>
+<script src="config.js"></script>
+<script src="persist.js"></script>
+<script src="mcdu.js"></script>
+<script src="compute.js"></script>
+<script src="pdf.js"></script>
+<script src="editor.js"></script>
+<script src="app.js"></script>
+
+<script>
+  // Register service worker for offline/PWA support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('[SW] Registered, scope:', reg.scope))
+        .catch(err => console.warn('[SW] Registration failed:', err));
+    });
+  }
+</script>

@@ -3045,21 +3045,13 @@ function drawEnvelope(canvasEl, notesEl){
   const s = STORE.sessions[tail];
   const wb = computeWB(tail);
 
-    // domain: you requested stretched horizontally; use 7800-8600
+  // Fixed RFM-style scales; geometry remains authoritative in AC.envelope.
   const xMin = 7800;
   const xMax = 8600;
-
-  // weight bounds: STATIC from envelope data only (do not scale with current weight)
+  const wMin = 9000;
+  const wMax = 16500;
   const env = AC.envelope.envMain;
   const envAlt = AC.envelope.envAlt || [];
-
-  const allEnvW = envAlt.length
-    ? env.map(p=>p.w).concat(envAlt.map(p=>p.w))
-    : env.map(p=>p.w);
-
-  const wMin = Math.min(...allEnvW) - 300;
-  const wMax = Math.max(...allEnvW) + 300;
-
 
   const pad = {l:52,r:18,t:18,b:34};
   const W = rect.width, H = rect.height;
@@ -3069,51 +3061,42 @@ function drawEnvelope(canvasEl, notesEl){
   const x = (cg)=> pad.l + ((cg - xMin)/(xMax - xMin)) * plotW;
   const y = (w)=> pad.t + (1 - (w - wMin)/(wMax - wMin)) * plotH;
 
-  // background grid
+  // Regular graduations: 50 mm / 500 kg grid, 100 mm / 1000 kg labels.
   ctx.clearRect(0,0,W,H);
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = C.grid;
-  for (let i=0;i<=6;i++){
-    const gx = pad.l + (i/6)*plotW;
+  ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+  for (let cg = xMin; cg <= xMax; cg += 50){
+    const gx = x(cg);
+    const major = cg % 100 === 0;
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = major ? 1 : 0.5;
     ctx.beginPath(); ctx.moveTo(gx, pad.t); ctx.lineTo(gx, pad.t+plotH); ctx.stroke();
+    // Keep compact canvases readable without changing the scale or grid.
+    if (major && (plotW >= 360 || cg % 200 === 0)){
+      const txt = String(cg);
+      ctx.fillStyle = C.tick;
+      ctx.fillText(txt, gx - ctx.measureText(txt).width/2, H - 22);
+    }
   }
-  for (let i=0;i<=6;i++){
-    const gy = pad.t + (i/6)*plotH;
+  for (let w = wMin; w <= wMax; w += 500){
+    const gy = y(w);
+    const major = w % 1000 === 0;
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = major ? 1 : 0.5;
     ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(pad.l+plotW, gy); ctx.stroke();
+    if (major){
+      const txt = String(w);
+      ctx.fillStyle = C.tick;
+      ctx.fillText(txt, pad.l - 6 - ctx.measureText(txt).width, gy + 4);
+    }
   }
-
-    // axes labels + reference values (tick labels)
   ctx.fillStyle = C.axisTitle;
   ctx.font = "12px " + getComputedStyle(document.body).fontFamily;
-
-  // axis titles
-  ctx.fillText("CG (mm)", pad.l + plotW/2 - 20, H - 10);
+  ctx.fillText("CG (mm)", pad.l + plotW/2 - 20, H - 4);
   ctx.save();
-  ctx.translate(14, pad.t + plotH/2 + 25);
+  ctx.translate(12, pad.t + plotH/2 + 25);
   ctx.rotate(-Math.PI/2);
   ctx.fillText("Weight (kg)", 0, 0);
   ctx.restore();
-
-  // tick labels (match the 0..6 grid)
-  ctx.fillStyle = C.tick;
-  ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
-
-  // X ticks: 7800..8600
-  for (let i=0;i<=6;i++){
-    const cgVal = Math.round(xMin + (i/6)*(xMax - xMin));
-    const gx = pad.l + (i/6)*plotW;
-    const txt = String(cgVal);
-    ctx.fillText(txt, gx - (ctx.measureText(txt).width/2), H - 22);
-  }
-
-  // Y ticks: wMin..wMax (draw on left, aligned to grid lines)
-  for (let i=0;i<=6;i++){
-    const wVal = Math.round(wMax - (i/6)*(wMax - wMin));
-    const gy = pad.t + (i/6)*plotH;
-    const txt = String(wVal);
-    ctx.fillText(txt, pad.l - 10 - ctx.measureText(txt).width, gy + 4);
-  }
-
 
   // envelope main
   ctx.strokeStyle = "rgba(98,168,255,.9)";

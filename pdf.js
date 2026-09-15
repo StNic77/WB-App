@@ -986,14 +986,13 @@ class PDFContext {
     const envMain = AC.envelope.envMain;
     const envAlt  = AC.envelope.envAlt;
 
-    // Determine axis bounds with padding
-    const allPts  = [...envMain, ...envAlt];
-    const cgMin   = Math.min(...allPts.map(p => p.cg)) - 50;
-    const cgMax   = Math.max(...allPts.map(p => p.cg)) + 50;
-    const wMin    = Math.min(...allPts.map(p => p.w))  - 300;
-    const wMax    = Math.max(...allPts.map(p => p.w))  + 300;
+    // Match the screen's fixed RFM-style scales; use config vertices unchanged.
+    const cgMin = 7800;
+    const cgMax = 8600;
+    const wMin = 9000;
+    const wMax = 16500;
 
-    const pad = { l: 18, r: 8, t: 8, b: 14 };
+    const pad = { l: 18, r: 8, t: 14, b: 18 };
     const innerW = plotW - pad.l - pad.r;
     const innerH = plotH - pad.t - pad.b;
 
@@ -1005,38 +1004,29 @@ class PDFContext {
     doc.setLineWidth(0.15);
 
     // Vertical grid (CG)
-    const cgStep = 100;
+    const cgStep = 50;
     for (let cg = Math.ceil(cgMin/cgStep)*cgStep; cg <= cgMax; cg += cgStep) {
       const x = toX(cg);
+      doc.setLineWidth(cg % 100 === 0 ? 0.15 : 0.08);
       doc.line(x, plotY + pad.t, x, plotY + pad.t + innerH);
       this.setFont("normal", 6);
       this.setColor(130, 140, 160);
-      doc.text(String(cg), x, plotY + plotH - 2, { align: "center" });
+      if (cg % 100 === 0) doc.text(String(cg), x, plotY + pad.t + innerH + 4, { align: "center" });
     }
 
     // Horizontal grid (weight)
-    const wStep = 1000;
+    const wStep = 500;
     for (let w = Math.ceil(wMin/wStep)*wStep; w <= wMax; w += wStep) {
       const y = toY(w);
+      doc.setLineWidth(w % 1000 === 0 ? 0.15 : 0.08);
       doc.line(plotX + pad.l, y, plotX + pad.l + innerW, y);
       this.setFont("normal", 6);
       this.setColor(130, 140, 160);
-      doc.text(String(w), plotX + pad.l - 1, y + 1.5, { align: "right" });
+      if (w % 1000 === 0) doc.text(String(w), plotX + pad.l - 1, y + 1.5, { align: "right" });
     }
 
-    // Draw main envelope polygon
-    doc.setDrawColor(60, 120, 200);
-    doc.setLineWidth(0.6);
-    doc.setFillColor(60, 120, 200, 0.08);
-
+    // Outline the exact config polygon so the reference grid stays visible.
     const mainPts = envMain.map(p => [toX(p.cg), toY(p.w)]);
-    doc.setFillColor(180, 200, 235);
-
-    // Fill
-    doc.moveTo(mainPts[0][0], mainPts[0][1]);
-    mainPts.slice(1).forEach(([x, y]) => doc.lineTo(x, y));
-    doc.close();
-    doc.fill();
 
     // Stroke
     doc.setDrawColor(60, 120, 200);
@@ -1049,13 +1039,12 @@ class PDFContext {
     // Draw alt envelope polygon
     if (envAlt && envAlt.length) {
       const altPts = envAlt.map(p => [toX(p.cg), toY(p.w)]);
-      doc.setFillColor(200, 220, 250);
-      doc.setDrawColor(80, 140, 210);
+      doc.setDrawColor(180, 120, 0);
       doc.setLineWidth(0.4);
       doc.moveTo(altPts[0][0], altPts[0][1]);
       altPts.slice(1).forEach(([x, y]) => doc.lineTo(x, y));
       doc.close();
-      doc.fillStroke();
+      doc.stroke();
     }
 
     // ── Burn track (departure → landing) ──────────────────────
@@ -1146,7 +1135,7 @@ class PDFContext {
     // Axis labels
     this.setFont("bold", 7);
     this.setColor(...this.C_MED);
-    doc.text("CG (mm)", plotX + pad.l + innerW / 2, plotY + plotH, { align: "center" });
+    doc.text("CG (mm)", plotX + pad.l + innerW / 2, plotY + plotH - 9, { align: "center" });
     doc.text("AUW (kg)", plotX + 4, plotY + pad.t + innerH / 2, { angle: 90, align: "center" });
 
     // Envelope result badge

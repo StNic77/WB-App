@@ -18,7 +18,7 @@
  *   6. Mission Equip  — equipment by group (SAR/ALSE/Mission/Shelves/Other)
  *   7. Crew & Pax     — seats installed and occupied
  *   8. Load Planning  — bay loads and cargo entries (if any)
- *   9. Certification  — FE signature block, MCDU cross-check values
+ *   9. Certification  — certification record, MCDU cross-check values
  *   Appendix A        — Role-Fit Equipment Installed (alphabetical)
  */
 
@@ -202,10 +202,10 @@ class PDFContext {
   }
 
   // Two-column key/value row
-  kvRow(label, value, highlight = null) {
+  kvRow(label, value, highlight = null, valueOffset = 55) {
     this.checkPageBreak(7);
     const col1 = this.marginL;
-    const col2 = this.marginL + 55;
+    const col2 = this.marginL + valueOffset;
 
     this.setFont("normal", 8);
     this.setColor(...this.C_MED);
@@ -401,18 +401,18 @@ class PDFContext {
     const basis = basicWeightBasis(s);
     this.kvRow("Basic Weight Source", basis === "MAINTENANCE" ? "RECORDED AIRCRAFT BASIC WEIGHT" : "RFM BASIC WEIGHT (BETA TESTING)");
     this.note(basis === "MAINTENANCE"
-      ? "Values are from the aircraft's current Weight and Balance record in the servicing record set. Confirmed equipment selections define what those values already include."
+      ? "Basic Weight and CG are taken from the aircraft’s current weighing record in the servicing record set. Maintenance Exceptions identify role-fit equipment recorded as removed and already reflected in these values."
       : "Beta testing method: values use the RFM-defined Basic Weight. All currently installed variable role-fit equipment is added by the application.");
     if (basis === "MAINTENANCE" && s.accepted.maintenanceBaseline){
       const fleet=fleetMaintenanceBaseline(), exceptions=[];
       for(const [k,it] of Object.entries(AC.roleFit)) if(!!s.accepted.maintenanceBaseline.roleFit[k]!==!!fleet.roleFit[k]) exceptions.push([it.name,s.accepted.maintenanceBaseline.roleFit[k]?"Included":"Not included"]);
       for(const [k,it] of [...Object.entries(AC.crewSeats),...Object.entries(AC.paxSeats)]) if(!it.includedInRfmBasic && !!s.accepted.maintenanceBaseline.seats[k]!==!!fleet.seats[k]) exceptions.push([it.name+" seat",s.accepted.maintenanceBaseline.seats[k]?"Included":"Not included"]);
-      this.kvRow("Aircraft record exceptions",exceptions.length?String(exceptions.length):"None - fleet baseline confirmed");
-      if(exceptions.length) this.table(["Equipment","Included in accepted BW/CG"],exceptions,[115,73]);
+      this.kvRow("Maintenance Exceptions",exceptions.length ? (exceptions.length===1 ? `${exceptions.length} — ${exceptions[0][0]} Removed` : String(exceptions.length)) : "None - fleet baseline confirmed");
+      if(exceptions.length) this.table(["Equipment","Accepted Basic Weight/CG status"],exceptions.map(x=>[x[0], x[1]==="Not included" ? "Not Included in Accepted Basic Weight/CG" : "Included in Accepted Basic Weight/CG"]),[100,88]);
     }
     this.kvRow("Fuel Total from Log", `${s.accepted.fuelLog ?? "—"} kg`);
     this.note("The logged fuel initializes fuel planning and AUW/CG calculations. Fuel is not included in Operating Weight.");
-    this.kvRow("Accepted by",      s.accepted.by ?? "—");
+    this.kvRow("Accepted By",      s.accepted.by ?? "—");
     this.kvRow("Accepted at (L)",  atLocal);
     this.kvRow("Accepted at (Z)",  atZulu);
     this.spacer();
@@ -788,24 +788,30 @@ class PDFContext {
     const auwStatus  = wb.flags.overweightAirborne ? "OVERWEIGHT" : "OK";
     const auwHl      = wb.flags.overweightAirborne ? "bad" : "good";
 
-    this.kvRow("Basic Weight",         `${s.accepted.basicW ?? "—"} kg`);
-    this.kvRow("Basic CG",             `${s.accepted.basicCG ?? "—"} mm`);
-    this.kvRow("Basic Weight Source",   wb.basicWeightBasis === "MAINTENANCE" ? "Recorded Aircraft Basic Weight" : "RFM Basic Weight (Beta Testing)");
-    this.kvRow("Role-Fit Equipment adjustment", `${wb.roleEquipmentAdjustmentW >= 0 ? "+" : ""}${wb.roleEquipmentAdjustmentW} kg`);
-    this.note(`Listed equipment ${wb.roleFitAdjustmentW >= 0 ? "+" : ""}${wb.roleFitAdjustmentW} kg; seat structures ${wb.seatStructureAdjustmentW >= 0 ? "+" : ""}${wb.seatStructureAdjustmentW} kg.`);
+    const missionTotals = computeMissionTotals(s);
+    const seatTotals = computeSeatTotals(s);
+    const crewOccupants = Object.keys(AC.crewSeats).filter(k => s.seats[k] && s.occupants[k]).length;
+    const paxOccupants = Object.keys(AC.paxSeats).filter(k => s.seats[k] && s.occupants[k]).length;
+    const missionCG = missionTotals.w ? Math.round(missionTotals.m / missionTotals.w) : null;
+    const occupantCG = seatTotals.occupantW ? Math.round(seatTotals.occupantM / seatTotals.occupantW) : null;
+    const signed = v => `${v >= 0 ? "+" : ""}${v} kg`;
+
+    this.kvRow("Accepted Basic Weight & CG", `${s.accepted.basicW ?? "—"} kg @ ${s.accepted.basicCG ?? "—"} mm`);
+    this.kvRow("Basic Weight Source", wb.basicWeightBasis === "MAINTENANCE" ? "Recorded Aircraft Basic Weight" : "RFM Basic Weight (Beta Testing)");
+    this.kvRow("Role-Fit Change from Accepted Basic Weight", signed(wb.roleEquipmentAdjustmentW), null, 82);
+    this.note(`Role-Fit Equipment: ${signed(wb.roleFitAdjustmentW)} · Seat Structures: ${signed(wb.seatStructureAdjustmentW)}.`);
+    this.note("All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.");
+    this.kvRow("Mission Equipment", `${signed(Math.round(missionTotals.w))}${missionCG == null ? "" : ` @ ${missionCG} mm`}`);
+    this.kvRow("Occupants", `${signed(Math.round(seatTotals.occupantW))}${occupantCG == null ? "" : ` @ ${occupantCG} mm`} (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);
     this.spacer(1);
-    this.kvRow("Operating Weight",     `${wb.opW} kg`);
-    this.kvRow("Operating CG",         `${wb.opCG} mm`);
+    this.kvRow("Operating Weight & CG", `${wb.opW} kg @ ${wb.opCG} mm`);
     this.spacer(1);
     // Tactical payload — layered on top of OW (not part of Operating Weight).
-    // Always shown (even at 0 kg) so the chain OW + Bays + Cargo + Fuel = AUW
-    // visibly reconciles on every record.
     this.kvRow("Bay Loads",            `${wb.bayTotal ?? 0} kg`);
     this.kvRow("Cargo",                `${wb.cargoTotal ?? 0} kg`);
     this.kvRow("Fuel (departure)",     `${wb.fuelTotal} kg`);
     this.spacer(1);
-    this.kvRow("AUW",                  `${wb.auw} kg`,   auwHl);
-    this.kvRow("AUW CG",               `${wb.auwCG} mm`);
+    this.kvRow("All-Up Weight & CG",   `${wb.auw} kg @ ${wb.auwCG} mm`, auwHl);
     this.kvRow("CG Band",              wb.cgBand);
     this.spacer(1);
     this.kvRow("CG Hard Limits",       cgStatus,         cgHl);
@@ -1209,38 +1215,10 @@ class PDFContext {
         })()
       : "—";
 
-    this.kvRow("Certified by (FE Svc #)", s.certify?.by ?? "—");
+    this.kvRow("Certified By", s.certify?.by ?? "—");
     this.kvRow("Certified at (L)",        certAtLocal);
     this.kvRow("Certified at (Z)",        certAtZulu);
     this.spacer(3);
-
-    // Signature block
-    const sigY  = this.y;
-    const sigH  = 22;
-    const col1W = 90;
-    const col2W = this.contentW - col1W - 6;
-
-    // FE signature box
-    this.doc.setDrawColor(...this.C_LIGHT);
-    this.doc.setLineWidth(0.3);
-    this.doc.rect(this.marginL, sigY, col1W, sigH, "S");
-
-    this.setFont("normal", 7);
-    this.setColor(...this.C_MED);
-    this.text("Flight Engineer Signature", this.marginL + 3, sigY + 5);
-    this.text("Svc #: " + (s.certify?.by ?? ""), this.marginL + 3, sigY + 10);
-    this.text("L: " + certAtLocal, this.marginL + 3, sigY + 13);
-    this.text("Z: " + certAtZulu,  this.marginL + 3, sigY + 18);
-
-    // Ops copy box
-    this.doc.rect(this.marginL + col1W + 6, sigY, col2W, sigH, "S");
-    this.setFont("normal", 7);
-    this.setColor(...this.C_MED);
-    this.text("FOR OPS USE", this.marginL + col1W + 9, sigY + 5);
-    this.text("Received by:", this.marginL + col1W + 9, sigY + 11);
-    this.text("Date / Time:", this.marginL + col1W + 9, sigY + 17);
-
-    this.y = sigY + sigH + 6;
 
     // Footer
     this.hRule(this.y);
@@ -1268,7 +1246,7 @@ class PDFContext {
       this.setFont("normal", 7);
       this.setColor(...this.C_MED);
       this.text(
-        `Config data v${cfgV} (released ${cfgRel}) · App v${appV} · Data source: DLTP 101C-615`,
+        `Config data v${cfgV} (released ${cfgRel}) · App v${appV} · Data source: ${formatReferenceDocument(this.s?.accepted?.referenceDocument || currentReferenceDocument())}`,
         this.pageW / 2, this.y, { align: "center" }
       );
     }

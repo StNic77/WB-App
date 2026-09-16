@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-09-09T22:24:57.000Z
- * Config data version: 3
+ * Exported by the Custodian Editor on 2026-09-15T22:10:25.411Z
+ * Config data version: 5
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,19 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 3,
-  "configReleasedAt": "2026-09-09T22:24:57.000Z",
+  "configVersion": 5,
+  "configReleasedAt": "2026-09-15T22:10:25.411Z",
   "changelog": [
+    {
+      "version": 5,
+      "at": "2026-09-15T22:10:25.411Z",
+      "note": "updated normally installed Role-Fit items"
+    },
+    {
+      "version": 4,
+      "at": "2026-09-15T20:30:00.000Z",
+      "note": "Test build: operator-language cleanup, accepted maintenance-exception locking, stowage/load-planning workflow updates, and reference-document history."
+    },
     {
       "version": 3,
       "at": "2026-09-09T22:24:57.000Z",
@@ -28,7 +38,23 @@ const AC_META = {
       "at": "2026-06-22T04:00:47.904Z",
       "note": "Baseline configuration."
     }
-  ]
+  ],
+  "referenceDocuments": {
+    "currentId": "ref-2026-06-09-issue-1",
+    "history": [
+      {
+        "id": "ref-2026-06-09-issue-1",
+        "designation": "DLTP 101C-615-RFM",
+        "versionType": "Issue",
+        "version": "1",
+        "versionDate": "09-06-2026",
+        "status": "FOR MPTF (DEV) USE ONLY",
+        "effectiveAt": "2026-09-15T20:30:00.000Z",
+        "appVersion": "0.2.5-test3",
+        "configVersion": 4
+      }
+    ]
+  }
 };
 
 // SECTION 1 — TAIL NUMBERS
@@ -546,139 +572,162 @@ const AC_ROLE_FIT = {
     "name": "Secondary Hoist",
     "w": 82.34,
     "arm": 9255,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_TRAKKA": {
     "name": "TRAKKA A-800 Searchlight",
     "w": 34.47,
     "arm": 6340,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_SEA_TRAY": {
     "name": "Sea Tray",
     "w": 10.3,
     "arm": 8127,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_DIVE_O2_RACK": {
     "name": "Dive Bottle / O2 Rack",
     "w": 7,
     "arm": 10849,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_SAR_CABINET": {
     "name": "SAR Equipment Storage Cabinet",
     "w": 73.7,
     "arm": 6275,
-    "normally": false
+    "normally": false,
+    "maintenanceIncluded": false
   },
   "RF_PTA_COT": {
     "name": "PTA Cot System",
     "w": 110,
     "arm": 10375,
-    "normally": false
+    "normally": false,
+    "maintenanceIncluded": false
   },
   "RF_SENSOR_WS": {
     "name": "Sensor Workstation",
     "w": 46.69,
     "arm": 5830,
-    "normally": false
+    "normally": false,
+    "maintenanceIncluded": false
   },
   "RF_EOIR_MX15": {
     "name": "EO/IR MX-15 Package (incl. blanking plug)",
     "w": 45.53,
     "arm": 1684,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_EOIR_HANDCTRL": {
     "name": "EO/IR Hand Controller",
     "w": 1.7,
     "arm": 5828,
-    "normally": true
+    "normally": false,
+    "maintenanceIncluded": false
   },
   "RF_AIR_COOLING": {
     "name": "Air Cooling Pack",
     "w": 64.62,
     "arm": 9673,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_FLOAT_SYS": {
     "name": "Floatation System",
     "w": 83.91,
     "arm": 8478,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_LIFERAFT_SPONSONS": {
     "name": "10-man Life Rafts (x2) Sponsons",
     "w": 66.03,
     "arm": 9588,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_LASHING_KIT": {
     "name": "Lashing / Tie-down Kit",
     "w": 9.76,
     "arm": 7243,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_RIPU": {
     "name": "RIPU",
     "w": 34.88,
     "arm": 5520,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_RIPU_CABLES": {
     "name": "RIPU Cables (Removable)",
     "w": 2.5,
     "arm": 5112,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_MR_SLIP": {
     "name": "Main Rotor Slip Ring",
     "w": 12,
     "arm": 8000,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_TR_SLIP": {
     "name": "Tail Rotor Slip Ring",
     "w": 2.4,
     "arm": 19500,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_FIELD_TOOLKIT": {
     "name": "Field Tool Kit & Spares",
     "w": 5.98,
     "arm": 12688,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_STOW_TOOLKIT": {
     "name": "Stowage Tool Kit / Emergency Spares",
     "w": 1.6,
     "arm": 12491,
-    "normally": true
+    "normally": true,
+    "maintenanceIncluded": true
   },
   "RF_STOW_STOKES_RAMP": {
     "name": "Stowage: Stokes (Ramp) fittings",
     "w": 2.11,
     "arm": 13132,
-    "normally": true
+    "normally": false,
+    "maintenanceIncluded": false
   },
   "RF_STOW_STOKES_CABIN": {
     "name": "Stowage: Stokes (Cabin) fittings",
     "w": 2.11,
     "arm": 7863,
-    "normally": true
+    "normally": false,
+    "maintenanceIncluded": false
   },
   "RF_STOW_BASKET_PORT": {
     "name": "Stowage: Basket (Port) fittings",
     "w": 2.61,
     "arm": 10937,
-    "normally": true
+    "normally": false,
+    "maintenanceIncluded": false
   },
   "RF_STOW_BASKET_STBD": {
     "name": "Stowage: Basket (Stbd) fittings",
     "w": 2.61,
     "arm": 10934,
-    "normally": true
+    "normally": false,
+    "maintenanceIncluded": false
   }
 };
 
@@ -1008,7 +1057,8 @@ const AC_PRESETS = {
       "RF_EOIR_MX15",
       "RF_SENSOR_WS",
       "RF_PTA_COT",
-      "RF_SAR_CABINET"
+      "RF_SAR_CABINET",
+      "RF_EOIR_HANDCTRL"
     ],
     "roleFitOff": [],
     "missionOn": [
@@ -1101,7 +1151,8 @@ const AC_PRESETS = {
       "RF_STOW_BASKET_STBD",
       "RF_EOIR_MX15",
       "RF_SENSOR_WS",
-      "RF_SAR_CABINET"
+      "RF_SAR_CABINET",
+      "RF_EOIR_HANDCTRL"
     ],
     "roleFitOff": [
       "RF_PTA_COT"
@@ -1320,6 +1371,7 @@ try {
     if (ov.roleFit)      AC.roleFit      = ov.roleFit;
     if (ov.crewSeats)    AC.crewSeats    = ov.crewSeats;
     if (ov.paxSeats)     AC.paxSeats     = ov.paxSeats;
+    if (ov.referenceDocuments) AC.meta.referenceDocuments = ov.referenceDocuments;
     // Restore preset missionOn/missionOff and roleFitOn/Off overrides
     if (ov.presets) {
       for (const pk of Object.keys(ov.presets)) {

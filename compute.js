@@ -55,15 +55,20 @@ function getMissionItem(key){
 }
 
 function normalizeRoleFitState(state){
-  if (!state) return state;
-  state.RF_EOIR_HANDCTRL = !!state.RF_EOIR_MX15 && !!state.RF_SENSOR_WS;
+  // Role-fit items remain independently selectable unless explicitly locked by
+  // the Accepted Aircraft State. Do not infer installation/removal of the
+  // EO/IR Hand Controller from the Sensor Workstation or EO/IR package.
   return state;
 }
 
 function computeRoleFitTotals(s){
-  // EOIR hand controller dependency:
-  // "installed any time Sensor WS and EOIR pkg are installed"
-  normalizeRoleFitState(s.roleFit);
+  // Accepted maintenance removals are authoritative. Dependency normalization
+  // must never silently reinstall an item recorded as removed at Acceptance.
+  if (s?.accepted?.isAccepted && basicWeightBasis(s) === "MAINTENANCE" && s.accepted.maintenanceBaseline?.roleFit){
+    for (const [k,it] of Object.entries(AC.roleFit)){
+      if (roleFitMaintenanceDefault(it) && s.accepted.maintenanceBaseline.roleFit[k] === false) s.roleFit[k] = false;
+    }
+  }
 
   let w=0, m=0;
   for (const k of Object.keys(AC.roleFit)){

@@ -42,7 +42,8 @@ function editorSaveDraft() {
       roleFit:      EDITOR.draft.roleFit,
       crewSeats:    EDITOR.draft.crewSeats,
       paxSeats:     EDITOR.draft.paxSeats,
-      presets:      EDITOR.draft.presets
+      presets:      EDITOR.draft.presets,
+      referenceDocuments: EDITOR.draft.referenceDocuments
     };
     localStorage.setItem("ac_config_overrides", JSON.stringify(payload));
 
@@ -52,6 +53,7 @@ function editorSaveDraft() {
     AC.roleFit      = EDITOR.draft.roleFit;
     AC.crewSeats    = EDITOR.draft.crewSeats;
     AC.paxSeats     = EDITOR.draft.paxSeats;
+    AC.meta.referenceDocuments = EDITOR.draft.referenceDocuments;
 
     // Merge preset missionOn/Off and roleFitOn/Off back into live AC.presets
     // (seats/notes/image are not edited here so we leave those alone)
@@ -116,7 +118,8 @@ function editorInitDraft() {
     roleFit:      JSON.parse(JSON.stringify(AC.roleFit)),
     crewSeats:    JSON.parse(JSON.stringify(AC.crewSeats)),
     paxSeats:     JSON.parse(JSON.stringify(AC.paxSeats)),
-    presets:      presetsDraft
+    presets:      presetsDraft,
+    referenceDocuments: JSON.parse(JSON.stringify(AC.meta.referenceDocuments || {currentId:null,history:[]}))
   };
   for (const it of Object.values(EDITOR.draft.roleFit)){
     if (it.maintenanceIncluded === undefined) it.maintenanceIncluded = !!it.normally;
@@ -200,7 +203,8 @@ function renderEditorMain(host) {
     { id: "MISSION",  label: "Mission Equipment" },
     { id: "STOWAGE",  label: "Stowage Locations" },
     { id: "ROLEFIT",  label: "Role-Fit Equipment" },
-    { id: "SEATBASE", label: "Seat Baseline" }
+    { id: "SEATBASE", label: "Seat Baseline" },
+    { id: "REFERENCE", label: "Reference Document" }
   ];
 
   host.innerHTML = `
@@ -255,6 +259,38 @@ function renderEditorMain(host) {
   if (EDITOR.activeSection === "STOWAGE")  renderEditorStowage(secHost);
   if (EDITOR.activeSection === "ROLEFIT")  renderEditorRoleFit(secHost);
   if (EDITOR.activeSection === "SEATBASE") renderEditorSeatBaseline(secHost);
+  if (EDITOR.activeSection === "REFERENCE") renderEditorReference(secHost);
+}
+
+function renderEditorReference(host){
+  const rd = EDITOR.draft.referenceDocuments || (EDITOR.draft.referenceDocuments={currentId:null,history:[]});
+  const current = rd.history.find(x=>x.id===rd.currentId) || rd.history[0] || {};
+  host.innerHTML=`
+    <div class="callout" style="margin-bottom:12px;">Reference document information identifies the source represented by this application. Before updating it, confirm whether the new version changes any W&amp;B data, limits or calculation requirements used by the application. Changes to underlying source data require application review and may require code or configuration changes.</div>
+    <h3>Current Reference Document</h3>
+    <div class="twoCol">
+      <div><div class="lbl">Document Designation</div><input id="refDesignation" value="${escHtml(current.designation||"")}"></div>
+      <div><div class="lbl">Version Type</div><input id="refVersionType" value="${escHtml(current.versionType||"")}" placeholder="Issue / Revision / Amendment"></div>
+      <div><div class="lbl">Version</div><input id="refVersion" value="${escHtml(current.version||"")}"></div>
+      <div><div class="lbl">Version Date</div><input id="refVersionDate" value="${escHtml(current.versionDate||"")}" placeholder="as printed on document"></div>
+      <div><div class="lbl">Document Status</div><input id="refStatus" value="${escHtml(current.status||"")}"></div>
+    </div>
+    <label class="small" style="display:block;margin:12px 0;"><input id="refAck" type="checkbox" style="width:auto;"> I have reviewed this document version for changes affecting application data or calculations.</label>
+    <button class="btn good" id="refMakeCurrent">Save as New Current Reference</button>
+    <div class="hr"></div>
+    <h3>Reference Document History</h3>
+    <div id="refHistory"></div>`;
+  const hist=host.querySelector('#refHistory');
+  if(!rd.history.length) hist.innerHTML='<div class="small muted">No reference-document history.</div>';
+  else hist.innerHTML=`<table class="table"><thead><tr><th>Effective</th><th>Document</th><th>Version</th><th>Version Date</th><th>Status</th></tr></thead><tbody>${rd.history.map(x=>`<tr><td>${escHtml(x.effectiveAt?new Date(x.effectiveAt).toLocaleString():"—")}</td><td>${escHtml(x.designation||"")}</td><td>${escHtml([x.versionType,x.version].filter(Boolean).join(" "))}</td><td>${escHtml(x.versionDate||"")}</td><td>${escHtml(x.status||"")}</td></tr>`).join('')}</tbody></table>`;
+  host.querySelector('#refMakeCurrent').onclick=()=>{
+    if(!host.querySelector('#refAck').checked){ alert('Confirm that you reviewed the new document version for changes affecting application data or calculations.'); return; }
+    const rec={
+      id:'ref-'+Date.now(), designation:host.querySelector('#refDesignation').value.trim(), versionType:host.querySelector('#refVersionType').value.trim(), version:host.querySelector('#refVersion').value.trim(), versionDate:host.querySelector('#refVersionDate').value.trim(), status:host.querySelector('#refStatus').value.trim(), effectiveAt:new Date().toISOString(), appVersion:(typeof APP_VERSION!=="undefined"?APP_VERSION:"?"), configVersion:AC.meta.configVersion
+    };
+    if(!rec.designation){ alert('Enter the document designation.'); return; }
+    rd.history.unshift(rec); rd.currentId=rec.id; editorSaveDraft(); renderEditor();
+  };
 }
 
 function renderEditorSeatBaseline(host){
@@ -965,7 +1001,8 @@ function editorExportConfig() {
   const newMeta = {
     configVersion: newVersion,
     configReleasedAt: nowIso,
-    changelog: newLog
+    changelog: newLog,
+    referenceDocuments: JSON.parse(JSON.stringify(EDITOR.draft.referenceDocuments || prevMeta.referenceDocuments || {currentId:null,history:[]}))
   };
   // Reflect into live AC so the running app shows the new version immediately
   // after export (and so a re-export from the same session keeps incrementing).
@@ -1063,6 +1100,7 @@ function editorExportConfig() {
   push("    if (ov.roleFit)      AC.roleFit      = ov.roleFit;");
   push("    if (ov.crewSeats)    AC.crewSeats    = ov.crewSeats;");
   push("    if (ov.paxSeats)     AC.paxSeats     = ov.paxSeats;");
+  push("    if (ov.referenceDocuments) AC.meta.referenceDocuments = ov.referenceDocuments;");
   push("    // Restore preset missionOn/missionOff and roleFitOn/Off overrides");
   push("    if (ov.presets) {");
   push("      for (const pk of Object.keys(ov.presets)) {");

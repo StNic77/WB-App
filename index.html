@@ -26,7 +26,7 @@
       <div class="splash-dot"></div>
       <div>
         <div id="splashTitle" class="splash-title">CH-149-615 Weight &amp; Balance</div>
-        <div class="splash-sub">Pre-departure planning tool · Data from DLTP 101C-615</div>
+        <div class="splash-sub">Pre-departure planning tool · <span id="splashDataSource">Data source</span></div>
       </div>
     </div>
 
@@ -64,7 +64,7 @@
       <div class="dot"></div>
       <div class="title">
         <b>CH-149-615 Weight &amp; Balance</b>
-        <span>Data from DLTP 101C-615 <span id="appVersionTag" class="mono small"></span></span>
+        <span><span id="headerDataSource">Data source</span> <span id="appVersionTag" class="mono small"></span></span>
       </div>
     </div>
 
@@ -96,7 +96,6 @@
       <div class="hr"></div>
       <div class="row">
         <button class="btn" id="btnHomeRefresh">Refresh display</button>
-        <div class="small">Tip: once you select a tail, Home becomes less important — you can still come back anytime.</div>
       </div>
       <div class="hr"></div>
       <div class="row">
@@ -137,9 +136,9 @@
     <div class="card">
       <h2>Accept Aircraft Data <small>Establish the starting weight, CG and fuel</small></h2>
       <div class="callout">
-        Enter the aircraft Basic Weight, Basic CG and recorded fuel using the selected source. Enter your service number and accept the aircraft data to begin the W&amp;B calculation.
+        Enter the aircraft Basic Weight, Basic CG and recorded fuel using the selected source. Enter the accepting person's last name and accept the aircraft data to begin the W&amp;B calculation.
         <div class="small" style="margin-top:6px;">
-          Acceptance establishes the starting point for this calculation. Changing the selected source, accepted values, or equipment included in Recorded Aircraft Basic Weight requires acceptance again.
+          Acceptance establishes and locks the starting aircraft state for this session. To change accepted values or Maintenance Exceptions after acceptance, return to Home and use End Session &amp; Clear All.
         </div>
       </div>
       <div class="hr"></div>
@@ -168,8 +167,8 @@
           <div class="small muted" style="margin-top:6px;">Initializes the Fuel tab for planning and AUW/CG calculations. Fuel is not included in Operating Weight.</div>
         </div>
         <div>
-          <div class="lbl">FE Service Number</div>
-          <input id="accSvc" class="mono" placeholder="e.g., X12345678"/>
+          <div class="lbl">Accepted By — Last Name</div>
+          <input id="accSvc" placeholder="Last name"/>
         </div>
       </div>
       <div class="hr"></div>
@@ -183,7 +182,7 @@
   <!-- CONFIG -->
   <section id="tab_CONFIG" class="grid hide">
     <div class="card">
-      <h2>Config <small>Workload reducer (destructive apply)</small></h2>
+      <h2>Config</h2>
       <div class="row">
         <button class="btn" data-preset="SAR3" id="btnPresetSAR3">SAR-3 Pax</button>
         <button class="btn" data-preset="SAR10" id="btnPresetSAR10">SAR-10 Pax</button>
@@ -191,8 +190,7 @@
         <button class="btn" data-preset="TRANSPORT" id="btnPresetTRANSPORT">Transport</button>
       </div>
       <div class="small" style="margin-top:10px;">
-        Selecting a preset replaces: installed seats, role-fit state, mission equipment baseline.
-        (No confirmation; apply a different preset if you tapped the wrong one.)
+        Selecting a preset applies the standard seats, role-fit equipment and mission equipment for that configuration. Maintenance Exceptions remain unchanged. Select another preset at any time to change the configuration.
       </div>
       <div id="presetImageHost" style="margin-top:14px;"></div>
     </div>
@@ -240,17 +238,13 @@
     </div>
 
     <div class="card">
-      <h2>Mission Equipment <small>Toggle on/off and stowage locations</small></h2>
-      <div class="callout">
-        This tab should make it obvious what’s <b>ON</b> vs <b>OFF</b>, and show its effect on Operating/AUW.
-      </div>
-      <div class="hr"></div>
+      <h2>Mission Equipment</h2>
       <div id="missionEquipList"></div>
     </div>
 
 
 <div class="card"> 
-      <h2>Totals by Stowage <small>(quick check)</small></h2>
+      <h2>Stowage Load Summary</h2>
       <div id="stowageTotals"></div>
       <div class="hr"></div>
       <div class="kpi" id="missionKpi"></div>
@@ -331,14 +325,14 @@
     </div>
 
     <div class="card">
-      <h2>Fuel <small>Total applies stage mapping (manual tank edit overrides)</small></h2>
+      <h2>Fuel</h2>
 
       <div class="twoCol">
         <div>
           <div class="lbl">Set Total Fuel (kg)</div>
           <input id="fuelTotalInput" inputmode="numeric" placeholder="e.g., 2200"/>
           <div class="small" style="margin-top:6px;">
-            If you edit any individual tank, the app switches to <b>Manual Tank Mode</b>.
+            Enter total fuel to distribute fuel between tanks in accordance with the RFM fuel loading sequence. Individual tank quantities may be entered manually when the actual fuel distribution differs.
           </div>
         </div>
         <div>
@@ -427,58 +421,46 @@
 
 
   <div class="card">
-    <h2>LOAD PLANNING <small>Cabin &amp; Cargo (MCDU mirrors)</small></h2>
+    <h2>LOAD PLANNING</h2>
 
-    <div class="callout">
-      This tab prioritizes transcription accuracy: MCDU pages are mirrored below.
-      Edit panels are collapsed unless you need to change inputs.
-    </div>
+    <div class="callout">Plan and account for additional aircraft loads before completing the W&amp;B calculation.</div>
 
     <div class="hr"></div>
 
-    <!-- MCDU MIRRORS (always visible) -->
-    <div class="row" style="gap:12px; align-items:flex-start; flex-wrap:wrap;">
-      <div style="flex:1; min-width:320px;">
-        <h3 style="margin:0 0 8px 0;">MCDU CARGO <small>(mirror)</small></h3>
-        <div id="mcduCargoMirror" class="mcdu"></div>
-      </div>
-      <div style="flex:1; min-width:320px;">
-        <h3 style="margin:0 0 8px 0;">MCDU CABIN / AMS CABIN <small>(mirror)</small></h3>
-        <div id="mcduCabinMirror" class="mcdu"></div>
-      </div>
-    </div>
-
-    <div class="hr"></div>
-
-    <!-- EDIT PANELS (collapsed) -->
     <details id="panelEditZones">
-      <summary><strong>Edit Stowage Shelves / Zones</strong></summary>
+      <summary><strong>Edit Stowage Shelves and Zones</strong></summary>
       <div class="small" style="margin:8px 0 10px 0;">
-        Discrete shelf/zone loads (Role Fit + Mission Equipment). These affect Operating Weight/Distance and therefore AUW CG.
+        Mission and personal equipment assigned to each stowage location is already included. Add further load as required without exceeding the location’s maximum load.
       </div>
       <div id="zoneEditFields"></div>
     </details>
 
     <div class="hr"></div>
+    <h2>MCDU Cargo and Cabin Menus</h2>
+    <div class="small" style="margin:0 0 10px 0;">Planned Cargo and Cabin entries are shown in the corresponding MCDU menu format to support accurate transcription. Use the expandable Load Planning sections below to edit cargo and cabin loads.</div>
+    <div class="row" style="gap:12px; align-items:flex-start; flex-wrap:wrap;">
+      <div style="flex:1; min-width:320px;">
+        <h3 style="margin:0 0 8px 0;">MCDU CARGO</h3>
+        <div id="mcduCargoMirror" class="mcdu"></div>
+      </div>
+      <div style="flex:1; min-width:320px;">
+        <h3 style="margin:0 0 8px 0;">MCDU CABIN / AMS CABIN</h3>
+        <div id="mcduCabinMirror" class="mcdu"></div>
+        <div class="small muted" style="margin-top:6px;">Tap the MCDU Cabin display to switch between Page 1 and Page 2.</div>
+      </div>
+    </div>
 
+    <div class="hr"></div>
     <details id="panelEditCargo">
       <summary><strong>Edit Cargo 1–4</strong></summary>
-      <div class="small" style="margin:8px 0 10px 0;">
-        Tactical entries. Each has weight and distance. These mirror to MCDU CARGO.
-      </div>
+      <div class="small" style="margin:8px 0 10px 0;">Enter cargo mass and CG arm for each load. These entries correspond to the four cargo entries on the MCDU Cargo page.</div>
       <div id="cargoEditFields"></div>
     </details>
 
     <div class="hr"></div>
-
     <details id="panelEditCabin">
-
-
-
-      <summary><strong>Edit CABIN Bays (BAY 1–6, 5.5, REAR)</strong></summary>
-      <div class="small" style="margin:8px 0 10px 0;">
-        Bay weights are tactical. Use ADD DELTA for quick adjustments; delta applies and then clears.
-      </div>
+      <summary><strong>Edit Cabin Bays (BAY 1–6, 5.5, REAR)</strong></summary>
+      <div class="small" style="margin:8px 0 10px 0;">Enter load carried in each cabin bay using the bay reference arm. Use the delta to account for subsequent additions or removals from that load.</div>
       <div id="cabinBayEditFields"></div>
     </details>
 
@@ -535,7 +517,7 @@
         <span class="certify-step-num">3</span>
         <div>
           <h2 style="margin:0;">Cross-Check</h2>
-          <div class="small muted">Tolerances: AUW ±100 kg · CG ±20 mm · Fuel ±100 kg.</div>
+          <div class="small muted">Compare the calculated All-Up Weight and CG with the aircraft MCDU results. Investigate any discrepancy before certifying the W&amp;B. Tolerances: AUW ±100 kg · CG ±20 mm · Fuel ±100 kg.</div>
         </div>
       </div>
       <div id="certifyCrossCheck" style="margin-top:14px;"></div>
@@ -547,12 +529,12 @@
         <span class="certify-step-num">4</span>
         <div>
           <h2 style="margin:0;">Sign &amp; Certify</h2>
-          <div class="small muted">Enter your Service #, then certify. Download PDF when complete.</div>
+          <div class="small muted">Enter the certifying person's last name, then certify. Download PDF when complete.</div>
         </div>
       </div>
       <div style="margin-top:14px; max-width:360px;">
-        <div class="lbl">FE Service #</div>
-        <input id="certSvc" class="mono" placeholder="e.g., X12345678"/>
+        <div class="lbl">Certified By — Last Name</div>
+        <input id="certSvc" placeholder="Last name"/>
       </div>
       <div class="hr"></div>
       <div class="row">

@@ -4,6 +4,32 @@ const STORE = {
   sessions: {},
   selectedTail: null
 };
+function currentReferenceDocument(){
+  const rd = AC?.meta?.referenceDocuments;
+  if (!rd || !Array.isArray(rd.history)) return null;
+  return rd.history.find(x => x.id === rd.currentId) || rd.history[0] || null;
+}
+function formatReferenceDocument(doc){
+  if (!doc) return "Reference document not set";
+  const ver = [doc.versionType, doc.version].filter(Boolean).join(" ");
+  return `${doc.designation || ""}${ver ? ", " + ver : ""}${doc.versionDate ? " (" + doc.versionDate + ")" : ""}${doc.status ? " — " + doc.status : ""}`.trim();
+}
+function maintenanceLockedRoleFit(s, key){
+  if (!s?.accepted?.isAccepted || basicWeightBasis(s) !== "MAINTENANCE") return false;
+
+  // Primary source: explicit exception keys captured when ACCEPT is clicked.
+  // This avoids inferring a locked exception later from mutable mission-config state.
+  const explicit = Array.isArray(s.accepted.maintenanceExceptions)
+    ? s.accepted.maintenanceExceptions
+    : null;
+  if (explicit) return explicit.includes(key);
+
+  // Backward-compatible fallback for sessions created before explicit exception snapshots.
+  const fleet = fleetMaintenanceBaseline();
+  const accepted = s.accepted.maintenanceBaseline?.roleFit || {};
+  return !!fleet.roleFit[key] && accepted[key] === false;
+}
+
 
 
 /* =========================
@@ -84,7 +110,8 @@ function makeNewSession(tail, isPlaceholder){
       basicCG:null,
       fuelLog:null,
       basicWeightBasis:"MAINTENANCE",
-      maintenanceBaseline:null
+      maintenanceBaseline:null,
+      referenceDocument:null
     },
 
     preset: null,
@@ -238,7 +265,8 @@ s.accepted = {
   basicCG: null,
   fuelLog: null,
   basicWeightBasis: "MAINTENANCE",
-  maintenanceBaseline: null
+  maintenanceBaseline: null,
+  maintenanceExceptions: []
 };
 
 
@@ -369,7 +397,7 @@ s.signedOutBy = "";
 s.signedOutAt = null;
 
 // ALSO reset ACCEPT state (service # lives in s.accepted.by)
-s.accepted = { isAccepted:false, by:"", at:null, basicW:null, basicCG:null, fuelLog:null, basicWeightBasis:"MAINTENANCE", maintenanceBaseline:null };
+s.accepted = { isAccepted:false, by:"", at:null, basicW:null, basicCG:null, fuelLog:null, basicWeightBasis:"MAINTENANCE", maintenanceBaseline:null, maintenanceExceptions:[], referenceDocument:null };
 s.maintenanceDraft = null;
 s.acceptanceInvalidated = true;
 
@@ -787,7 +815,7 @@ function bindAcceptInputsOnce(){
       return;
     }
     if (!svc){
-      alert("Enter service #.");
+      alert("Enter Accepted By last name.");
       return;
     }
 
@@ -802,11 +830,26 @@ s.accepted.acceptedBy = svc;
 s.accepted.acceptedAt = s.accepted.at;
 
 s.accepted.isAccepted = true;
+    s.accepted.referenceDocument = JSON.parse(JSON.stringify(currentReferenceDocument()));
 
     if ((s.accepted.basicWeightBasis || "MAINTENANCE") === "MAINTENANCE"){
       ensureMaintenanceDraft(s);
       s.accepted.maintenanceBaseline = JSON.parse(JSON.stringify(s.maintenanceDraft));
-    } else s.accepted.maintenanceBaseline = null;
+
+      // ACCEPT is the commitment point. Capture the exact role-fit removals selected
+      // as Maintenance Exceptions so presets and manual Mission Config toggles cannot
+      // reinstall them during this accepted session.
+      const fleet = fleetMaintenanceBaseline();
+      s.accepted.maintenanceExceptions = Object.keys(AC.roleFit).filter(k =>
+        !!fleet.roleFit[k] && s.maintenanceDraft.roleFit[k] === false
+      );
+
+      // Immediately force the live role-fit state to respect the accepted record.
+      for (const k of s.accepted.maintenanceExceptions) s.roleFit[k] = false;
+    } else {
+      s.accepted.maintenanceBaseline = null;
+      s.accepted.maintenanceExceptions = [];
+    }
 
     s.acceptanceInvalidated = false;
     // Snapshot of the logbook values at the moment of ACCEPT
@@ -814,7 +857,8 @@ s.accepted.isAccepted = true;
       basicW: s.accepted.basicW,
       basicCG: s.accepted.basicCG,
       fuelLog: s.accepted.fuelLog,
-      basicWeightBasis: s.accepted.basicWeightBasis || "MAINTENANCE"
+      basicWeightBasis: s.accepted.basicWeightBasis || "MAINTENANCE",
+      referenceDocument: s.accepted.referenceDocument
     };
 
     // Also set fuel total baseline from log (applies stage mapping)
@@ -851,13 +895,18 @@ function renderAccept(){
   f("accFuel", s.accepted.fuelLog);
   f("accSvc", s.accepted.by);
 
+  const acceptLocked = !!s.accepted.isAccepted;
+  ["accBasicW","accBasicCG","accFuel","accSvc"].forEach(id=>{ const el=document.getElementById(id); if(el) el.disabled=acceptLocked; });
+  document.querySelectorAll('input[name="basicWeightBasis"]').forEach(el=>el.disabled=acceptLocked);
+  const acceptBtn=document.getElementById("btnAccept"); if(acceptBtn) acceptBtn.disabled=acceptLocked;
+
   const basis = s.accepted.basicWeightBasis === "MAINTENANCE" ? "MAINTENANCE" : "RFM";
   const radio = document.querySelector(`input[name="basicWeightBasis"][value="${basis}"]`);
   if (radio) radio.checked = true;
   const desc = document.getElementById("basisDescription");
   if (desc) desc.innerHTML = basis === "MAINTENANCE"
-    ? `<b>Recorded Aircraft Basic Weight:</b> Use the Basic Weight and CG from this aircraft's current Weight and Balance record in the servicing record set. Confirm below which role-fit equipment is already included. The app applies only differences from that recorded configuration.`
-    : `<b>RFM Basic Weight — Beta Testing:</b> Use the Basic Weight and CG defined by the RFM. The app adds all currently installed variable role-fit equipment.`;
+    ? `Uses the aircraft’s current Basic Weight and CG from the weighing record in the servicing record set. The weighing record identifies role-fit equipment included in these values. Confirm the installed aircraft configuration matches the weighing record and identify any differences under Maintenance Exceptions.`
+    : `Uses the RFM Basic Weight and CG as the starting point. Role-fit equipment is not included in this baseline and is accounted for separately through the selected aircraft configuration.`;
 
   renderMaintenanceExceptions(s);
 
@@ -887,33 +936,30 @@ function renderMaintenanceExceptions(s){
   const wasOpen=!!host.querySelector("details")?.open;
   ensureMaintenanceDraft(s);
   const fleet=fleetMaintenanceBaseline();
+  // Maintenance Exceptions are removals from the expected recorded-aircraft baseline.
   const items=[];
-  for (const [k,it] of Object.entries(AC.roleFit)) items.push({kind:"roleFit",k,name:it.name,w:it.w,arm:it.arm});
-  for (const [k,it] of [...Object.entries(AC.crewSeats),...Object.entries(AC.paxSeats)]){
-    if (!it.includedInRfmBasic) items.push({kind:"seats",k,name:it.name+" seat structure",w:it.wSeat,arm:it.arm});
+  for (const [k,it] of Object.entries(AC.roleFit)){
+    if (fleet.roleFit[k]) items.push({kind:"roleFit",k,name:it.name,w:it.w,arm:it.arm});
   }
-  const exceptionCount=items.filter(x=>!!s.maintenanceDraft[x.kind][x.k] !== !!fleet[x.kind][x.k]).length;
-  host.innerHTML=`<details class="card" style="padding:12px;"><summary><b>Equipment included in Recorded Aircraft Basic Weight</b> · ${exceptionCount ? `${exceptionCount} exception${exceptionCount===1?"":"s"}` : "fleet baseline confirmed"}</summary><div class="small muted" style="margin:8px 0;">Checked items are already included in the entered Basic Weight and CG. Checking an item does not add its weight again. Change these selections only when this aircraft's current record differs from the fleet baseline.</div><div id="maintenanceExceptionList"></div></details>`;
+  const exceptionCount=items.filter(x=>s.maintenanceDraft.roleFit[x.k]===false).length;
+  const locked=!!s.accepted.isAccepted;
+  host.innerHTML=`<details class="card" style="padding:12px;"><summary><b>Maintenance Exceptions</b> · ${exceptionCount ? `${exceptionCount} removed` : "none"}</summary><div class="small muted" style="margin:8px 0;">Select role-fit equipment identified as removed in the aircraft’s current weighing record. These removals are already reflected in the recorded Basic Weight and CG and will remain unavailable when selecting a mission configuration.${locked ? " Accepted aircraft data is locked for this session." : ""}</div><div id="maintenanceExceptionList"></div></details>`;
   host.querySelector("details").open=wasOpen;
   const list=host.querySelector("#maintenanceExceptionList");
   for (const x of items){
-    const checked=!!s.maintenanceDraft[x.kind][x.k];
-    const row=document.createElement("label"); row.className="toggle"; row.style.cursor="pointer";
-    row.innerHTML=`<div class="left"><div class="name">${x.name}</div><div class="meta mono">${roundKg(x.w)} kg @ ${roundMm(x.arm)} mm</div></div><input type="checkbox" ${checked?"checked":""} style="width:auto;">`;
-    row.querySelector("input").onchange=(e)=>{
-      s.maintenanceDraft[x.kind][x.k]=e.target.checked;
-      if (x.kind === "roleFit") s.roleFit[x.k]=e.target.checked;
-      else {
-        s.seats[x.k]=e.target.checked;
-        if (!e.target.checked) s.occupants[x.k]=null;
-      }
-      if (s.accepted.isAccepted){ s.accepted.isAccepted=false; s.accepted.at=null; s.accepted.snapshot=null; s.acceptanceInvalidated=true; }
+    const removed=s.maintenanceDraft.roleFit[x.k]===false;
+    const row=document.createElement("label"); row.className="toggle"; row.style.cursor=locked?"default":"pointer";
+    row.innerHTML=`<div class="left"><div class="name">${x.name}</div><div class="meta mono">${roundKg(x.w)} kg @ ${roundMm(x.arm)} mm</div></div><label class="small"><input type="checkbox" ${removed?"checked":""} ${locked?"disabled":""} style="width:auto;"> Removed</label>`;
+    const cb=row.querySelector("input");
+    cb.onchange=(e)=>{
+      if (locked) return;
+      s.maintenanceDraft.roleFit[x.k]=!e.target.checked;
+      s.roleFit[x.k]=!e.target.checked;
       render();
     };
     list.appendChild(row);
   }
 }
-
 function renderAcceptStateText(){
   const tail = STORE.selectedTail;
   if (!tail) return;
@@ -985,10 +1031,23 @@ function applyPreset(tail, presetKey){
   for (const k of (p.roleFitOn  || [])) s.roleFit[k] = true;
   for (const k of (p.roleFitOff || [])) s.roleFit[k] = false;
 
+  // Accepted maintenance removals are authoritative for this session.
+  if (s.accepted?.isAccepted && basicWeightBasis(s) === "MAINTENANCE") {
+    for (const k of Object.keys(s.roleFit)) if (maintenanceLockedRoleFit(s,k)) s.roleFit[k] = false;
+  }
+
   // Mission baseline: destructive apply (clear then apply)
   for (const k of Object.keys(s.mission)) s.mission[k] = false;
   for (const k of (p.missionOn  || [])) s.mission[k] = true;
   for (const k of (p.missionOff || [])) s.mission[k] = false;
+
+  // Stowage markers describe physical locations available for use, not preset load.
+  // Permanent locations default available; SAR Cabinet locations follow cabinet installation.
+  for (const [k,it] of Object.entries(AC.missionEquip)) {
+    if ((it.group || "") !== "Stowage" || (+it.w || 0) !== 0) continue;
+    const loc = AC.stowage?.[it.stow];
+    s.mission[k] = (loc?.group === "SAR Cabinet") ? !!s.roleFit["RF_SAR_CABINET"] : true;
+  }
 
   // Dependency enforcement (hand controller, etc.)
   computeRoleFitTotals(s);
@@ -1067,6 +1126,7 @@ function renderConfig(){
   for (const k of rfKeys){
     const it = AC.roleFit[k];
     const on = !!s.roleFit[k];
+    const lockedException = maintenanceLockedRoleFit(s,k);
     let treatment = on ? "Added to RFM Basic Weight" : "Not installed";
     if (basis === "MAINTENANCE" && !s.accepted.maintenanceBaseline){
       treatment = "Pending aircraft data acceptance";
@@ -1079,20 +1139,20 @@ function renderConfig(){
 
     const t = document.createElement("div");
     t.className = "toggle";
+    if (lockedException){ t.style.opacity="0.5"; t.style.filter="grayscale(1)"; }
 
     const left = document.createElement("div");
     left.className = "left";
     left.innerHTML = `<div class="name">${it.name}</div>
                       <div class="meta mono">${roundKg(it.w)} kg @ ${roundMm(it.arm)} mm · ${k}${it.normally?" · normally installed":""}</div>
-                      <div class="meta">${treatment}</div>`;
+                      <div class="meta">${lockedException ? "<span class='badge warn'>Maintenance Exception</span> · Removed in accepted aircraft record" : treatment}</div>`;
 
     const sw = document.createElement("div");
     sw.className = "switch" + (on ? " on" : "");
-    sw.title = on ? "Installed" : "Removed";
+    sw.title = lockedException ? "Unavailable — Maintenance Exception" : (on ? "Installed" : "Removed");
     sw.addEventListener("click", ()=>{
-      // protect dependency: user can toggle, then dependency logic re-applies
+      if (lockedException) return;
       s.roleFit[k] = !s.roleFit[k];
-      // If user turns off WS or EOIR, hand controller will auto turn off.
       computeRoleFitTotals(s);
 
             render();
@@ -1113,14 +1173,23 @@ function renderConfig(){
   const paxOccupants = Object.keys(AC.paxSeats).filter(k => s.seats[k] && s.occupants[k]).length;
   const signedKg = value => `${value >= 0 ? "+" : ""}${fmtKg(value)}`;
 
+    const tacticalPayload = (wb.cargoTotal || 0) + (wb.bayTotal || 0);
+    const auwBuild = tacticalPayload
+      ? `Operating Weight ${fmtKg(wb.opW)} + Cargo/Cabin ${signedKg(tacticalPayload)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`
+      : `Operating Weight ${fmtKg(wb.opW)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`;
+
+    const occupantCG = st.occupantW ? Math.round(st.occupantM / st.occupantW) : null;
+    const roleChangeTotal = wb.roleEquipmentAdjustmentW;
+
     document.getElementById("configKpi").innerHTML = `
     <div class="box"><div class="t">Preset</div><div class="v">${presetName}</div><div class="s">Current configuration</div></div>
-    <div class="box"><div class="t">Current Role-Fit Equipment Total</div><div class="v">${fmtKg(rf.w)}</div><div class="s mono">${fmtMm(Math.round(rf.m/(rf.w||1)))} · Seat structures shown under Crew &amp; Pax Seats</div></div>
-    <div class="box"><div class="t">Role-Fit Equipment Adjustment</div><div class="v">${signedKg(wb.roleEquipmentAdjustmentW)}</div><div class="s">Net change applied to Basic Weight<br>Listed equipment ${signedKg(wb.roleFitAdjustmentW)} · Seat structures ${signedKg(wb.seatStructureAdjustmentW)}</div></div>
-    <div class="box"><div class="t">Mission Equip Total</div><div class="v">${fmtKg(me.w)}</div><div class="s mono">${fmtMm(Math.round(me.m/(me.w||1)))}</div></div>
-    <div class="box"><div class="t">Current Occupants</div><div class="v">${fmtKg(st.occupantW)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"} · Edit in Crew &amp; Pax Seats</div></div>
-    <div class="box"><div class="t">Operating</div><div class="v">${fmtKg(wb.opW)}</div><div class="s mono">${fmtMm(wb.opCG)}</div></div>
-    <div class="box"><div class="t">AUW</div><div class="v">${fmtKg(wb.auw)}</div><div class="s mono">${fmtMm(wb.auwCG)} · ${wb.cgBand}</div></div>
+    <div class="box"><div class="t">Accepted Basic Weight & CG</div><div class="v">${fmtKg(wb.basicW)} @ ${fmtMm(wb.basicCG)}</div></div>
+    <div class="box"><div class="t">Role-Fit Change from Accepted Basic Weight</div><div class="v">${signedKg(roleChangeTotal)}</div><div class="s">Role-Fit Equipment: ${signedKg(wb.roleFitAdjustmentW)} · Seat Structures: ${signedKg(wb.seatStructureAdjustmentW)}<br>All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.</div></div>
+    <div class="box"><div class="t">Mission Equipment</div><div class="v">${signedKg(me.w)} @ ${fmtMm(me.w ? Math.round(me.m/me.w) : null)}</div></div>
+    <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"}</div></div>
+    ${wb.zonesTotal ? `<div class="box"><div class="t">Additional Stowage Load</div><div class="v">${signedKg(wb.zonesTotal)}</div><div class="s">Additional shelf/zone load entered in Load Planning</div></div>` : ""}
+    <div class="box"><div class="t">Operating Weight & CG</div><div class="v">${fmtKg(wb.opW)} @ ${fmtMm(wb.opCG)}</div></div>
+    <div class="box"><div class="t">All-Up Weight & CG</div><div class="v">${fmtKg(wb.auw)} @ ${fmtMm(wb.auwCG)}</div><div class="s">${auwBuild}<br><span class="mono">${wb.cgBand}</span></div></div>
   `;
 
       // Envelope header (CONFIG)
@@ -1169,7 +1238,7 @@ function renderMission(){
     grouped[g].push({k, it});
   }
   // stable group order
-  const groupOrder = ["SAR Equipment","Medical Equipment","ALSE","Misc / Mission Kits","Stowage","Mission Equipment"];
+  const groupOrder = ["ALSE","SAR Equipment","Medical Equipment","Misc / Mission Kits","Personal Equipment","Stowage","Mission Equipment"];
   const groups = Object.keys(grouped).sort((a,b)=>{
     const ia = groupOrder.indexOf(a); const ib = groupOrder.indexOf(b);
     if (ia !== -1 || ib !== -1){
@@ -1254,8 +1323,7 @@ function renderMission(){
 
     const leftHead = document.createElement("div");
     leftHead.innerHTML = `
-      <div style="font-weight:900; letter-spacing:.2px;">${g}</div>
-      <div class="small">Toggle items on/off · weights editable later</div>
+      <div style="font-weight:900; letter-spacing:.2px;">${g === "Stowage" ? "Available Stowage Locations" : (g === "Misc / Mission Kits" ? "Miscellaneous Mission Kits" : g)}</div>${g === "Stowage" ? `<div class="small">Available locations for stowing mission and personal equipment. Equipment assigned to a location is included in its load, with remaining capacity shown in Load Planning.</div>` : ""}
     `;
 
     const rightHead = document.createElement("div");
@@ -1318,6 +1386,9 @@ function renderMission(){
       // For stowage presence markers (zero-weight items that ARE a location),
       // show how much weight is already loaded into that location.
       const isStowageMarker = (it.w === 0) && (g === "Stowage");
+      const stowLoc = isStowageMarker ? AC.stowage?.[it.stow] : null;
+      const physicalStowAvailable = !isStowageMarker || stowLoc?.group !== "SAR Cabinet" || !!s.roleFit?.RF_SAR_CABINET;
+      if (!physicalStowAvailable){ row.style.opacity="0.45"; row.style.filter="grayscale(1)"; }
       const loadedHere = occupiedByStow[it.stow] || 0;
       const occupiedLine = isStowageMarker
         ? `<div class="meta small">${loadedHere > 0
@@ -1332,11 +1403,17 @@ function renderMission(){
           <span class="small">If toggled → Operating CG ${fmtMm(newOpCG)} (from ${fmtMm(opCG)})</span>
         </div>
         ${occupiedLine}
+        ${isStowageMarker && !physicalStowAvailable ? `<div class="meta"><span class="badge warn">Unavailable in current aircraft configuration</span></div>` : ""}
       `;
 
       const sw = document.createElement("div");
       sw.className = "switch" + (on ? " on" : "");
       sw.addEventListener("click", ()=>{
+        if (isStowageMarker){
+          const loc = AC.stowage?.[it.stow];
+          if (loc?.group === "SAR Cabinet" && !s.roleFit?.RF_SAR_CABINET) return;
+          if (on && loadedHere > 0){ alert("Remove or relocate equipment assigned to this stowage location before making it unavailable."); return; }
+        }
         s.mission[k] = !s.mission[k];
         render();
       });
@@ -1761,8 +1838,8 @@ const wb = computeWB(tail);
   });
 
   document.getElementById("tankModeText").innerHTML = s.fuel.manualTanks
-    ? `<span class="badge warn">Manual Tank Mode</span> Total is sum of tanks.`
-    : `<span class="badge good">Stage Mapping Mode</span> Tanks derived from total fuel.`;
+    ? `<span class="badge warn">Manual Tank Distribution</span> Total fuel calculated from individual tank quantities.`
+    : `<span class="badge good">RFM Fuel Distribution</span> Tank quantities calculated from total fuel.`;
 
   // burn KPIs
   const burnKpi = document.getElementById("burnKpi");
@@ -2147,9 +2224,10 @@ if (zoneHost){
     const over = totalW > (+def.max || 0);
 
     totalEl.innerHTML =
-      'Base: ' + roundKg(baseW) +
-      ' · Add: ' + roundKg(addW) +
-      ' · Total: ' + totalW + ' / ' + def.max + ' kg' +
+      'Assigned Load: ' + roundKg(baseW) + ' kg' +
+      ' · Additional Load: ' + roundKg(addW) + ' kg' +
+      ' · Maximum Load: ' + def.max + ' kg' +
+      ' · Remaining Capacity: ' + roundKg((+def.max || 0) - totalW) + ' kg' +
       (over ? ' <span class="badge warn" style="margin-left:6px;">OVER</span>' : '');
 totalEl.classList.toggle("over", over);
 
@@ -2268,14 +2346,14 @@ totalEl.classList.toggle("over", over);
         </div>
 
         <div style="flex:1 1 140px;">
-          <div class="lbl">Add (kg) <span class="small">(max ${def.max})</span></div>
+          <div class="lbl">Additional Load (kg)</div>
           <input ${available ? "" : "disabled "} data-zone="w" data-i="${i}" inputmode="numeric" value="${roundKg(entry.w||0)}"/>
         </div>
       </div>
 
       <div class="small mono" data-zone="total" data-i="${i}"></div>
       <div class="small mono" data-zone="status" data-i="${i}">
-        ${available ? "" : "NOT INSTALLED — enable in Role Fit / Mission Equip"}
+        ${available ? "" : "UNAVAILABLE IN CURRENT AIRCRAFT CONFIGURATION"}
       </div>
       <div class="small" data-zone="hint" data-i="${i}"></div>
     `;
@@ -2913,7 +2991,7 @@ if (certMsgEl){
     const mcduFuel= +document.getElementById("mcduFuel").value;
     const svc = (document.getElementById("certSvc").value || "").trim();
 
-    if (!svc){ alert("Enter service # to sign."); return; }
+    if (!svc){ alert("Enter Certified By last name."); return; }
 
     const msg = [];
     const tolW = 100;
@@ -3178,7 +3256,7 @@ function drawEnvelope(canvasEl, notesEl){
 
     // If either end of the segment is outside, color it red
     ctx.strokeStyle = (aOk && bOk)
-      ? "rgba(53,208,127,.9)"
+      ? (prevManual ? "rgba(255,210,65,.95)" : "rgba(53,208,127,.9)")
       : "rgba(255,90,115,.95)";
 
     ctx.beginPath();
@@ -3250,6 +3328,9 @@ function drawEnvelope(canvasEl, notesEl){
    ========================= */
 
 function render(){
+  const liveSource = "Data source: " + formatReferenceDocument(currentReferenceDocument());
+  const headerSource=document.getElementById("headerDataSource"); if(headerSource) headerSource.textContent=liveSource;
+  const splashSource=document.getElementById("splashDataSource"); if(splashSource) splashSource.textContent=liveSource;
   // If no tail selected, lock to HOME (except EDITOR which works without a tail)
   if (!STORE.selectedTail && activeTab !== "EDITOR"){
     activeTab = "HOME";
@@ -3298,6 +3379,9 @@ initThemeToggle();
     s += " · config v" + AC.meta.configVersion;
   }
   tag.textContent = s;
+  const sourceText = "Data source: " + formatReferenceDocument(currentReferenceDocument());
+  const h = document.getElementById("headerDataSource"); if (h) h.textContent = sourceText;
+  const sp = document.getElementById("splashDataSource"); if (sp) sp.textContent = sourceText;
 })();
 
 render();

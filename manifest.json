@@ -1,7 +1,7 @@
 {
   "name": "CH-149-615 Weight & Balance",
   "short_name": "615 W&B",
-  "description": "Pre-departure weight and balance calculator for the CH-149-615 (CMLU). Data from DLTP 101C-615.",
+  "description": "Pre-departure weight and balance calculator for the CH-149-615 (CMLU). Data source maintained in the application reference-document record.",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "any",

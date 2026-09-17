@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-09-15T22:10:25.411Z
- * Config data version: 5
+ * Exported by the Custodian Editor on 2026-09-17T03:33:32.013Z
+ * Config data version: 9
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,29 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 5,
-  "configReleasedAt": "2026-09-15T22:10:25.411Z",
+  "configVersion": 9,
+  "configReleasedAt": "2026-09-17T03:33:32.013Z",
   "changelog": [
+    {
+      "version": 9,
+      "at": "2026-09-17T03:33:32.013Z",
+      "note": "fixed code a equipment"
+    },
+    {
+      "version": 8,
+      "at": "2026-09-17T03:11:26.026Z",
+      "note": "corrected"
+    },
+    {
+      "version": 7,
+      "at": "2026-09-17T02:59:57.773Z",
+      "note": "updated list to include proper names and grouping by system"
+    },
+    {
+      "version": 6,
+      "at": "2026-09-16T18:33:01.133Z",
+      "note": "additional Role Fit and Carry on equipment added"
+    },
     {
       "version": 5,
       "at": "2026-09-15T22:10:25.411Z",
@@ -50,7 +70,7 @@ const AC_META = {
         "versionDate": "09-06-2026",
         "status": "FOR MPTF (DEV) USE ONLY",
         "effectiveAt": "2026-09-15T20:30:00.000Z",
-        "appVersion": "0.2.5-test3",
+        "appVersion": "0.2.4-test2",
         "configVersion": 4
       }
     ]
@@ -568,134 +588,8 @@ const AC_STOWAGE = {
 
 // SECTION 8 — ROLE-FIT EQUIPMENT
 const AC_ROLE_FIT = {
-  "RF_SECONDARY_HOIST": {
-    "name": "Secondary Hoist",
-    "w": 82.34,
-    "arm": 9255,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_TRAKKA": {
-    "name": "TRAKKA A-800 Searchlight",
-    "w": 34.47,
-    "arm": 6340,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_SEA_TRAY": {
-    "name": "Sea Tray",
-    "w": 10.3,
-    "arm": 8127,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_DIVE_O2_RACK": {
-    "name": "Dive Bottle / O2 Rack",
-    "w": 7,
-    "arm": 10849,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_SAR_CABINET": {
-    "name": "SAR Equipment Storage Cabinet",
-    "w": 73.7,
-    "arm": 6275,
-    "normally": false,
-    "maintenanceIncluded": false
-  },
-  "RF_PTA_COT": {
-    "name": "PTA Cot System",
-    "w": 110,
-    "arm": 10375,
-    "normally": false,
-    "maintenanceIncluded": false
-  },
-  "RF_SENSOR_WS": {
-    "name": "Sensor Workstation",
-    "w": 46.69,
-    "arm": 5830,
-    "normally": false,
-    "maintenanceIncluded": false
-  },
-  "RF_EOIR_MX15": {
-    "name": "EO/IR MX-15 Package (incl. blanking plug)",
-    "w": 45.53,
-    "arm": 1684,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_EOIR_HANDCTRL": {
-    "name": "EO/IR Hand Controller",
-    "w": 1.7,
-    "arm": 5828,
-    "normally": false,
-    "maintenanceIncluded": false
-  },
-  "RF_AIR_COOLING": {
-    "name": "Air Cooling Pack",
-    "w": 64.62,
-    "arm": 9673,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_FLOAT_SYS": {
-    "name": "Floatation System",
-    "w": 83.91,
-    "arm": 8478,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_LIFERAFT_SPONSONS": {
-    "name": "10-man Life Rafts (x2) Sponsons",
-    "w": 66.03,
-    "arm": 9588,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_LASHING_KIT": {
-    "name": "Lashing / Tie-down Kit",
-    "w": 9.76,
-    "arm": 7243,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_RIPU": {
-    "name": "RIPU",
-    "w": 34.88,
-    "arm": 5520,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_RIPU_CABLES": {
-    "name": "RIPU Cables (Removable)",
-    "w": 2.5,
-    "arm": 5112,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_MR_SLIP": {
-    "name": "Main Rotor Slip Ring",
-    "w": 12,
-    "arm": 8000,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_TR_SLIP": {
-    "name": "Tail Rotor Slip Ring",
-    "w": 2.4,
-    "arm": 19500,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
-  "RF_FIELD_TOOLKIT": {
-    "name": "Field Tool Kit & Spares",
-    "w": 5.98,
-    "arm": 12688,
-    "normally": true,
-    "maintenanceIncluded": true
-  },
   "RF_STOW_TOOLKIT": {
-    "name": "Stowage Tool Kit / Emergency Spares",
+    "name": "Stowage: Tool Kit / Emergency Spares",
     "w": 1.6,
     "arm": 12491,
     "normally": true,
@@ -728,6 +622,174 @@ const AC_ROLE_FIT = {
     "arm": 10934,
     "normally": false,
     "maintenanceIncluded": false
+  },
+  "RF_ICE_PROTECTION_TR_SLIP_RING": {
+    "name": "Tail Rotor Slip Ring",
+    "w": 2.4,
+    "arm": 19500,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_ICE_PROTECTION_RIPU": {
+    "name": "RIPU",
+    "w": 34.88,
+    "arm": 5520,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_ICE_PROTECTION_RIPU_CABLES": {
+    "name": "RIPU Cables (Removable)",
+    "w": 2.5,
+    "arm": 5112,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_STOW_LIFERAFT_STBD_B3_F": {
+    "name": "Stowage: Internal Life Raft Stbd Bay 3 Fwd",
+    "w": 0.57,
+    "arm": 7100,
+    "normally": false,
+    "maintenanceIncluded": false
+  },
+  "RF_STOW_LIFERAFT_STBD_B4_A": {
+    "name": "Stowage: Internal Life Raft Stbd Bay 4 Aft",
+    "w": 0.57,
+    "arm": 8600,
+    "normally": false,
+    "maintenanceIncluded": false
+  },
+  "RF_SENSOR_SYSTEMS_EOIR_TURRET": {
+    "name": "WESCAM MX-15 Turret",
+    "w": 43.2,
+    "arm": 1684,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER": {
+    "name": "WESCAM MX-15 Hand Controller (incl bracket/cable)",
+    "w": 1.7,
+    "arm": 5828,
+    "normally": false,
+    "maintenanceIncluded": false
+  },
+  "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION": {
+    "name": "Sensor Workstation",
+    "w": 46.69,
+    "arm": 5830,
+    "normally": false,
+    "maintenanceIncluded": false
+  },
+  "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT": {
+    "name": "TRAKKA A-800 Searchlight",
+    "w": 34.47,
+    "arm": 6340,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SENSOR_SYSTEMS_EOIR_BLANKING": {
+    "name": "WESCAM MX-15 Blanking Removal (when turret installed)",
+    "w": -0.95,
+    "arm": 1908,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS": {
+    "name": "WESCAM MX-15 Removable Structure and Fittings",
+    "w": 0.11,
+    "arm": 3241,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK": {
+    "name": "Air Cooling Pack",
+    "w": 64.62,
+    "arm": 9673,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM": {
+    "name": "Floatation System",
+    "w": 83.91,
+    "arm": 8478,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS": {
+    "name": "10-man Life Rafts (x2) Sponsons",
+    "w": 66.03,
+    "arm": 9588,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST": {
+    "name": "Electrical Secondary Hoist & Boom & Earthing Lead",
+    "w": 82.34,
+    "arm": 9255,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_AIRCRAFT_SYSTEMS_SEA_TRAY": {
+    "name": "Sea Tray",
+    "w": 10.3,
+    "arm": 8127,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK": {
+    "name": "Dive Bottle / O2 Rack",
+    "w": 7,
+    "arm": 10849,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SAR_EQUIPMENT_FWD_SAR_CABINET": {
+    "name": "SAR Equipment Storage Cabinet",
+    "w": 73.7,
+    "arm": 6275,
+    "normally": false,
+    "maintenanceIncluded": false
+  },
+  "RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM": {
+    "name": "CSH Patient Treatment System (incl floor mount)",
+    "w": 110,
+    "arm": 10375,
+    "normally": false,
+    "maintenanceIncluded": false
+  },
+  "RF_ICE_PROTECTION_MR_SLIP_RING": {
+    "name": "Main Rotor Slip Ring",
+    "w": 12,
+    "arm": 8000,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES": {
+    "name": "WESCAM MX-15 Removable Cables",
+    "w": 3.17,
+    "arm": 1800,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SERVICING_EQUIPMENT_LASHING_KIT": {
+    "name": "Lashing/Tie Down Rings",
+    "w": 9.76,
+    "arm": 7243,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT": {
+    "name": "Field Tool Kit and Spares Pack",
+    "w": 5.98,
+    "arm": 12688,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP": {
+    "name": "Plugs and Covers",
+    "w": 23,
+    "arm": 10690,
+    "normally": true,
+    "maintenanceIncluded": true
   }
 };
 
@@ -1058,7 +1120,32 @@ const AC_PRESETS = {
       "RF_SENSOR_WS",
       "RF_PTA_COT",
       "RF_SAR_CABINET",
-      "RF_EOIR_HANDCTRL"
+      "RF_EOIR_HANDCTRL",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
+      "RF_ICE_PROTECTIO_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
+      "RF_CODE_A_EQUIPMENT",
+      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
+      "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER",
+      "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION",
+      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
+      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
+      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
+      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
+      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
+      "RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
+      "RF_SERVICING_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
     ],
     "roleFitOff": [],
     "missionOn": [
@@ -1152,7 +1239,31 @@ const AC_PRESETS = {
       "RF_EOIR_MX15",
       "RF_SENSOR_WS",
       "RF_SAR_CABINET",
-      "RF_EOIR_HANDCTRL"
+      "RF_EOIR_HANDCTRL",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
+      "RF_ICE_PROTECTIO_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
+      "RF_CODE_A_EQUIPMENT",
+      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
+      "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER",
+      "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION",
+      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
+      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
+      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
+      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
+      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
+      "RF_SERVICING_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
     ],
     "roleFitOff": [
       "RF_PTA_COT"
@@ -1230,7 +1341,28 @@ const AC_PRESETS = {
       "RF_TR_SLIP",
       "RF_FIELD_TOOLKIT",
       "RF_STOW_TOOLKIT",
-      "RF_EOIR_MX15"
+      "RF_EOIR_MX15",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
+      "RF_ICE_PROTECTIO_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
+      "RF_CODE_A_EQUIPMENT",
+      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
+      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
+      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
+      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
+      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
+      "RF_SERVICING_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
     ],
     "roleFitOff": [
       "RF_SAR_CABINET",
@@ -1325,7 +1457,28 @@ const AC_PRESETS = {
       "RF_FIELD_TOOLKIT",
       "RF_STOW_TOOLKIT",
       "RF_RIPU",
-      "RF_RIPU_CABLES"
+      "RF_RIPU_CABLES",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
+      "RF_ICE_PROTECTIO_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
+      "RF_CODE_A_EQUIPMENT",
+      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
+      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
+      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
+      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
+      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
+      "RF_SERVICING_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
     ],
     "roleFitOff": [],
     "missionOn": [

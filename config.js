@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-09-17T03:33:32.013Z
- * Config data version: 9
+ * Prepared as local v0.2.6 / Config v11 snapshot on 2026-09-18T18:33:32.458Z
+ * Config data version: 11
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,19 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 9,
-  "configReleasedAt": "2026-09-17T03:33:32.013Z",
+  "configVersion": 11,
+  "configReleasedAt": "2026-09-18T18:33:32.458Z",
   "changelog": [
+    {
+      "version": 11,
+      "at": "2026-09-18T18:33:32.458Z",
+      "note": "Corrected Maintenance Ladder arm to 14,940 mm."
+    },
+    {
+      "version": 10,
+      "at": "2026-09-18T17:52:12.348Z",
+      "note": "added carry on equipment from RFM to RF equipment"
+    },
     {
       "version": 9,
       "at": "2026-09-17T03:33:32.013Z",
@@ -790,6 +800,27 @@ const AC_ROLE_FIT = {
     "arm": 10690,
     "normally": true,
     "maintenanceIncluded": true
+  },
+  "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW": {
+    "name": "ICS Headset Cables - Crew (3 Off, 6M)",
+    "w": 2.48,
+    "arm": 8625,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX": {
+    "name": "ICS Headset Cables - Passenger (4 Off, 2M)",
+    "w": 1.16,
+    "arm": 8625,
+    "normally": true,
+    "maintenanceIncluded": true
+  },
+  "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER": {
+    "name": "Maintenance Ladder",
+    "w": 27,
+    "arm": 14940,
+    "normally": true,
+    "maintenanceIncluded": true
   }
 };
 
@@ -1145,7 +1176,10 @@ const AC_PRESETS = {
       "RF_SERVICING_FIELD_TOOL_KIT",
       "RF_SERVICING_EQUIPMENT_LASHING_KIT",
       "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
+      "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
     ],
     "roleFitOff": [],
     "missionOn": [
@@ -1263,7 +1297,10 @@ const AC_PRESETS = {
       "RF_SERVICING_FIELD_TOOL_KIT",
       "RF_SERVICING_EQUIPMENT_LASHING_KIT",
       "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
+      "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
     ],
     "roleFitOff": [
       "RF_PTA_COT"
@@ -1362,7 +1399,10 @@ const AC_PRESETS = {
       "RF_SERVICING_FIELD_TOOL_KIT",
       "RF_SERVICING_EQUIPMENT_LASHING_KIT",
       "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
+      "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
     ],
     "roleFitOff": [
       "RF_SAR_CABINET",
@@ -1478,7 +1518,10 @@ const AC_PRESETS = {
       "RF_SERVICING_FIELD_TOOL_KIT",
       "RF_SERVICING_EQUIPMENT_LASHING_KIT",
       "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP"
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
+      "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
+      "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
     ],
     "roleFitOff": [],
     "missionOn": [

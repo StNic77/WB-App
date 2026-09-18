@@ -7,7 +7,7 @@
 // increment the CACHE_VERSION string. Keep this in step with APP_VERSION
 // in persist.js so a release reliably invalidates stale cached assets.
 
-const CACHE_VERSION = 'wb615-v0.2.5-test3';
+const CACHE_VERSION = 'wb615-v0.2.6';
 
 const STATIC_ASSETS = [
   './',

@@ -1977,6 +1977,33 @@ const STOW_MAX = {
   OVERHEAD_STBD:       20.0
 };
 
+function shelfLoadState(assignedKg, additionalKg, maximumKg){
+  const totalKg = assignedKg + additionalKg;
+  const remainingKg = maximumKg - totalKg;
+  return { totalKg, remainingKg, over: remainingKg < -1e-9 };
+}
+
+function assignedShelfLoads(s){
+  const loads = Object.fromEntries(Object.keys(STOW_MAX).map(id => [id, 0]));
+  for (const [key, item] of Object.entries(AC.missionEquip || {})){
+    if (s.mission?.[key] && item.stow in loads){
+      loads[item.stow] += Math.max(0, +item.w || 0);
+    }
+  }
+  return loads;
+}
+
+function overloadedShelves(s){
+  const assigned = assignedShelfLoads(s);
+  const additional = {};
+  for (const zone of (s.zones || [])){
+    if (zone?.id in STOW_MAX) additional[zone.id] = (+additional[zone.id] || 0) + (+zone.w || 0);
+  }
+  return Object.keys(STOW_MAX).filter(id =>
+    shelfLoadState(assigned[id], additional[id] || 0, STOW_MAX[id]).over
+  );
+}
+
 // Build the ordered list of load-planning stowage locations from AC.stowage,
 // keeping only those with a defined max. Arm + name come from config (Section 7).
 function getLoadStowages(){
@@ -2150,7 +2177,7 @@ if (zoneHost){
 
   s.zones = STOWS.map(def => {
     const existing = zoneIndex[def.id];
-    return { id: def.id, w: roundKg(existing && Number.isFinite(+existing.w) ? +existing.w : 0) };
+    return { id: def.id, w: existing && Number.isFinite(+existing.w) ? +existing.w : 0, arm: def.arm };
   });
 
   // Base = sum of ALL live mission-equipment items resolved to each stowage id.
@@ -2158,27 +2185,7 @@ if (zoneHost){
   // so the manual 'Add' field is the only thing contributing to zones.w.
   // Grouping by it.stow (not a hand-maintained map) means every mission item
   // in a location is captured — nothing bypasses the overload guard.
-  const computeZoneBaseKg = (s) => {
-    const base = {};
-    STOWS.forEach(def => { base[def.id] = 0; });
-
-    const mission = (s && s.mission) ? s.mission : {};
-    for (const key of Object.keys(mission)){
-      if (!mission[key]) continue;
-      const it = (AC.missionEquip) ? AC.missionEquip[key] : null;
-      if (!it) continue;
-      const stowId = it.stow;
-      if (base[stowId] == null) continue;   // item lives in a non-loadplan location
-      const ww = +it.w || 0;
-      if (!Number.isFinite(ww) || ww <= 0) continue;
-      base[stowId] += ww;
-    }
-
-    Object.keys(base).forEach(k => base[k] = roundKg(base[k] || 0));
-    return base;
-  };
-
-  const baseByZone = computeZoneBaseKg(s);
+  const baseByZone = assignedShelfLoads(s);
 
   // Availability gating — a stowage row appears only if its structure is fitted.
   //   SAR Cabinet shelves  → RF_SAR_CABINET installed
@@ -2220,14 +2227,14 @@ if (zoneHost){
 
     const baseW = +baseByZone[def.id] || 0;
     const addW  = +entry.w || 0;
-    const totalW = roundKg(baseW + addW);
-    const over = totalW > (+def.max || 0);
+    const {remainingKg: remaining, over} = shelfLoadState(baseW, addW, +def.max || 0);
+    const showKg = value => Number(value.toFixed(10));
 
     totalEl.innerHTML =
-      'Assigned Load: ' + roundKg(baseW) + ' kg' +
-      ' · Additional Load: ' + roundKg(addW) + ' kg' +
+      'Assigned Load: ' + showKg(baseW) + ' kg' +
+      ' · Additional Load: ' + showKg(addW) + ' kg' +
       ' · Maximum Load: ' + def.max + ' kg' +
-      ' · Remaining Capacity: ' + roundKg((+def.max || 0) - totalW) + ' kg' +
+      ' · Remaining Capacity: ' + showKg(remaining) + ' kg' +
       (over ? ' <span class="badge warn" style="margin-left:6px;">OVER</span>' : '');
 totalEl.classList.toggle("over", over);
 
@@ -2347,7 +2354,7 @@ totalEl.classList.toggle("over", over);
 
         <div style="flex:1 1 140px;">
           <div class="lbl">Additional Load (kg)</div>
-          <input ${available ? "" : "disabled "} data-zone="w" data-i="${i}" inputmode="numeric" value="${roundKg(entry.w||0)}"/>
+          <input ${available ? "" : "disabled "} data-zone="w" data-i="${i}" inputmode="decimal" value="${entry.w||0}"/>
         </div>
       </div>
 
@@ -2379,7 +2386,7 @@ totalEl.classList.toggle("over", over);
     };
 
 
-    // Commit: normalize + round once user finishes editing
+    // Commit the entered weight without rounding; shelf limits use this value.
     const onChange = ()=>{
       const i = +inp.dataset.i;
       const entry = s.zones[i];
@@ -2388,7 +2395,7 @@ totalEl.classList.toggle("over", over);
       const v = +inp.value;
       if (!Number.isFinite(v)) return;
 
-      entry.w = roundKg(Math.max(0, v));
+      entry.w = Math.max(0, v);
       inp.value = entry.w; // OK to reset caret now
 
       paintZoneTotal(i);
@@ -3007,31 +3014,34 @@ if (certMsgEl){
     if (!wb.flags.envOk || wb.flags.overweightAirborne){
       msg.push("Hard limits not satisfied (envelope / overweight).");
     }
+    const overloaded = overloadedShelves(s);
+    if (overloaded.length){
+      msg.push("Stowage limit exceeded: " + overloaded.map(id => AC.stowage[id]?.name || id).join(", ") + ".");
+    }
 
     // compare to MCDU values if entered
-    let within = true;
     if (!isNaN(mcduAUW) && mcduAUW>0){
       const dW = Math.abs(mcduAUW - wb.auw);
-      if (dW > tolW){ within=false; msg.push(`AUW mismatch: Δ${dW} kg > ${tolW}`); }
+      if (dW > tolW){ msg.push(`AUW mismatch: Δ${dW} kg > ${tolW}`); }
     } else {
-      within=false; msg.push("Enter MCDU AUW for comparison.");
+      msg.push("Enter MCDU AUW for comparison.");
     }
 
     if (!isNaN(mcduCG) && mcduCG>0){
       const dC = Math.abs(mcduCG - wb.auwCG);
-      if (dC > tolCG){ within=false; msg.push(`CG mismatch: Δ${dC} mm > ${tolCG}`); }
+      if (dC > tolCG){ msg.push(`CG mismatch: Δ${dC} mm > ${tolCG}`); }
     } else {
-      within=false; msg.push("Enter MCDU CG for comparison.");
+      msg.push("Enter MCDU CG for comparison.");
     }
 
     if (!isNaN(mcduFuel) && mcduFuel>=0){
       const dF = Math.abs(mcduFuel - wb.fuelTotal);
-      if (dF > tolFuel){ within=false; msg.push(`Fuel mismatch: Δ${dF} kg > ${tolFuel}`); }
+      if (dF > tolFuel){ msg.push(`Fuel mismatch: Δ${dF} kg > ${tolFuel}`); }
     } else {
-      within=false; msg.push("Enter MCDU fuel total for comparison.");
+      msg.push("Enter MCDU fuel total for comparison.");
     }
 
-    if (!within){
+    if (msg.length){
       document.getElementById("certMsg").innerHTML = `<span class="badge bad">Cannot certify</span> ${msg.join(" · ")}`;
       return;
     }

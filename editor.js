@@ -126,6 +126,18 @@ function editorInitDraft() {
   }
 }
 
+// Deleting an equipment definition must also remove its preset references.
+// Otherwise the exported config retains IDs that no longer have weights/arms.
+function editorRemovePresetItem(key, fields) {
+  for (const preset of Object.values(EDITOR.draft.presets)) {
+    for (const field of fields) {
+      if (Array.isArray(preset[field])) {
+        preset[field] = preset[field].filter(id => id !== key);
+      }
+    }
+  }
+}
+
 
 /* =========================
    ENTRY POINT — called by app.js renderEditor()
@@ -493,6 +505,7 @@ function renderEditorMission(host) {
       const it = EDITOR.draft.missionEquip[k];
       if (!confirm(`Delete "${it?.name || k}"?\n\nThis removes it from the library.`)) return;
       delete EDITOR.draft.missionEquip[k];
+      editorRemovePresetItem(k, ["missionOn", "missionOff"]);
       editorSaveDraft();
       renderEditor();
       if (typeof render === "function") render();
@@ -904,6 +917,7 @@ function renderEditorRoleFit(host) {
       const it = EDITOR.draft.roleFit[k];
       if (!confirm(`Delete "${it?.name || k}"?`)) return;
       delete EDITOR.draft.roleFit[k];
+      editorRemovePresetItem(k, ["roleFitOn", "roleFitOff"]);
       editorSaveDraft();
       renderEditor();
       if (typeof render === "function") render();

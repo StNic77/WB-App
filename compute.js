@@ -352,7 +352,8 @@ function computeWB(tail){
   const cargo = computeCargoTotals(s);
 
   // Load zones / shelves (discrete stowage locations)
-  // NOTE: entries may optionally include an 'arm' field. If missing, that entry contributes weight only if arm is known.
+  // Use the configured stowage arm, including for sessions saved before zones
+  // carried an arm of their own.
   const zones = (() => {
     const list = Array.isArray(s.zones) ? s.zones : [];
     let w = 0;
@@ -360,12 +361,13 @@ function computeWB(tail){
     for (const z of list){
       if (!z) continue;
       const zw = +z.w || 0;
-      const arm = +z.arm; // may be NaN if not present yet
+      const configuredArm = AC.stowage?.[z.id]?.arm;
+      const arm = Number.isFinite(+configuredArm) ? +configuredArm : +z.arm;
       if (!Number.isFinite(zw)) continue;
       w += zw;
       if (Number.isFinite(arm)) m += zw * arm;
     }
-    return { w: roundKg(w), m };
+    return { w, m };
   })();
 
   // Fuel

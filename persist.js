@@ -118,6 +118,12 @@ function restoreSession(){
 function endPersistedSession(){
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
   try { localStorage.removeItem(SPLASH_ACK_KEY); } catch (e) {}  // re-show opening screen
+  // These Certify fields are plain DOM inputs, not part of STORE. Resetting
+  // the sessions alone leaves their previous values visible on the next tail.
+  for (const id of ["mcduAUW", "mcduCG", "mcduFuel", "certSvc"]){
+    const input = document.getElementById(id);
+    if (input) input.value = "";
+  }
   if (typeof initTails === "function"){
     STORE.sessions = {};
     STORE.selectedTail = null;

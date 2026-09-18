@@ -774,6 +774,12 @@ function bindAcceptInputsOnce(){
     maybeInvalidateAcceptanceFromAcceptInputs(tail);
   }
 
+  // no full render on each keystroke; just update small text
+  renderAcceptStateText();
+});
+
+  }
+
   for (const el of document.querySelectorAll('input[name="basicWeightBasis"]')){
     if (el.dataset.bound) continue;
     el.dataset.bound = "1";
@@ -794,13 +800,10 @@ function bindAcceptInputsOnce(){
     });
   }
 
-  // no full render on each keystroke; just update small text
-  renderAcceptStateText();
-});
-
-  }
-
-  document.getElementById("btnAccept").addEventListener("click", ()=>{
+  const acceptButton = document.getElementById("btnAccept");
+  if (acceptButton.dataset.bound) return;
+  acceptButton.dataset.bound = "1";
+  acceptButton.addEventListener("click", ()=>{
     const tail = STORE.selectedTail;
     if (!tail) return;
     const s = STORE.sessions[tail];

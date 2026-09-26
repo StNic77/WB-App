@@ -1,5 +1,10 @@
 # CH-149-615 W&B Release History
 
+## v0.2.9 / Config v12
+- Added a controlled recovery switch between the latest and immediately previous complete, verified offline releases.
+- Added persistent reversionary-version marking and a direct return-to-latest control.
+- Added automatic offline-readiness rechecks while a service-worker update is still installing.
+
 ## v0.2.8 / Config v12
 - Added sortie-specific Custom Exceptions with signed decimal weights, exact arms, source references, calculated moments, documentation review confirmation, certification gating, and PDF reporting.
 - Preserved fractional and negative cargo values through the calculation and displayed negative values on the MCDU-style cargo page.

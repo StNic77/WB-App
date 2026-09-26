@@ -440,7 +440,12 @@ function escapeHtml(value){
 
 window.refreshOfflineReadiness = async function refreshOfflineReadiness(){
   const el=document.getElementById("offlineReadiness");
+  const actions=document.getElementById("offlineRecoveryActions");
+  const previousBtn=document.getElementById("btnUsePreviousRelease");
+  const latestBtn=document.getElementById("btnUseLatestRelease");
+  const recoveryNote=document.getElementById("offlineRecoveryNote");
   if (!el) return;
+  if (actions) actions.hidden=true;
   const paint=(kind,label,text)=>{
     el.innerHTML=`<span class="badge ${kind}">${label}</span> ${text}`;
   };
@@ -460,6 +465,8 @@ window.refreshOfflineReadiness = async function refreshOfflineReadiness(){
     const worker=reg?.active || reg?.waiting || reg?.installing;
     if (!worker){
       paint("warn","Preparing","Offline files have not finished installing. Keep this page open while connected.");
+      clearTimeout(window._wbOfflineRetry);
+      window._wbOfflineRetry=setTimeout(()=>window.refreshOfflineReadiness(),5000);
       return;
     }
     const status=await new Promise((resolve,reject)=>{
@@ -471,7 +478,10 @@ window.refreshOfflineReadiness = async function refreshOfflineReadiness(){
     const expectedApp=(typeof APP_VERSION!=="undefined") ? String(APP_VERSION) : "";
     const expectedConfig=(typeof AC!=="undefined") ? Number(AC.meta?.configVersion) : NaN;
     const versionsMatch=String(status.appVersion)===expectedApp && Number(status.configVersion)===expectedConfig;
-    if (status.ready && versionsMatch){
+    clearTimeout(window._wbOfflineRetry);
+    if (status.ready && status.usingFallback){
+      paint("warn","REVERSIONARY VERSION",`Previous verified release in use · app v${escapeHtml(status.appVersion)} · config v${escapeHtml(status.configVersion)}. Update to the latest verified release when practical.`);
+    } else if (status.ready && versionsMatch){
       paint("good","Ready offline",`Complete release stored · app v${escapeHtml(status.appVersion)} · config v${escapeHtml(status.configVersion)} · ${status.assetCount} required files`);
     } else if (status.ready){
       paint("warn","Update pending",`Stored offline release is app v${escapeHtml(status.appVersion)}, config v${escapeHtml(status.configVersion)}. Reload while connected to finish this update.`);
@@ -479,9 +489,38 @@ window.refreshOfflineReadiness = async function refreshOfflineReadiness(){
       const count=Array.isArray(status.missing) ? status.missing.length : "some";
       paint("bad","Incomplete",`${count} required offline file${count===1?" is":"s are"} missing. Stay connected and reload before relying on offline use.`);
     }
+
+    if (actions && previousBtn && latestBtn && recoveryNote){
+      previousBtn.hidden=!!status.usingFallback || !status.previous;
+      latestBtn.hidden=!status.usingFallback;
+      actions.hidden=previousBtn.hidden && latestBtn.hidden;
+      if (status.usingFallback){
+        recoveryNote.textContent=`Latest verified release: app v${status.latest?.appVersion || "—"}, config v${status.latest?.configVersion || "—"}.`;
+      } else if (status.previous){
+        recoveryNote.textContent=`Recovery release available: app v${status.previous.appVersion}, config v${status.previous.configVersion}.`;
+      }
+      previousBtn.onclick=()=>window.selectOfflineRelease("previous");
+      latestBtn.onclick=()=>window.selectOfflineRelease("latest");
+    }
   } catch (error) {
     paint("warn","Preparing","Offline verification is not yet available. Stay connected and reload once installation finishes.");
+    clearTimeout(window._wbOfflineRetry);
+    window._wbOfflineRetry=setTimeout(()=>window.refreshOfflineReadiness(),5000);
   }
+};
+
+window.selectOfflineRelease = async function selectOfflineRelease(target){
+  const reg=await navigator.serviceWorker.getRegistration("./");
+  const worker=navigator.serviceWorker.controller || reg?.active;
+  if (!worker) return;
+  const result=await new Promise(resolve=>{
+    const channel=new MessageChannel();
+    const timer=setTimeout(()=>resolve({ok:false}),5000);
+    channel.port1.onmessage=e=>{clearTimeout(timer);resolve(e.data||{ok:false});};
+    worker.postMessage({type:"WB615_SELECT_RELEASE",target},[channel.port2]);
+  });
+  if (result.ok) location.reload();
+  else alert("A complete verified recovery release is not available on this device.");
 };
 
 window.addEventListener("online",()=>window.refreshOfflineReadiness());

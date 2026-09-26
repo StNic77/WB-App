@@ -189,6 +189,18 @@ function computeCargoTotals(s){
   return {w, m};
 }
 
+function computeCustomExceptionTotals(s){
+  let w=0, m=0;
+  for (const item of (Array.isArray(s.customExceptions) ? s.customExceptions : [])){
+    const iw = Number(item?.w);
+    const arm = Number(item?.arm);
+    if (!Number.isFinite(iw) || !Number.isFinite(arm)) continue;
+    w += iw;
+    m += iw * arm;
+  }
+  return {w, m};
+}
+
 function solveFuelTanksFromTotal(totalKg){
   // Fill from stages, applying positive deltas only, sequentially, partially if needed.
   // This is a distribution solver for a total fuel amount.
@@ -273,7 +285,7 @@ function computeBurnTrack(tail){
   // Use full non-fuel weight (OW + cargo + bay) and the TRUE moment,
   // not a reconstruction from rounded CG.
   const wb0     = computeWB(tail);
-  const baseW   = wb0.nonFuelW;
+  const baseW   = wb0.nonFuelWExact ?? wb0.nonFuelW;
   const baseM   = wb0.nonFuelM;
 
   const fuelDep  = roundKg(s.fuel?.total ?? 0);
@@ -289,9 +301,10 @@ function computeBurnTrack(tail){
       fw += kg;
       fm += kg * arm;
     }
-    const w  = roundKg(baseW + fw);
+    const wExact = baseW + fw;
+    const w  = roundKg(wExact);
     const m  = baseM + fm;
-    const cg = roundMm(cgFromMoment(w, m) || 0);
+    const cg = roundMm(cgFromMoment(wExact, m) || 0);
     return { w, cg, fuel: roundKg(fw) };
   };
 
@@ -350,6 +363,7 @@ function computeWB(tail){
 
     // Cargo
   const cargo = computeCargoTotals(s);
+  const custom = computeCustomExceptionTotals(s);
 
   // Load zones / shelves (discrete stowage locations)
   // Use the configured stowage arm, including for sessions saved before zones
@@ -416,33 +430,36 @@ function computeWB(tail){
   // ✅ OPERATING WEIGHT (per RFM): Basic + selected items (role-fit, mission equip)
   //    + crew/baggage (seats & occupants) + mission stowages (zones).
   //    Cargo and Bays are TACTICAL PAYLOAD — excluded from OW, added at AUW.
-  const opW = roundKg(basicW + rf.w + me.w + st.w + zones.w);
-  const opM = basicM + rf.m + me.m + st.m + zones.m;
-  const opCG = roundMm(cgFromMoment(opW, opM) || 0);
+  const opWExact = basicW + rf.w + me.w + st.w + zones.w + custom.w;
+  const opW = roundKg(opWExact);
+  const opM = basicM + rf.m + me.m + st.m + zones.m + custom.m;
+  const opCG = roundMm(cgFromMoment(opWExact, opM) || 0);
 
 
   // ✅ AUW = Operating Weight + Payload (Cargo + Bays) + Fuel
-  const auw = roundKg(opW + bay.w + cargo.w + fuel.w);
+  const auwExact = opWExact + bay.w + cargo.w + fuel.w;
+  const auw = roundKg(auwExact);
   const auwM = opM + bay.m + cargo.m + fuel.m;
-  const auwCG = roundMm(cgFromMoment(auw, auwM) || 0);
+  const auwCG = roundMm(cgFromMoment(auwExact, auwM) || 0);
 
   // Envelope checks
   const hardCgOk = (auwCG >= AC.envelope.hardCg.min && auwCG <= AC.envelope.hardCg.max);
   const absCgOk = (auwCG >= AC.envelope.cgAbsolute.min && auwCG <= AC.envelope.cgAbsolute.max);
-  const inMain = pointInPoly({w:auw, cg:auwCG}, AC.envelope.envMain);
-  const inAlt = (auw <= 16000) && (auw >= 15600) && pointInPoly({w:auw, cg:auwCG}, AC.envelope.envAlt.concat([AC.envelope.envAlt[0]]));
+  const inMain = pointInPoly({w:auwExact, cg:auwCG}, AC.envelope.envMain);
+  const inAlt = (auwExact <= 16000) && (auwExact >= 15600) && pointInPoly({w:auwExact, cg:auwCG}, AC.envelope.envAlt.concat([AC.envelope.envAlt[0]]));
   const envOk = (inMain && absCgOk) || (inAlt && absCgOk);
 
   // Weight checks (per your notes)
-  const overweightAirborne = auw > 16000;
-  const altGross = (auw > 15600 && auw <= 16000);
+  const overweightAirborne = auwExact > 16000;
+  const altGross = (auwExact > 15600 && auwExact <= 16000);
 
   const band = cgBand(auwCG);
 
   // Non-fuel totals (OW + tactical payload), with TRUE unrounded moment.
   // Used by the burn track (holds non-fuel constant, varies fuel) and the
   // PDF, so neither has to reconstruct moment from a rounded CG.
-  const nonFuelW = roundKg(opW + bay.w + cargo.w);
+  const nonFuelWExact = opWExact + bay.w + cargo.w;
+  const nonFuelW = roundKg(nonFuelWExact);
   const nonFuelM = opM + bay.m + cargo.m;
 
   return {
@@ -459,16 +476,19 @@ function computeWB(tail){
     seatStructureChanges: st.changes,
     roleEquipmentAdjustmentW: roundKg(rf.w + st.structureW),
     roleEquipmentAdjustmentM: rf.m + st.structureM,
-    opW, opCG, opM,                 // opM = true unrounded OW moment
-    nonFuelW, nonFuelM,             // OW + cargo + bay (no fuel), true moment
+    opW, opWExact, opCG, opM,       // exact mass retained for CG and limits
+    nonFuelW, nonFuelWExact, nonFuelM, // OW + cargo + bay (no fuel), exact mass/moment retained
     fuelTotal: roundKg(s.fuel.total || 0),
     fuelTanks: {...s.fuel.tanks},
     bayTotal:  roundKg(bay.w),
     cabinTotal: roundKg(bay.w),     // retained alias (legacy callers)
     cargoTotal: roundKg(cargo.w),
+    cargoTotalExact: cargo.w,
+    customExceptionW: custom.w,
+    customExceptionM: custom.m,
     zonesTotal: roundKg(zones.w),
 
-    auw, auwCG,
+    auw, auwExact, auwCG,
     cgBand: band,
     flags: {
       hardCgOk, absCgOk, envOk, inMain, inAlt,

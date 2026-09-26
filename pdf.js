@@ -450,6 +450,24 @@ class PDFContext {
       }
       if(wb.seatStructureChanges.length) this.table(["Seat structure","Change","Wt delta","Arm"],wb.seatStructureChanges.map(x=>[x.name,x.current?"Installed":"Removed",`${x.w>0?"+":""}${x.w} kg`,`${x.arm} mm`]),[91,32,30,35]);
     }
+    const custom = Array.isArray(s.customExceptions) ? s.customExceptions : [];
+    this.spacer(2);
+    this.kvRow("Custom Exceptions", custom.length ? `${custom.length} recorded` : "None recorded");
+    if (custom.length){
+      this.table(
+        ["Description", "Wt delta", "Arm", "Moment", "Source / reference"],
+        custom.map(x => {
+          const w=Number(x.w)||0, arm=Number(x.arm)||0;
+          return [x.description || "—", `${w>=0?"+":""}${w} kg`, `${arm} mm`, `${Math.round(w*arm)} kg·mm`, x.source || "—"];
+        }),
+        [53, 24, 23, 38, 50]
+      );
+    } else {
+      this.note("No custom exceptions were recorded for this sortie.");
+    }
+    this.note(s.customExceptionsReviewed
+      ? "Aircraft documentation review was confirmed for custom exceptions."
+      : "Aircraft documentation review was not confirmed.");
     const seatTotals=computeSeatTotals(s);
     const crewOccupants=Object.keys(AC.crewSeats).filter(k=>s.seats[k]&&s.occupants[k]).length;
     const paxOccupants=Object.keys(AC.paxSeats).filter(k=>s.seats[k]&&s.occupants[k]).length;
@@ -785,8 +803,8 @@ class PDFContext {
     const envHl      = wb.flags.envOk ? "good" : "bad";
     const cgStatus   = wb.flags.hardCgOk ? "PASS" : "FAIL";
     const cgHl       = wb.flags.hardCgOk ? "good" : "bad";
-    const auwStatus  = wb.flags.overweightAirborne ? "OVERWEIGHT" : "OK";
-    const auwHl      = wb.flags.overweightAirborne ? "bad" : "good";
+    const auwStatus  = wb.flags.overweightAirborne ? "OVER WEIGHT" : (wb.flags.altGross ? "ALTERNATE GROSS WEIGHT" : "OK");
+    const auwHl      = wb.flags.overweightAirborne ? "bad" : (wb.flags.altGross ? "warn" : "good");
 
     const missionTotals = computeMissionTotals(s);
     const seatTotals = computeSeatTotals(s);
@@ -800,6 +818,7 @@ class PDFContext {
     this.kvRow("Basic Weight Source", wb.basicWeightBasis === "MAINTENANCE" ? "Recorded Aircraft Basic Weight" : "RFM Basic Weight (Beta Testing)");
     this.kvRow("Role-Fit Change from Accepted Basic Weight", signed(wb.roleEquipmentAdjustmentW), null, 82);
     this.note(`Role-Fit Equipment: ${signed(wb.roleFitAdjustmentW)} · Seat Structures: ${signed(wb.seatStructureAdjustmentW)}.`);
+    this.kvRow("Custom Exceptions", signed(wb.customExceptionW));
     this.note("All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.");
     this.kvRow("Mission Equipment", `${signed(Math.round(missionTotals.w))}${missionCG == null ? "" : ` @ ${missionCG} mm`}`);
     this.kvRow("Occupants", `${signed(Math.round(seatTotals.occupantW))}${occupantCG == null ? "" : ` @ ${occupantCG} mm`} (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);

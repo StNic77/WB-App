@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Prepared as local v0.2.6 / Config v11 snapshot on 2026-09-18T18:33:32.458Z
- * Config data version: 11
+ * Prepared for app v0.2.8 / Config v12 on 2026-09-26T18:52:14.635Z
+ * Config data version: 12
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 11,
-  "configReleasedAt": "2026-09-18T18:33:32.458Z",
+  "configVersion": 12,
+  "configReleasedAt": "2026-09-26T18:52:14.635Z",
   "changelog": [
+    {
+      "version": 12,
+      "at": "2026-09-26T18:52:14.635Z",
+      "note": "Corrected Tank 1 arm to 10,875 mm using the Leonardo weight and balance clearance statement."
+    },
     {
       "version": 11,
       "at": "2026-09-18T18:33:32.458Z",
@@ -216,7 +221,7 @@ const AC_RAMP = {
 
 // SECTION 5 — FUEL TANKS
 const AC_FUEL_TANK_ARMS = {
-  "T1": 10884,
+  "T1": 10875,
   "T2": 7375,
   "T3": 6375,
   "T4": 5375,

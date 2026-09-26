@@ -101,6 +101,11 @@
       <div class="row">
         <div class="small" id="configVersionInfo"></div>
       </div>
+      <div class="row" style="margin-top:8px;">
+        <div class="offline-readiness" id="offlineReadiness" role="status">
+          <span class="badge">Checking</span> Verifying offline files…
+        </div>
+      </div>
       <div class="hr"></div>
       <div class="row">
         <button class="btn bad" id="btnEndSession">End Session &amp; Clear All</button>
@@ -208,7 +213,7 @@
   </div>
 </div>
 
-<div class="card"> 
+    <div class="card">
       <h2>Role Fit <small>Installed on this tail</small></h2>
       <div class="callout" id="roleFitBasisMessage" style="margin-bottom:10px;"></div>
       <div id="roleFitList"></div>
@@ -216,6 +221,22 @@
       <div class="small">
         Role-fit changes are reflected immediately in the current calculation and the next PDF output.
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Custom Exceptions <small>Current sortie only</small></h2>
+      <div class="callout small" style="margin-bottom:10px;">
+        Record any installed, removed, or substituted items that are not represented by the standard mission configuration above. Confirm all entries against the current aircraft documentation before continuing.
+      </div>
+      <div id="customExceptionsList"></div>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn" id="btnAddCustomException" type="button">Add Custom Exception</button>
+      </div>
+      <label class="custom-review-check" style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;">
+        <input id="customExceptionsReviewed" type="checkbox" style="width:auto;margin-top:3px;">
+        <span>I have reviewed the current aircraft documentation and recorded all applicable custom exceptions for this sortie.</span>
+      </label>
+      <div class="small" style="margin-top:8px;">Custom exceptions are cleared when the aircraft is returned or the session is ended.</div>
     </div>
 
 
@@ -591,8 +612,15 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('[SW] Registered, scope:', reg.scope))
+        .then(reg => {
+          console.log('[SW] Registered, scope:', reg.scope);
+          return navigator.serviceWorker.ready;
+        })
+        .then(() => window.refreshOfflineReadiness?.())
         .catch(err => console.warn('[SW] Registration failed:', err));
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.refreshOfflineReadiness?.();
+      });
     });
   }
 </script>

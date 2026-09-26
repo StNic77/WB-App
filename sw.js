@@ -1,19 +1,24 @@
-// CH-149-615 W&B App — Service Worker
-// Cache strategy:
-//   config.js  → network-first (custodian updates must propagate promptly)
-//   everything else → cache-first (stable assets: app logic, libraries, images)
-//
-// To force all clients to pick up a new service worker after a push,
-// increment the CACHE_VERSION string. Keep this in step with APP_VERSION
-// in persist.js so a release reliably invalidates stale cached assets.
+// CH-149-615 W&B App — verified offline release service worker
+// Keep this release record synchronized with APP_VERSION in persist.js and
+// AC.meta.configVersion in config.js whenever a controlled release is made.
 
-const CACHE_VERSION = 'wb615-v0.2.7';
+const RELEASE = Object.freeze({
+  appVersion: '0.2.8',
+  configVersion: 12,
+  releaseId: 'v0.2.8-c12-r1'
+});
+const CACHE_PREFIX = 'wb615-release-';
+const CACHE_NAME = CACHE_PREFIX + RELEASE.releaseId;
+const RELEASE_MARKER = './__offline_release__';
 
-const STATIC_ASSETS = [
+// Every file needed for calculation, configuration, display and PDF output.
+// Installation fails if any one of these files cannot be fetched and cached.
+const REQUIRED_ASSETS = Object.freeze([
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './config.js',
   './compute.js',
   './pdf.js',
   './editor.js',
@@ -21,96 +26,91 @@ const STATIC_ASSETS = [
   './persist.js',
   './manifest.json',
   './jspdf.umd.min.js',
-  './icon-192.png',
-  './icon-512.png',
+  './images/icon-192.png',
+  './images/icon-512.png',
   './images/apple-touch-icon.png',
   './images/Schematic_SAR_Crew.png',
-  './images/Schematic_Pax_Seats.png'
-];
+  './images/Schematic_Pax_Seats.png',
+  './images/SAR_3_Pax.png',
+  './images/SAR_10_Pax.png',
+  './images/CASEVAC.png',
+  './images/Transport.png'
+]);
 
-// ── Install: pre-cache all static assets ─────────────────────────────────────
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then(cache => {
-      // Cache static assets; don't fail install if an optional image is missing
-      return cache.addAll(STATIC_ASSETS).catch(err => {
-        console.warn('[SW] Pre-cache partial failure (non-fatal):', err);
-      });
-    })
-  );
-  // Take control immediately — don't wait for old SW to expire
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    try {
+      for (const path of REQUIRED_ASSETS){
+        const request = new Request(path, {cache:'reload'});
+        const response = await fetch(request);
+        if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
+        await cache.put(request, response);
+      }
+      await cache.put(RELEASE_MARKER, new Response(JSON.stringify({
+        ...RELEASE,
+        cacheName: CACHE_NAME,
+        assetCount: REQUIRED_ASSETS.length,
+        verifiedAt: new Date().toISOString()
+      }), {headers:{'Content-Type':'application/json'}}));
+    } catch (error) {
+      await caches.delete(CACHE_NAME);
+      throw error;
+    }
+  })());
   self.skipWaiting();
 });
 
-// ── Activate: delete any old cache versions ───────────────────────────────────
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(key => key !== CACHE_VERSION)
-          .map(key => {
-            console.log('[SW] Deleting old cache:', key);
-            return caches.delete(key);
-          })
-      )
-    )
-  );
-  // Claim all open clients so the new SW takes effect without a reload
-  self.clients.claim();
+  event.waitUntil((async () => {
+    // Remove obsolete release caches only after the new complete cache exists.
+    // The immediately previous verified release is retained for later recovery work.
+    const keys = (await caches.keys()).filter(k => k.startsWith(CACHE_PREFIX));
+    const previous = keys.filter(k => k !== CACHE_NAME).slice(-1);
+    const keep = new Set([CACHE_NAME, ...previous]);
+    await Promise.all(keys.filter(k => !keep.has(k)).map(k => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
-// ── Fetch: route by asset type ────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-
-  // Only handle same-origin requests (app makes no external calls, but be safe)
   if (url.origin !== self.location.origin) return;
 
-  const isConfig = url.pathname.endsWith('/config.js');
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(event.request, {ignoreSearch:true});
+    if (cached) return cached;
 
-  if (isConfig) {
-    // Network-first for config.js: always try to get the latest custodian export.
-    // Fall back to cache only if the network is unreachable (e.g. fully offline).
-    event.respondWith(networkFirstConfig(event.request));
-  } else {
-    // Cache-first for everything else: stable assets load instantly offline.
-    // Background-refresh keeps the cache current for next load.
-    event.respondWith(cacheFirstWithRefresh(event.request));
-  }
+    // A navigation to a route below the app scope still opens the cached shell.
+    if (event.request.mode === 'navigate'){
+      const shell = await cache.match('./index.html');
+      if (shell) return shell;
+    }
+
+    // Non-release same-origin files may use the network, but are never inserted
+    // into the verified release cache.
+    return fetch(event.request);
+  })());
 });
 
-// ── Network-first (config.js) ─────────────────────────────────────────────────
-async function networkFirstConfig(request) {
-  try {
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
-      const cache = await caches.open(CACHE_VERSION);
-      cache.put(request, networkResponse.clone());
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'WB615_OFFLINE_STATUS') return;
+  event.waitUntil((async () => {
+    let ready = false;
+    let missing = [];
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      const checks = await Promise.all(REQUIRED_ASSETS.map(async path => ({
+        path,
+        found: !!(await cache.match(path, {ignoreSearch:true}))
+      })));
+      missing = checks.filter(x => !x.found).map(x => x.path);
+      ready = missing.length === 0 && !!(await cache.match(RELEASE_MARKER));
+    } catch (error) {
+      missing = ['offline cache unavailable'];
     }
-    return networkResponse;
-  } catch {
-    // Network unavailable — serve from cache so app still loads offline
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    // No cache either — return a minimal fallback so the app fails gracefully
-    return new Response('// config.js unavailable offline', {
-      headers: { 'Content-Type': 'application/javascript' }
-    });
-  }
-}
-
-// ── Cache-first with background refresh (static assets) ──────────────────────
-async function cacheFirstWithRefresh(request) {
-  const cached = await caches.match(request);
-  // Kick off a background fetch to keep the cache current
-  const networkFetch = fetch(request).then(async response => {
-    if (response.ok) {
-      const cache = await caches.open(CACHE_VERSION);
-      cache.put(request, response.clone());
-    }
-    return response;
-  }).catch(() => { /* network unavailable — cached copy is fine */ });
-
-  return cached || networkFetch;
-}
+    event.ports?.[0]?.postMessage({ready, missing, ...RELEASE, assetCount:REQUIRED_ASSETS.length});
+  })());
+});

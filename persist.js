@@ -22,8 +22,8 @@
    the new code doesn't expect. Increment STATE_SCHEMA whenever the session
    object shape in makeNewSession() changes.
    ========================= */
-const APP_VERSION  = "0.2.7";   // human-facing release version (shown in UI / PDF)
-const STATE_SCHEMA = 3;         // v2: explicit maintenance baseline/exceptions
+const APP_VERSION  = "0.2.8";   // human-facing release version (shown in UI / PDF)
+const STATE_SCHEMA = 4;         // v4: sortie custom exceptions and review confirmation
 
 const SESSION_KEY = "wb615_session";
 

@@ -1,4 +1,14 @@
-# CH-149-615 W&B v0.2.4-test2 / Config v4
+# CH-149-615 W&B Release History
+
+## v0.2.8 / Config v12
+- Added sortie-specific Custom Exceptions with signed decimal weights, exact arms, source references, calculated moments, documentation review confirmation, certification gating, and PDF reporting.
+- Preserved fractional and negative cargo values through the calculation and displayed negative values on the MCDU-style cargo page.
+- Added Alternate Gross Weight and Over Weight labels at the applicable limits.
+- Corrected Tank 1 arm to 10,875 mm from the Leonardo clearance statement.
+- Retained exact intermediate mass for CG and limit calculations while keeping whole-kilogram presentation where appropriate.
+- Added a verified offline release package containing configuration data, code, PDF support, icons, schematics, and all mission-configuration images.
+- Added a visible offline-readiness indicator and retained the previous verified cache for future recovery support.
+- Corrected web-app manifest icon paths.
 
 Baseline: v0.2.3 (preserved separately).
 

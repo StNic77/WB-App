@@ -126,6 +126,8 @@ function makeNewSession(tail, isPlaceholder){
     fuel,
     cargo,
     bays,
+    customExceptions: [],
+    customExceptionsReviewed: false,
 
     certify: {
       certified:false,
@@ -399,6 +401,8 @@ s.signedOutAt = null;
 // ALSO reset ACCEPT state (service # lives in s.accepted.by)
 s.accepted = { isAccepted:false, by:"", at:null, basicW:null, basicCG:null, fuelLog:null, basicWeightBasis:"MAINTENANCE", maintenanceBaseline:null, maintenanceExceptions:[], referenceDocument:null };
 s.maintenanceDraft = null;
+s.customExceptions = [];
+s.customExceptionsReviewed = false;
 s.acceptanceInvalidated = true;
 
 s.returnedAt = new Date().toISOString();
@@ -425,6 +429,63 @@ function clamp(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); }
 
 function fmtKg(x){ return (x==null ? "—" : `${roundKg(x)} kg`); }
 function fmtMm(x){ return (x==null ? "—" : `${roundMm(x)} mm`); }
+function fmtDecimal(x, places=2){
+  const n=Number(x);
+  if (!Number.isFinite(n)) return "0";
+  return n.toFixed(places).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
+}
+function escapeHtml(value){
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[ch]);
+}
+
+window.refreshOfflineReadiness = async function refreshOfflineReadiness(){
+  const el=document.getElementById("offlineReadiness");
+  if (!el) return;
+  const paint=(kind,label,text)=>{
+    el.innerHTML=`<span class="badge ${kind}">${label}</span> ${text}`;
+  };
+
+  if (!("serviceWorker" in navigator)){
+    paint("bad","Unavailable","This browser does not support offline installation.");
+    return;
+  }
+  if (location.protocol === "file:"){
+    paint("warn","Not installed","Open the app through its local or web address to prepare it for offline use.");
+    return;
+  }
+
+  paint("","Checking","Verifying offline files…");
+  try {
+    const reg=await navigator.serviceWorker.getRegistration("./");
+    const worker=reg?.active || reg?.waiting || reg?.installing;
+    if (!worker){
+      paint("warn","Preparing","Offline files have not finished installing. Keep this page open while connected.");
+      return;
+    }
+    const status=await new Promise((resolve,reject)=>{
+      const channel=new MessageChannel();
+      const timer=setTimeout(()=>reject(new Error("status timeout")),5000);
+      channel.port1.onmessage=e=>{ clearTimeout(timer); resolve(e.data); };
+      worker.postMessage({type:"WB615_OFFLINE_STATUS"},[channel.port2]);
+    });
+    const expectedApp=(typeof APP_VERSION!=="undefined") ? String(APP_VERSION) : "";
+    const expectedConfig=(typeof AC!=="undefined") ? Number(AC.meta?.configVersion) : NaN;
+    const versionsMatch=String(status.appVersion)===expectedApp && Number(status.configVersion)===expectedConfig;
+    if (status.ready && versionsMatch){
+      paint("good","Ready offline",`Complete release stored · app v${escapeHtml(status.appVersion)} · config v${escapeHtml(status.configVersion)} · ${status.assetCount} required files`);
+    } else if (status.ready){
+      paint("warn","Update pending",`Stored offline release is app v${escapeHtml(status.appVersion)}, config v${escapeHtml(status.configVersion)}. Reload while connected to finish this update.`);
+    } else {
+      const count=Array.isArray(status.missing) ? status.missing.length : "some";
+      paint("bad","Incomplete",`${count} required offline file${count===1?" is":"s are"} missing. Stay connected and reload before relying on offline use.`);
+    }
+  } catch (error) {
+    paint("warn","Preparing","Offline verification is not yet available. Stay connected and reload once installation finishes.");
+  }
+};
+
+window.addEventListener("online",()=>window.refreshOfflineReadiness());
+window.addEventListener("offline",()=>window.refreshOfflineReadiness());
 
 function renderMcduAuwCgReplica_TEST(){
   return `
@@ -543,7 +604,9 @@ function renderMcduAuwCgReplica_REAL(wb){
 
   const cgLoc = (wb.cgBand || "").toUpperCase();
 
-  const overAuw = wb.flags?.overweightAirborne ? "OVER AUW" : "";
+  const overAuw = wb.flags?.overweightAirborne
+    ? "OVER WEIGHT"
+    : (wb.flags?.altGross ? "ALTERNATE GROSS WEIGHT" : "");
   const outCg   = (!wb.flags?.hardCgOk || !wb.flags?.envOk) ? "OUT CG" : "";
 
   // build 14 lines
@@ -1166,6 +1229,8 @@ function renderConfig(){
     box.appendChild(t);
   }
 
+  renderCustomExceptions(s);
+
   // KPIs
   const wb = computeWB(tail);
   const presetName = s.preset ? AC.presets[s.preset].name : "None";
@@ -1188,6 +1253,7 @@ function renderConfig(){
     <div class="box"><div class="t">Preset</div><div class="v">${presetName}</div><div class="s">Current configuration</div></div>
     <div class="box"><div class="t">Accepted Basic Weight & CG</div><div class="v">${fmtKg(wb.basicW)} @ ${fmtMm(wb.basicCG)}</div></div>
     <div class="box"><div class="t">Role-Fit Change from Accepted Basic Weight</div><div class="v">${signedKg(roleChangeTotal)}</div><div class="s">Role-Fit Equipment: ${signedKg(wb.roleFitAdjustmentW)} · Seat Structures: ${signedKg(wb.seatStructureAdjustmentW)}<br>All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.</div></div>
+    <div class="box"><div class="t">Custom Exceptions</div><div class="v">${signedKg(wb.customExceptionW)}</div><div class="s">${s.customExceptions.length} entr${s.customExceptions.length===1?"y":"ies"} · ${s.customExceptionsReviewed?"Aircraft documentation reviewed":"Review confirmation required"}</div></div>
     <div class="box"><div class="t">Mission Equipment</div><div class="v">${signedKg(me.w)} @ ${fmtMm(me.w ? Math.round(me.m/me.w) : null)}</div></div>
     <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"}</div></div>
     ${wb.zonesTotal ? `<div class="box"><div class="t">Additional Stowage Load</div><div class="v">${signedKg(wb.zonesTotal)}</div><div class="s">Additional shelf/zone load entered in Load Planning</div></div>` : ""}
@@ -1218,6 +1284,59 @@ function renderConfig(){
       }
     };
   }
+}
+
+function renderCustomExceptions(s){
+  const host=document.getElementById("customExceptionsList");
+  const add=document.getElementById("btnAddCustomException");
+  const reviewed=document.getElementById("customExceptionsReviewed");
+  if (!host || !add || !reviewed) return;
+  if (!Array.isArray(s.customExceptions)) s.customExceptions=[];
+
+  host.innerHTML = s.customExceptions.length ? "" : `<div class="small muted">No custom exceptions have been recorded for this sortie.</div>`;
+  s.customExceptions.forEach((item,index)=>{
+    const row=document.createElement("div");
+    row.className="custom-exception-row";
+    row.innerHTML=`
+      <div class="row">
+        <div style="flex:2 1 220px;"><div class="lbl">Description</div><input data-ce="description" value="${escapeHtml(item.description)}" placeholder="Installed, removed, or substituted item"></div>
+        <div style="flex:1 1 125px;"><div class="lbl">Signed weight (kg)</div><input data-ce="w" type="number" step="any" inputmode="decimal" value="${fmtDecimal(item.w)}" placeholder="+ or −"></div>
+        <div style="flex:1 1 135px;"><div class="lbl">Arm (mm)</div><input data-ce="arm" type="number" step="any" inputmode="decimal" min="0" max="20000" value="${fmtDecimal(item.arm)}"></div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <div style="flex:2 1 260px;"><div class="lbl">Source or reference (optional)</div><input data-ce="source" value="${escapeHtml(item.source)}" placeholder="Document, form, or note"></div>
+        <div style="flex:1 1 190px;"><div class="lbl">Moment</div><div class="mono" data-ce-moment style="padding:10px 0;">${fmtDecimal((+item.w||0)*(+item.arm||0),1)} kg·mm</div></div>
+        <div style="flex:0 0 auto;align-self:flex-end;"><button class="btn bad small" data-ce-remove type="button">Remove</button></div>
+      </div>`;
+    const changed=()=>{ s.customExceptionsReviewed=false; reviewed.checked=false; };
+    row.querySelectorAll("input[data-ce]").forEach(input=>{
+      input.oninput=()=>{
+        const field=input.dataset.ce;
+        if (field==="w") item.w=clamp(Number(input.value)||0,-6000,6000);
+        else if (field==="arm") item.arm=clamp(Number(input.value)||0,0,20000);
+        else item[field]=input.value.trim();
+        changed();
+        row.querySelector("[data-ce-moment]").textContent=`${fmtDecimal((+item.w||0)*(+item.arm||0),1)} kg·mm`;
+        if (typeof persistSession === "function") persistSession();
+      };
+      input.onchange=()=>{
+        if (input.dataset.ce==="w") input.value=fmtDecimal(item.w);
+        if (input.dataset.ce==="arm") input.value=fmtDecimal(item.arm);
+      };
+    });
+    row.querySelector("[data-ce-remove]").onclick=()=>{
+      s.customExceptions.splice(index,1); changed(); render();
+    };
+    host.appendChild(row);
+  });
+
+  add.onclick=()=>{
+    s.customExceptions.push({id:`CE-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,description:"",w:0,arm:0,source:""});
+    s.customExceptionsReviewed=false;
+    render();
+  };
+  reviewed.checked=!!s.customExceptionsReviewed;
+  reviewed.onchange=()=>{ s.customExceptionsReviewed=reviewed.checked; render(); };
 }
 
 
@@ -2058,7 +2177,7 @@ try {
     const cargo = (s && Array.isArray(s.cargo)) ? s.cargo : [];
     for (let i=0; i<4; i++){
       const c = cargo[i] || {w:0, arm:0};
-      const w = Math.round((typeof roundKg === "function") ? roundKg(c.w || 0) : (c.w || 0));
+      const w = Number(c.w) === 0 ? "----" : fmtDecimal(c.w || 0, 2);
       const arm = Math.round((typeof roundMm === "function") ? roundMm(c.arm || 0) : (c.arm || 0));
 
       // Label row: WEIGHT (left) | CARGO X (center) | DIST (right)
@@ -2079,7 +2198,7 @@ lines.push(labelRow);
 
 // Value row (keep your current numbers unchanged for now)
 const leftBox =
-  "[[G]][ " + padL(w > 0 ? w : "----", 4)
+  "[[G]][ " + padL(w, 6)
  + "[[/G]]KG[[G]] ][[/G]]";   // digits + brackets green, KG white
 
 const rightBox =
@@ -2133,7 +2252,7 @@ mcduWriteMirror("mcduCargoMirror", lines);
         '<div class="row">' +
           '<div style="flex:1 1 140px;">' +
             '<div class="lbl">Weight (kg)</div>' +
-            '<input data-cargo="w" data-idx="' + idx + '" inputmode="numeric" value="' + roundKg(c.w||0) + '"/>' +
+            '<input data-cargo="w" data-idx="' + idx + '" type="number" step="any" inputmode="decimal" value="' + fmtDecimal(c.w||0) + '"/>' +
           '</div>' +
           '<div style="flex:1 1 160px;">' +
             '<div class="lbl">Distance (mm)</div>' +
@@ -2156,7 +2275,7 @@ mcduWriteMirror("mcduCargoMirror", lines);
         if (!Number.isFinite(v)) return;
 
         if (field === "w"){
-          item.w = roundKg(Math.min(6000, Math.max(-6000, v)));
+          item.w = Math.min(6000, Math.max(-6000, v));
         } else if (field === "arm"){
           item.arm = roundMm(Math.min(14400, Math.max(4200, v)));
         }
@@ -2982,6 +3101,7 @@ if (certMsgEl){
     <div><b>FUEL</b>: <span class="mono">${wb.fuelTotal}</span> kg</div>
     <div><b>CABIN (Bay total)</b>: <span class="mono">${wb.cabinTotal}</span> kg</div>
     <div><b>CARGO (total)</b>: <span class="mono">${wb.cargoTotal}</span> kg</div>
+    <div><b>CUSTOM EXCEPTIONS</b>: <span class="mono">${fmtDecimal(wb.customExceptionW)}</span> kg</div>
     <div class="hr"></div>
     <div><b>AUW</b>: <span class="mono">${wb.auw}</span> kg</div>
     <div><b>CG</b>: <span class="mono">${wb.auwCG}</span> mm <span class="badge">${wb.cgBand}</span></div>
@@ -3011,6 +3131,13 @@ if (certMsgEl){
     // must have accepted
     if (!s.accepted.isAccepted){
       msg.push("Not accepted (verify log set first).");
+    }
+    if (!s.customExceptionsReviewed){
+      msg.push("Custom Exceptions review has not been confirmed on Mission Configuration.");
+    }
+    const invalidCustom=(s.customExceptions||[]).filter(x => !String(x.description||"").trim() || !Number.isFinite(Number(x.w)) || Number(x.w)===0 || !Number.isFinite(Number(x.arm)) || Number(x.arm)<=0);
+    if (invalidCustom.length){
+      msg.push("Complete each Custom Exception description, non-zero signed weight, and arm.");
     }
 
     // envelope

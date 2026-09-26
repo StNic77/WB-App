@@ -440,6 +440,21 @@ margin: 0 auto;
       background:rgba(255,191,60,.08);
     }
     .offline-recovery-actions[hidden]{display:none;}
+    .splash-offline-guide{
+      margin-top:12px;
+      padding:12px 14px;
+      border:1px solid rgba(98,168,255,.32);
+      border-radius:12px;
+      background:rgba(98,168,255,.08);
+      color:var(--text);
+      font-size:13px;
+      line-height:1.45;
+    }
+    .splash-offline-guide ol{
+      margin:8px 0 0 20px;
+      padding:0;
+    }
+    .splash-offline-guide li{margin:5px 0;}
     .custom-exception-row{
       padding:12px;
       margin-bottom:10px;

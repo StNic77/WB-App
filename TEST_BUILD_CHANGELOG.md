@@ -1,5 +1,9 @@
 # CH-149-615 W&B Release History
 
+## v0.2.10 / Config v12
+- Added offline preparation, update activation, reversionary operation, and return-to-latest instructions to the opening version screen.
+- The opening version screen now reappears when either the app version or configuration version changes.
+
 ## v0.2.9 / Config v12
 - Added a controlled recovery switch between the latest and immediately previous complete, verified offline releases.
 - Added persistent reversionary-version marking and a direct return-to-latest control.

@@ -22,7 +22,7 @@
    the new code doesn't expect. Increment STATE_SCHEMA whenever the session
    object shape in makeNewSession() changes.
    ========================= */
-const APP_VERSION  = "0.2.9";   // human-facing release version (shown in UI / PDF)
+const APP_VERSION  = "0.2.10";  // human-facing release version (shown in UI / PDF)
 const STATE_SCHEMA = 4;         // v4: sortie custom exceptions and review confirmation
 
 const SESSION_KEY = "wb615_session";
@@ -166,10 +166,10 @@ function splashShouldShow(){
   try {
     const acked = localStorage.getItem(SPLASH_ACK_KEY);
     if (acked == null) return true;                 // never acknowledged → new session
-    const ackedV = Number(acked);
-    const curV   = currentConfigVersion();
-    if (curV == null) return false;                 // no version info → don't nag
-    return ackedV !== curV;                          // config changed since last ack
+    const curV = currentConfigVersion();
+    if (curV == null) return false;
+    const appV = (typeof APP_VERSION !== "undefined") ? APP_VERSION : "unknown";
+    return acked !== `${appV}|${curV}`;              // app or config changed since acknowledgement
   } catch (e) {
     return true; // storage unavailable → show (fail safe toward informing)
   }
@@ -179,7 +179,8 @@ function splashShouldShow(){
 function splashAcknowledge(){
   try {
     const curV = currentConfigVersion();
-    localStorage.setItem(SPLASH_ACK_KEY, String(curV == null ? "" : curV));
+    const appV = (typeof APP_VERSION !== "undefined") ? APP_VERSION : "unknown";
+    localStorage.setItem(SPLASH_ACK_KEY, curV == null ? "" : `${appV}|${curV}`);
   } catch (e) { /* non-fatal */ }
 }
 

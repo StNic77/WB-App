@@ -50,7 +50,7 @@ function renderCustomExceptions(s){
   for(const [index,item] of s.customExceptions.entries()){
     const row=document.createElement('div');row.className='custom-exception-row';
     const options=Object.entries(AC.roleFit).sort((a,b)=>a[1].name.localeCompare(b[1].name)).map(([key,value])=>`<option value="${key}" ${customRoleFitKey(item)===key?'selected':''}>${escapeHtml(value.name)}</option>`).join('');
-    row.innerHTML=`<div class="row"><div style="flex:2 1 220px"><div class="lbl">Description</div><input data-ce="description" value="${escapeHtml(item.description)}"></div><div style="flex:1 1 125px"><div class="lbl">Signed item weight (kg)</div><input data-ce="w" type="number" step="any" value="${fmtDecimal(item.w)}"></div><div style="flex:1 1 125px"><div class="lbl">Arm (mm)</div><input data-ce="arm" type="number" step="any" value="${fmtDecimal(item.arm)}"></div></div>
+    row.innerHTML=`<div class="row"><div style="flex:2 1 220px"><div class="lbl">Description</div><input data-ce="description" value="${escapeHtml(item.description)}"></div><div style="flex:1 1 125px"><div class="lbl">Signed item weight (kg)</div><div class="custom-weight-input"><input data-ce="w" type="number" inputmode="decimal" step="any" aria-label="Signed item weight in kilograms" value="${fmtDecimal(item.w)}"><button class="btn" type="button" data-ce-sign aria-label="Switch weight between positive and negative">+/−</button></div><div class="small muted">Enter the weight, then tap +/− to make it an addition or removal.</div></div><div style="flex:1 1 125px"><div class="lbl">Arm (mm)</div><input data-ce="arm" type="number" step="any" value="${fmtDecimal(item.arm)}"></div></div>
       <div class="row" style="margin-top:8px"><div style="flex:1 1 220px"><div class="lbl">Accounting</div><select data-ce-accounting><option value="APPLY" ${item.accounting!=='ACCOUNTED'?'selected':''}>APPLY — adjust accepted weight</option><option value="ACCOUNTED" ${item.accounting==='ACCOUNTED'?'selected':''}>ACCOUNTED — already included</option></select></div><div style="flex:1 1 260px"><div class="lbl">Listed item (prevents duplicate accounting)</div><select data-ce-link><option value="">Separate unlisted item</option>${options}</select></div></div>
       <div class="row" style="margin-top:8px"><div style="flex:2 1 240px"><div class="lbl">Source / reference</div><input data-ce="source" value="${escapeHtml(item.source)}"></div><div style="flex:1 1 190px"><div class="lbl">Applied adjustment</div><div class="mono" data-ce-applied></div></div><button class="btn bad small" data-ce-remove type="button">Delete entry</button></div>`;
     const refreshApplied=()=>{const applied=customExceptionAccountingRows(s)[index];row.querySelector('[data-ce-applied]').textContent=`${fmtDecimal(applied.w)} kg · ${fmtDecimal(applied.m,2)} kg·mm`;};
@@ -60,6 +60,14 @@ function renderCustomExceptions(s){
       input.onchange=()=>render();
     });
     row.querySelector('[data-ce-accounting]').onchange=event=>{item.accounting=event.target.value;changed();render();};
+    const signButton=row.querySelector('[data-ce-sign]');
+    // Keep the weight field focused: its blur handler otherwise rebuilds this button before click.
+    signButton.onpointerdown=event=>event.preventDefault();
+    signButton.onclick=()=>{
+      const input=row.querySelector('[data-ce="w"]');
+      item.w=clamp(-(Number(input.value)||0),-6000,6000);
+      input.value=fmtDecimal(item.w);changed();
+    };
     row.querySelector('[data-ce-link]').onchange=event=>{
       const key=event.target.value;
       if(key&&s.customExceptions.some(other=>other!==item&&customRoleFitKey(other)===key)){alert('Another Custom Exception already represents this item. Edit that entry instead.');render();return;}

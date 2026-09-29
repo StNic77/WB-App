@@ -70,6 +70,7 @@ function generateWBReport() {
   ctx.drawLoadPlanning();     // 8
   ctx.drawCertification();    // 9
   ctx.drawRoleFitAppendix();  // Appendix A — Role-Fit Installed
+  ctx.drawCustomExceptionsAppendix(); // Appendix B
 
   // File name: WB_615_[TAIL]_[YYYYMMDD]_Z[HH:MM].pdf — all UTC (Zulu)
   const now     = new Date();
@@ -441,7 +442,7 @@ class PDFContext {
     this.kvRow("Listed role-fit adjustment",signedAccounting(wb.roleFitAdjustmentW)+" kg");
     this.kvRow("Seat-structure adjustment",signedAccounting(wb.seatStructureAdjustmentW)+" kg");
     this.kvRow("Custom-exception adjustment",signedAccounting(wb.customExceptionW)+" kg");
-    this.note("The complete equipment accounting trail, including zero-delta ACCOUNTED entries, appears with the accepted aircraft record in Section 1.");
+    this.note("Full role-fit declarations: Appendix A. Custom exception details: Appendix B.");
     if(wb.seatStructureChanges.length) this.table(["Seat structure","Change","Delta kg","Arm mm"],wb.seatStructureChanges.map(x=>[x.name,x.current?"Installed":"Removed",signedAccounting(x.w),String(x.arm)]),[91,32,30,35]);
     this.note(s.customExceptionsReviewed?"Aircraft documentation review was confirmed for custom exceptions.":"Aircraft documentation review was not confirmed.");
     const seatTotals=computeSeatTotals(s);
@@ -1162,16 +1163,33 @@ class PDFContext {
   }
 
   drawAccountingTrail() {
-    const s=this.s, rf=roleFitAccountingRows(s).filter(x=>x.declaration!=="NEUTRAL"&&!x.custom);
-    const custom=customExceptionAccountingRows(s);
-    this.spacer(2);this.kvRow("Equipment accounting","Adjustments relative to accepted aircraft weight and moment");
-    const rows=rf.map(x=>[x.name,ROLE_FIT_LABELS[x.declaration],fmtDecimal(x.itemW),signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
-    for(const x of custom) rows.push(["Custom: "+(x.description||"Unnamed")+(x.source?" / "+x.source:""),x.accounting,fmtDecimal(x.inputW),signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
-    if(rows.length)this.table(["Item / source","Declaration","Item kg","Delta kg","Arm mm","Delta kg·mm"],rows,[57,27,24,24,22,34]);
-    else this.note("No equipment adjustments or ACCOUNTED declarations recorded. Neutral does not declare an item absent.");
-    const listed=computeRoleFitAdjustment(s), exceptions=computeCustomExceptionTotals(s);
-    this.kvRow("Net listed + custom adjustment",signedAccounting(listed.w+exceptions.w)+" kg / "+signedAccounting(listed.m+exceptions.m)+" kg·mm");
-    this.note("ACCOUNTED entries retain their supplied item weight and arm for traceability but apply zero weight and moment. Accepted maintenance removals are already included and are not subtracted again. Seat structures, occupants, mission loads and fuel are reported separately.");
+    const rf=roleFitAccountingRows(this.s).filter(x=>!x.custom&&(x.w!==0||x.m!==0));
+    const custom=customExceptionAccountingRows(this.s).filter(x=>x.w!==0||x.m!==0);
+    const rows=rf.map(x=>[x.name,signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
+    for(const x of custom) rows.push(["Custom: "+(x.description||"Unnamed"),signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
+    this.spacer(2);this.kvRow("Changes from accepted weight",rows.length?"Applied equipment adjustments":"None");
+    if(rows.length){
+      this.table(["Item","Delta kg","Arm mm","Delta kg·mm"],rows,[100,26,26,36]);
+      const w=[...rf,...custom].reduce((sum,x)=>sum+x.w,0),m=[...rf,...custom].reduce((sum,x)=>sum+x.m,0);
+      this.kvRow("Net equipment adjustment",signedAccounting(w)+" kg / "+signedAccounting(m)+" kg·mm");
+    } else this.note("No equipment weight adjustments.");
+    this.note("Full role-fit declarations: Appendix A. Custom exception details: Appendix B. Seat changes are listed in Mission Configuration.");
+  }
+
+  drawCustomExceptionsAppendix() {
+    this.newPage();this.sectionHeader("Appendix B · Custom Exceptions");
+    this.note(this.s.customExceptionsReviewed?"Current aircraft documentation review confirmed.":"Aircraft documentation review not confirmed.");
+    const rows=customExceptionAccountingRows(this.s);
+    if(!rows.length){this.note("No custom exceptions recorded.");return;}
+    for(const x of rows){
+      this.checkPageBreak(55);
+      this.kvRow("Custom exception",x.description||"Unnamed");
+      if(x.source)this.kvRow("Reference",x.source);
+      if(x.key)this.kvRow("Linked role-fit item",AC.roleFit[x.key]?.name||x.key);
+      this.kvRow("Treatment",x.accounting==='ACCOUNTED'?"Already reflected — no adjustment":"Apply adjustment to accepted weight");
+      this.table(["Signed item kg","Arm mm","Applied kg","Applied kg·mm"],[[fmtDecimal(x.inputW),fmtDecimal(x.arm),signedAccounting(x.w),signedAccounting(x.m)]],[47,47,47,47]);
+      this.spacer(3);
+    }
   }
 
   drawCertification() {

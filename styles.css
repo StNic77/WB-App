@@ -1192,3 +1192,6 @@ body.theme-light .xcheck-input-card {
 .documentation-review[data-reviewed="false"] { border:2px solid #bc8b16; background:rgba(225,174,40,.14); }
 .documentation-review[data-reviewed="true"] { border:2px solid #329964; background:rgba(50,153,100,.14); }
 #documentationReviewStatus { font-weight:700; }
+.custom-weight-input { display:flex; gap:8px; align-items:center; }
+.custom-weight-input input { min-width:0; flex:1; }
+.custom-weight-input button { min-width:48px; min-height:44px; flex-shrink:0; touch-action:manipulation; }

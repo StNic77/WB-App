@@ -41,7 +41,7 @@
         <div class="splash-vlabel">CONFIGURATION VERSION</div>
         <div class="splash-vnum" id="splashCfgVer">—</div>
         <div class="splash-vdesc">The <b>aircraft data</b> — arms, weights, envelope, equipment, presets.
-          Changes when the squadron custodian publishes updated data.</div>
+          Changes when the fleet custodian publishes updated data.</div>
       </div>
     </div>
 
@@ -228,20 +228,10 @@
   </div>
 </div>
 
-    <div class="card">
-      <h2>Role Fit <small>Installed on this tail</small></h2>
-      <div class="callout" id="roleFitBasisMessage" style="margin-bottom:10px;"></div>
-      <div id="roleFitList"></div>
-      <div class="hr"></div>
-      <div class="small">
-        Role-fit changes are reflected immediately in the current calculation and the next PDF output.
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Custom Exceptions <small>Current sortie only</small></h2>
+    <div class="card documentation-review" id="customExceptionsCard" data-reviewed="false">
+      <h2>Custom Exceptions <small>Current sortie only</small></h2><p id="documentationReviewStatus" role="status"></p><p>Before certifying weight and balance, review the current aircraft documentation and record any applicable additions, removals or substitutions below. Check the confirmation box even if there are no custom exceptions.</p>
       <div class="callout small" style="margin-bottom:10px;">
-        Record any installed, removed, or substituted items that are not represented by the standard mission configuration above. Confirm all entries against the current aircraft documentation before continuing.
+        Record additions, removals or substitutions. Choose APPLY to adjust the accepted weight, or ACCOUNTED when the signed change is already included in it. If an entry represents a listed role-fit item, select that item below so it is counted only here. Confirm all entries against aircraft documentation.
       </div>
       <div id="customExceptionsList"></div>
       <div class="row" style="margin-top:10px;">
@@ -254,6 +244,20 @@
       <div class="small" style="margin-top:8px;">Custom exceptions are cleared when the aircraft is returned or the session is ended.</div>
     </div>
 
+
+    <div class="card">
+      <div id="accountingReviewNotice" class="callout" hidden></div>
+      <div id="accountingIssues" class="callout" role="alert" hidden></div>
+      <details id="roleFitDetails">
+      <summary><strong>Role Fit</strong> <span class="small">— show / hide equipment list</span></summary>
+      <div class="callout" id="roleFitBasisMessage" style="margin-bottom:10px;"></div>
+      <div id="roleFitList"></div>
+      <div class="hr"></div>
+      <div class="small">
+        Role-fit changes are reflected immediately in the current calculation and the next PDF output.
+      </div>
+      </details>
+    </div>
 
     <div class="card">
       <h2>Summary</h2>
@@ -615,11 +619,13 @@
 
 <script src="jspdf.umd.min.js"></script>
 <script src="config.js"></script>
+<script src="accounting.js"></script>
 <script src="persist.js"></script>
 <script src="mcdu.js"></script>
 <script src="compute.js"></script>
 <script src="pdf.js"></script>
 <script src="editor.js"></script>
+<script src="accounting-ui.js"></script>
 <script src="app.js"></script>
 
 <script>

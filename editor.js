@@ -36,7 +36,11 @@ function editorSaveDraft() {
   // Persist current draft to localStorage and mutate AC so the rest
   // of the app immediately sees the changes without a reload.
   try {
+    for(const preset of Object.values(EDITOR.draft.presets)){
+      for(const field of ['roleFitOn','roleFitOff']) preset[field]=[...new Set((preset[field]||[]).filter(k=>!!EDITOR.draft.roleFit[k]))];
+    }
     const payload = {
+      roleFitAccountingVersion: 1,
       missionEquip: EDITOR.draft.missionEquip,
       stowage:      EDITOR.draft.stowage,
       roleFit:      EDITOR.draft.roleFit,
@@ -71,16 +75,21 @@ function editorSaveDraft() {
     for (const tail of Object.keys(STORE.sessions || {})) {
       const s = STORE.sessions[tail];
       if (!s || !s.roleFit) continue;
+      pruneStaleRoleFitReferences(s);
+      invalidateAccountingCertification(s);
       for (const k of Object.keys(EDITOR.draft.roleFit)) {
         // Only update keys that don't already have an explicit session value set
         // by a preset (i.e. the user hasn't deliberately toggled it off).
         // We update ALL keys that don't yet exist in the session (new items),
         // and re-sync the `normally` default for existing ones.
         if (!(k in s.roleFit)) {
-          s.roleFit[k] = !!EDITOR.draft.roleFit[k].normally;
+          s.roleFit[k] = false;
+          s.roleFitDeclarations=s.roleFitDeclarations||{};
+          s.roleFitDeclarations[k]="NEUTRAL";
         }
       }
     }
+    persistSession();
   } catch (e) {
     alert("Failed to save changes: " + e.message);
   }
@@ -312,7 +321,7 @@ function renderEditorSeatBaseline(host){
   for(const [k,it,group] of entries){
     const fixed=!!it.includedInRfmBasic;
     const row=document.createElement("div"); row.className="toggle";
-    row.innerHTML=`<div class="left"><div class="name">${k} · ${escHtml(it.name)}</div><div class="meta mono">${it.wSeat} kg @ ${it.arm} mm${fixed?" · included in RFM Basic Weight":" · variable Role Equipment"}</div></div><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="normallyInstalled" ${it.normallyInstalled||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Normally installed</label><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="maintenanceIncluded" ${it.maintenanceIncluded||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Included in Maintenance BW</label>`;
+    row.innerHTML=`<div class="left"><div class="name">${k} · ${escHtml(it.name)}</div><div class="meta mono">${it.wSeat} kg @ ${it.arm} mm${group==="crew"?" · Occupant 90.7 kg @ "+(it.occupantArm ?? it.arm)+" mm":""}${fixed?" · included in RFM Basic Weight":" · variable Role Equipment"}</div></div><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="normallyInstalled" ${it.normallyInstalled||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Normally installed</label><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="maintenanceIncluded" ${it.maintenanceIncluded||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Included in Maintenance BW</label>`;
     list.appendChild(row);
   }
   list.querySelectorAll("input[data-seat]").forEach(el=>el.onchange=()=>{
@@ -874,18 +883,7 @@ function renderEditorRoleFit(host) {
       const it = EDITOR.draft.roleFit[k];
       if (!it) return;
       it[f] = el.checked === true;
-      // Push the new normally value into all live sessions that haven't had
-      // this item explicitly overridden by a preset already.
-      if (f === "normally") {
-        for (const tail of Object.keys(STORE.sessions || {})) {
-          const s = STORE.sessions[tail];
-          if (s?.roleFit && k in s.roleFit) {
-            // Only update if the current session value still matches the OLD normally
-            // default (i.e. the user hasn't manually toggled it away from default).
-            s.roleFit[k] = it.normally;
-          }
-        }
-      }
+      // Fleet defaults never replace per-sortie declarations.
       editorSaveDraft();
     });
   });

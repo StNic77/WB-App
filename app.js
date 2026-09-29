@@ -11,26 +11,11 @@ function currentReferenceDocument(){
 }
 function formatReferenceDocument(doc){
   if (!doc) return "Reference document not set";
+  if(doc.buildDate) return `${doc.designation} ${doc.versionType} ${doc.version} ${doc.status} (Built ${doc.buildDate})`;
   const ver = [doc.versionType, doc.version].filter(Boolean).join(" ");
   return `${doc.designation || ""}${ver ? ", " + ver : ""}${doc.versionDate ? " (" + doc.versionDate + ")" : ""}${doc.status ? " — " + doc.status : ""}`.trim();
 }
-function maintenanceLockedRoleFit(s, key){
-  if (!s?.accepted?.isAccepted || basicWeightBasis(s) !== "MAINTENANCE") return false;
-
-  // Primary source: explicit exception keys captured when ACCEPT is clicked.
-  // This avoids inferring a locked exception later from mutable mission-config state.
-  const explicit = Array.isArray(s.accepted.maintenanceExceptions)
-    ? s.accepted.maintenanceExceptions
-    : null;
-  if (explicit) return explicit.includes(key);
-
-  // Backward-compatible fallback for sessions created before explicit exception snapshots.
-  const fleet = fleetMaintenanceBaseline();
-  const accepted = s.accepted.maintenanceBaseline?.roleFit || {};
-  return !!fleet.roleFit[key] && accepted[key] === false;
-}
-
-
+function maintenanceLockedRoleFit(s,key){ return roleFitRemovedInAcceptedRecord(s,key); }
 
 /* =========================
    INIT TAILS / SESSIONS
@@ -55,7 +40,7 @@ function makeNewSession(tail, isPlaceholder){
   // Default role-fit state = "normally installed"
   const roleFitState = {};
   for (const k of Object.keys(AC.roleFit)){
-    roleFitState[k] = !!AC.roleFit[k].normally;
+    roleFitState[k] = false;
   }
   normalizeRoleFitState(roleFitState);
 
@@ -119,6 +104,9 @@ function makeNewSession(tail, isPlaceholder){
     maintenanceDraft: null,
 
     roleFit: roleFitState,
+    roleFitDeclarations: Object.fromEntries(Object.keys(AC.roleFit).map(key=>[key,"NEUTRAL"])),
+    roleFitDeclarationOrigins: {},
+    accountingReviewRequired: false,
     mission: missionState,
     seats: seatState,
     occupants: occupant,
@@ -403,6 +391,10 @@ s.accepted = { isAccepted:false, by:"", at:null, basicW:null, basicCG:null, fuel
 s.maintenanceDraft = null;
 s.customExceptions = [];
 s.customExceptionsReviewed = false;
+s.roleFitDeclarations=Object.fromEntries(Object.keys(AC.roleFit).map(key=>[key,"NEUTRAL"]));
+s.roleFitDeclarationOrigins={};
+s.accountingReviewRequired=false;
+syncRoleFitPhysicalState(s);
 s.acceptanceInvalidated = true;
 
 s.returnedAt = new Date().toISOString();
@@ -924,7 +916,7 @@ function bindAcceptInputsOnce(){
       return;
     }
 
-    s.accepted.basicW = roundKg(bw);
+    s.accepted.basicW = bw;
     s.accepted.basicCG = roundMm(bcg);
     s.accepted.fuelLog = roundKg(isNaN(fuel) ? 0 : fuel);
     s.accepted.by = svc;
@@ -950,7 +942,7 @@ s.accepted.isAccepted = true;
       );
 
       // Immediately force the live role-fit state to respect the accepted record.
-      for (const k of s.accepted.maintenanceExceptions) s.roleFit[k] = false;
+      for (const k of s.accepted.maintenanceExceptions) setRoleFitDeclaration(s,k,"NEUTRAL","accepted");
     } else {
       s.accepted.maintenanceBaseline = null;
       s.accepted.maintenanceExceptions = [];
@@ -1131,15 +1123,9 @@ function applyPreset(tail, presetKey){
   }
 
 
-  // RoleFit: destructive apply (clear then apply)
-  for (const k of Object.keys(s.roleFit)) s.roleFit[k] = false;
-  for (const k of (p.roleFitOn  || [])) s.roleFit[k] = true;
-  for (const k of (p.roleFitOff || [])) s.roleFit[k] = false;
-
-  // Accepted maintenance removals are authoritative for this session.
-  if (s.accepted?.isAccepted && basicWeightBasis(s) === "MAINTENANCE") {
-    for (const k of Object.keys(s.roleFit)) if (maintenanceLockedRoleFit(s,k)) s.roleFit[k] = false;
-  }
+  // Presets own only preset-generated declarations; manual accounting is protected.
+  applyRoleFitPreset(s,p);
+  invalidateAccountingCertification(s);
 
   // Mission baseline: destructive apply (clear then apply)
   for (const k of Object.keys(s.mission)) s.mission[k] = false;
@@ -1151,7 +1137,7 @@ function applyPreset(tail, presetKey){
   for (const [k,it] of Object.entries(AC.missionEquip)) {
     if ((it.group || "") !== "Stowage" || (+it.w || 0) !== 0) continue;
     const loc = AC.stowage?.[it.stow];
-    s.mission[k] = (loc?.group === "SAR Cabinet") ? !!s.roleFit["RF_SAR_CABINET"] : true;
+    s.mission[k] = (loc?.group === "SAR Cabinet") ? roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET") : true;
   }
 
   // Dependency enforcement (hand controller, etc.)
@@ -1208,97 +1194,12 @@ function renderConfig(){
     }
   }
 
-  // role fit list with toggles (installed/uninstalled)
-  const box = document.getElementById("roleFitList");
-  box.innerHTML = "";
-  const basis = basicWeightBasis(s);
-  const baseline = s.accepted.maintenanceBaseline?.roleFit || {};
-  const basisMsg = document.getElementById("roleFitBasisMessage");
-  if (basisMsg) basisMsg.innerHTML = basis === "MAINTENANCE"
-    ? (s.accepted.maintenanceBaseline
-      ? `<b>Recorded Aircraft Basic Weight active:</b> Role-fit items represented in the accepted aircraft record are already included. Current installations or removals are applied only as differences from that accepted configuration.`
-      : `<b>Recorded Aircraft Basic Weight selected—configuration not established:</b> On the Accept tab, confirm the equipment included in the aircraft record and accept the aircraft data.`)
-    : `<b>RFM Basic Weight active — Beta Testing:</b> Every installed variable role-fit item's weight and moment are added to Basic Weight and moment.`;
-
-  const rfKeys = Object.keys(AC.roleFit);
-  // a little nicer ordering: normally-installed first, then others alphabetically
-  rfKeys.sort((a,b)=>{
-    const A = AC.roleFit[a], B = AC.roleFit[b];
-    if (A.normally !== B.normally) return (B.normally?1:0) - (A.normally?1:0);
-    return A.name.localeCompare(B.name);
-  });
-
-  for (const k of rfKeys){
-    const it = AC.roleFit[k];
-    const on = !!s.roleFit[k];
-    const lockedException = maintenanceLockedRoleFit(s,k);
-    let treatment = on ? "Added to RFM Basic Weight" : "Not installed";
-    if (basis === "MAINTENANCE" && !s.accepted.maintenanceBaseline){
-      treatment = "Pending aircraft data acceptance";
-    } else if (basis === "MAINTENANCE"){
-      const wasOn = !!baseline[k];
-      treatment = wasOn === on
-        ? (on ? "Included in Recorded Aircraft Basic Weight" : "Not included in Recorded Aircraft Basic Weight")
-        : (on ? `Added after aircraft record: +${roundKg(it.w)} kg` : `Removed from aircraft record: −${roundKg(it.w)} kg`);
-    }
-
-    const t = document.createElement("div");
-    t.className = "toggle";
-    if (lockedException){ t.style.opacity="0.5"; t.style.filter="grayscale(1)"; }
-
-    const left = document.createElement("div");
-    left.className = "left";
-    left.innerHTML = `<div class="name">${it.name}</div>
-                      <div class="meta mono">${roundKg(it.w)} kg @ ${roundMm(it.arm)} mm · ${k}${it.normally?" · normally installed":""}</div>
-                      <div class="meta">${lockedException ? "<span class='badge warn'>Maintenance Exception</span> · Removed in accepted aircraft record" : treatment}</div>`;
-
-    const sw = document.createElement("div");
-    sw.className = "switch" + (on ? " on" : "");
-    sw.title = lockedException ? "Unavailable — Maintenance Exception" : (on ? "Installed" : "Removed");
-    sw.addEventListener("click", ()=>{
-      if (lockedException) return;
-      s.roleFit[k] = !s.roleFit[k];
-      computeRoleFitTotals(s);
-
-            render();
-    });
-
-    t.appendChild(left);
-    t.appendChild(sw);
-    box.appendChild(t);
-  }
+  renderRoleFitDeclarations(s);
+  renderAccountingWarnings(s);
 
   renderCustomExceptions(s);
 
-  // KPIs
-  const wb = computeWB(tail);
-  const presetName = s.preset ? AC.presets[s.preset].name : "None";
-  const rf = computeRoleFitTotals(s);
-  const me = computeMissionTotals(s);
-  const st = computeSeatTotals(s);
-  const crewOccupants = Object.keys(AC.crewSeats).filter(k => s.seats[k] && s.occupants[k]).length;
-  const paxOccupants = Object.keys(AC.paxSeats).filter(k => s.seats[k] && s.occupants[k]).length;
-  const signedKg = value => `${value >= 0 ? "+" : ""}${fmtKg(value)}`;
-
-    const tacticalPayload = (wb.cargoTotal || 0) + (wb.bayTotal || 0);
-    const auwBuild = tacticalPayload
-      ? `Operating Weight ${fmtKg(wb.opW)} + Cargo/Cabin ${signedKg(tacticalPayload)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`
-      : `Operating Weight ${fmtKg(wb.opW)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`;
-
-    const occupantCG = st.occupantW ? Math.round(st.occupantM / st.occupantW) : null;
-    const roleChangeTotal = wb.roleEquipmentAdjustmentW;
-
-    document.getElementById("configKpi").innerHTML = `
-    <div class="box"><div class="t">Preset</div><div class="v">${presetName}</div><div class="s">Current configuration</div></div>
-    <div class="box"><div class="t">Accepted Basic Weight & CG</div><div class="v">${fmtKg(wb.basicW)} @ ${fmtMm(wb.basicCG)}</div></div>
-    <div class="box"><div class="t">Role-Fit Change from Accepted Basic Weight</div><div class="v">${signedKg(roleChangeTotal)}</div><div class="s">Role-Fit Equipment: ${signedKg(wb.roleFitAdjustmentW)} · Seat Structures: ${signedKg(wb.seatStructureAdjustmentW)}<br>All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.</div></div>
-    <div class="box"><div class="t">Custom Exceptions</div><div class="v">${signedKg(wb.customExceptionW)}</div><div class="s">${s.customExceptions.length} entr${s.customExceptions.length===1?"y":"ies"} · ${s.customExceptionsReviewed?"Aircraft documentation reviewed":"Review confirmation required"}</div></div>
-    <div class="box"><div class="t">Mission Equipment</div><div class="v">${signedKg(me.w)} @ ${fmtMm(me.w ? Math.round(me.m/me.w) : null)}</div></div>
-    <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"}</div></div>
-    ${wb.zonesTotal ? `<div class="box"><div class="t">Additional Stowage Load</div><div class="v">${signedKg(wb.zonesTotal)}</div><div class="s">Additional shelf/zone load entered in Load Planning</div></div>` : ""}
-    <div class="box"><div class="t">Operating Weight & CG</div><div class="v">${fmtKg(wb.opW)} @ ${fmtMm(wb.opCG)}</div></div>
-    <div class="box"><div class="t">All-Up Weight & CG</div><div class="v">${fmtKg(wb.auw)} @ ${fmtMm(wb.auwCG)}</div><div class="s">${auwBuild}<br><span class="mono">${wb.cgBand}</span></div></div>
-  `;
+  updateConfigSummary(s);
 
       // Envelope header (CONFIG)
   const wrap = document.getElementById("envWrapConfig");
@@ -1325,61 +1226,39 @@ function renderConfig(){
   }
 }
 
-function renderCustomExceptions(s){
-  const host=document.getElementById("customExceptionsList");
-  const add=document.getElementById("btnAddCustomException");
-  const reviewed=document.getElementById("customExceptionsReviewed");
-  if (!host || !add || !reviewed) return;
-  if (!Array.isArray(s.customExceptions)) s.customExceptions=[];
+function updateConfigSummary(s){
+  const tail=s.tail;
+  // KPIs
+  const wb = computeWB(tail);
+  const presetName = s.preset ? AC.presets[s.preset].name : "None";
+  const rf = computeRoleFitTotals(s);
+  const me = computeMissionTotals(s);
+  const st = computeSeatTotals(s);
+  const crewOccupants = Object.keys(AC.crewSeats).filter(k => s.seats[k] && s.occupants[k]).length;
+  const paxOccupants = Object.keys(AC.paxSeats).filter(k => s.seats[k] && s.occupants[k]).length;
+  const signedKg = value => `${value >= 0 ? "+" : ""}${fmtDecimal(value)} kg`;
 
-  host.innerHTML = s.customExceptions.length ? "" : `<div class="small muted">No custom exceptions have been recorded for this sortie.</div>`;
-  s.customExceptions.forEach((item,index)=>{
-    const row=document.createElement("div");
-    row.className="custom-exception-row";
-    row.innerHTML=`
-      <div class="row">
-        <div style="flex:2 1 220px;"><div class="lbl">Description</div><input data-ce="description" value="${escapeHtml(item.description)}" placeholder="Installed, removed, or substituted item"></div>
-        <div style="flex:1 1 125px;"><div class="lbl">Signed weight (kg)</div><input data-ce="w" type="number" step="any" inputmode="decimal" value="${fmtDecimal(item.w)}" placeholder="+ or −"></div>
-        <div style="flex:1 1 135px;"><div class="lbl">Arm (mm)</div><input data-ce="arm" type="number" step="any" inputmode="decimal" min="0" max="20000" value="${fmtDecimal(item.arm)}"></div>
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <div style="flex:2 1 260px;"><div class="lbl">Source or reference (optional)</div><input data-ce="source" value="${escapeHtml(item.source)}" placeholder="Document, form, or note"></div>
-        <div style="flex:1 1 190px;"><div class="lbl">Moment</div><div class="mono" data-ce-moment style="padding:10px 0;">${fmtDecimal((+item.w||0)*(+item.arm||0),1)} kg·mm</div></div>
-        <div style="flex:0 0 auto;align-self:flex-end;"><button class="btn bad small" data-ce-remove type="button">Remove</button></div>
-      </div>`;
-    const changed=()=>{ s.customExceptionsReviewed=false; reviewed.checked=false; };
-    row.querySelectorAll("input[data-ce]").forEach(input=>{
-      input.oninput=()=>{
-        const field=input.dataset.ce;
-        if (field==="w") item.w=clamp(Number(input.value)||0,-6000,6000);
-        else if (field==="arm") item.arm=clamp(Number(input.value)||0,0,20000);
-        else item[field]=input.value.trim();
-        changed();
-        row.querySelector("[data-ce-moment]").textContent=`${fmtDecimal((+item.w||0)*(+item.arm||0),1)} kg·mm`;
-        if (typeof persistSession === "function") persistSession();
-      };
-      input.onchange=()=>{
-        if (input.dataset.ce==="w") input.value=fmtDecimal(item.w);
-        if (input.dataset.ce==="arm") input.value=fmtDecimal(item.arm);
-      };
-    });
-    row.querySelector("[data-ce-remove]").onclick=()=>{
-      s.customExceptions.splice(index,1); changed(); render();
-    };
-    host.appendChild(row);
-  });
+    const tacticalPayload = (wb.cargoTotal || 0) + (wb.bayTotal || 0);
+    const auwBuild = tacticalPayload
+      ? `Operating Weight ${fmtKg(wb.opW)} + Cargo/Cabin ${signedKg(tacticalPayload)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`
+      : `Operating Weight ${fmtKg(wb.opW)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`;
 
-  add.onclick=()=>{
-    s.customExceptions.push({id:`CE-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,description:"",w:0,arm:0,source:""});
-    s.customExceptionsReviewed=false;
-    render();
-  };
-  reviewed.checked=!!s.customExceptionsReviewed;
-  reviewed.onchange=()=>{ s.customExceptionsReviewed=reviewed.checked; render(); };
+    const occupantCG = st.occupantW ? Math.round(st.occupantM / st.occupantW) : null;
+    const roleChangeTotal = wb.roleEquipmentAdjustmentW;
+
+    document.getElementById("configKpi").innerHTML = `
+    <div class="box"><div class="t">Preset</div><div class="v">${presetName}</div><div class="s">Current configuration</div></div>
+    <div class="box"><div class="t">Accepted Basic Weight & CG</div><div class="v">${fmtKg(wb.basicW)} @ ${fmtMm(wb.basicCG)}</div></div>
+    <div class="box"><div class="t">Role-Fit Change from Accepted Basic Weight</div><div class="v">${signedKg(roleChangeTotal)}</div><div class="s">Role-Fit Equipment: ${signedKg(wb.roleFitAdjustmentW)} · Seat Structures: ${signedKg(wb.seatStructureAdjustmentW)}<br>All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.</div></div>
+    <div class="box"><div class="t">Custom Exceptions</div><div class="v">${signedKg(wb.customExceptionW)}</div><div class="s">${s.customExceptions.length} entr${s.customExceptions.length===1?"y":"ies"} · ${s.customExceptionsReviewed?"Aircraft documentation reviewed":"Review confirmation required"}</div></div>
+    <div class="box"><div class="t">Mission Equipment</div><div class="v">${signedKg(me.w)} @ ${fmtMm(me.w ? Math.round(me.m/me.w) : null)}</div></div>
+    <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"}</div></div>
+    ${wb.zonesTotal ? `<div class="box"><div class="t">Additional Stowage Load</div><div class="v">${signedKg(wb.zonesTotal)}</div><div class="s">Additional shelf/zone load entered in Load Planning</div></div>` : ""}
+    <div class="box"><div class="t">Operating Weight & CG</div><div class="v">${fmtKg(wb.opW)} @ ${fmtMm(wb.opCG)}</div></div>
+    <div class="box"><div class="t">All-Up Weight & CG</div><div class="v">${fmtKg(wb.auw)} @ ${fmtMm(wb.auwCG)}</div><div class="s">${auwBuild}<br><span class="mono">${wb.cgBand}</span></div></div>
+  `;
+
 }
-
-
-
 
 /* =========================
    MISSION EQUIPMENT RENDER
@@ -1548,7 +1427,7 @@ function renderMission(){
       // show how much weight is already loaded into that location.
       const isStowageMarker = (it.w === 0) && (g === "Stowage");
       const stowLoc = isStowageMarker ? AC.stowage?.[it.stow] : null;
-      const physicalStowAvailable = !isStowageMarker || stowLoc?.group !== "SAR Cabinet" || !!s.roleFit?.RF_SAR_CABINET;
+      const physicalStowAvailable = !isStowageMarker || stowLoc?.group !== "SAR Cabinet" || roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET");
       if (!physicalStowAvailable){ row.style.opacity="0.45"; row.style.filter="grayscale(1)"; }
       const loadedHere = occupiedByStow[it.stow] || 0;
       const occupiedLine = isStowageMarker
@@ -1572,7 +1451,7 @@ function renderMission(){
       sw.addEventListener("click", ()=>{
         if (isStowageMarker){
           const loc = AC.stowage?.[it.stow];
-          if (loc?.group === "SAR Cabinet" && !s.roleFit?.RF_SAR_CABINET) return;
+          if (loc?.group === "SAR Cabinet" && !roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET")) return;
           if (on && loadedHere > 0){ alert("Remove or relocate equipment assigned to this stowage location before making it unavailable."); return; }
         }
         s.mission[k] = !s.mission[k];
@@ -1693,7 +1572,7 @@ function renderSeats(){
     }
     left.innerHTML = `
       <div class="name">${key} · ${seat.name}</div>
-      <div class="meta mono">${roundKg(seat.wSeat)} kg seat @ ${roundMm(seat.arm)} mm</div>
+      <div class="meta mono">${fmtDecimal(seat.wSeat)} kg seat @ ${roundMm(seat.arm)} mm · Occupant ${fmtDecimal(occW)} kg @ ${roundMm(seat.occupantArm ?? seat.arm)} mm</div>
       <div class="meta">${seatTreatment}</div>
       <div class="meta"><span class="badge ${installed ? "good" : ""}">${installed ? "Installed" : "Not installed"}</span>
         &nbsp;<span class="${occBadge}">${occText}</span></div>
@@ -2368,7 +2247,7 @@ if (zoneHost){
     const loc = AC.stowage[stowId];
 
     // SAR Cabinet group gates on the cabinet being fitted
-    if (loc && loc.group === "SAR Cabinet") return !!roleFit["RF_SAR_CABINET"];
+    if (loc && loc.group === "SAR Cabinet") return roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET");
 
     // Shelves gate on their own mission-equipment item
     const gateKey = SHELF_GATE[stowId];
@@ -3174,6 +3053,7 @@ if (certMsgEl){
     if (!s.customExceptionsReviewed){
       msg.push("Custom Exceptions review has not been confirmed on Mission Configuration.");
     }
+    msg.push(...accountingIssues(s));
     const invalidCustom=(s.customExceptions||[]).filter(x => !String(x.description||"").trim() || !Number.isFinite(Number(x.w)) || Number(x.w)===0 || !Number.isFinite(Number(x.arm)) || Number(x.arm)<=0);
     if (invalidCustom.length){
       msg.push("Complete each Custom Exception description, non-zero signed weight, and arm.");

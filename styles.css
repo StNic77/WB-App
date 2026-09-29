@@ -455,6 +455,11 @@ margin: 0 auto;
       padding:0;
     }
     .splash-offline-guide li{margin:5px 0;}
+    .role-declaration-row{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+    .role-declaration-row .name{font-weight:700;}
+    .role-declaration-row .meta{font-size:13px;line-height:1.5;}
+    .role-declaration-controls{display:flex;gap:6px;flex-wrap:wrap;}
+    .role-declaration-controls button[aria-pressed="true"]{background:#225d88;color:white;border-color:#72b9ea;box-shadow:inset 0 0 0 1px #72b9ea;}
     .custom-exception-row{
       padding:12px;
       margin-bottom:10px;
@@ -1180,3 +1185,10 @@ body.theme-light .xcheck-input-card {
 }
 .splash-btn:hover{ filter:brightness(1.08); }
 .splash-btn:active{ filter:brightness(.95); }
+.role-fit-expectation { margin: 8px 0; padding: 7px 10px; border-left: 3px solid var(--muted, #8993a5); background: rgba(128,140,160,.09); border-radius: 4px; }
+.role-fit-expectation[data-expected-fit="installed"] { border-left-color: var(--accent, #4a9eff); }
+.role-fit-helper { flex-basis:100%; padding:8px 10px; background:rgba(128,140,160,.09); border-radius:4px; }
+#roleFitDetails > summary { cursor:pointer; padding:8px 0 14px; font-size:18px; }
+.documentation-review[data-reviewed="false"] { border:2px solid #bc8b16; background:rgba(225,174,40,.14); }
+.documentation-review[data-reviewed="true"] { border:2px solid #329964; background:rgba(50,153,100,.14); }
+#documentationReviewStatus { font-weight:700; }

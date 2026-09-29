@@ -1,3 +1,4 @@
+function signedAccounting(value){return (value>=0?"+":"")+fmtDecimal(value,2);}
 /*
  * pdf.js — CH-149 Cormorant W&B App
  * 615 Wing, DLTP 101C-615
@@ -42,6 +43,9 @@ function generateWBReport() {
     alert("W&B must be certified before generating a report.");
     return;
   }
+
+  const accountingErrors=accountingIssues(s);
+  if(accountingErrors.length){alert("Resolve equipment accounting before generating a clearance: "+accountingErrors.join(" "));return;}
 
   // Load jsPDF — it must be available on window
   if (typeof window.jspdf === "undefined" && typeof jsPDF === "undefined") {
@@ -402,7 +406,7 @@ class PDFContext {
     this.kvRow("Basic Weight Source", basis === "MAINTENANCE" ? "RECORDED AIRCRAFT BASIC WEIGHT" : "RFM BASIC WEIGHT (BETA TESTING)");
     this.note(basis === "MAINTENANCE"
       ? "Basic Weight and CG are taken from the aircraft’s current weighing record in the servicing record set. Maintenance Exceptions identify role-fit equipment recorded as removed and already reflected in these values."
-      : "Beta testing method: values use the RFM-defined Basic Weight. All currently installed variable role-fit equipment is added by the application.");
+      : "Beta testing method: values use the entered RFM Basic Weight. Explicit ADD and REMOVE declarations adjust that weight; ACCOUNTED confirms an item is already included.");
     if (basis === "MAINTENANCE" && s.accepted.maintenanceBaseline){
       const fleet=fleetMaintenanceBaseline(), exceptions=[];
       for(const [k,it] of Object.entries(AC.roleFit)) if(!!s.accepted.maintenanceBaseline.roleFit[k]!==!!fleet.roleFit[k]) exceptions.push([it.name,s.accepted.maintenanceBaseline.roleFit[k]?"Included":"Not included"]);
@@ -410,6 +414,7 @@ class PDFContext {
       this.kvRow("Maintenance Exceptions",exceptions.length ? (exceptions.length===1 ? `${exceptions.length} — ${exceptions[0][0]} Removed` : String(exceptions.length)) : "None - fleet baseline confirmed");
       if(exceptions.length) this.table(["Equipment","Accepted Basic Weight/CG status"],exceptions.map(x=>[x[0], x[1]==="Not included" ? "Not Included in Accepted Basic Weight/CG" : "Included in Accepted Basic Weight/CG"]),[100,88]);
     }
+    this.drawAccountingTrail();
     this.kvRow("Fuel Total from Log", `${s.accepted.fuelLog ?? "—"} kg`);
     this.note("The logged fuel initializes fuel planning and AUW/CG calculations. Fuel is not included in Operating Weight.");
     this.kvRow("Accepted By",      s.accepted.by ?? "—");
@@ -430,49 +435,20 @@ class PDFContext {
     if (notes) this.note(`Note: ${notes}`);
     this.spacer(2);
 
-    // Count installed role-fit items for the reference note
-    const rfOnCount = Object.keys(AC.roleFit).filter(k => s.roleFit[k]).length;
-    const wb = computeWB(this.tail);
-    this.kvRow("Basic Weight source", wb.basicWeightBasis === "MAINTENANCE" ? "Recorded Aircraft Basic Weight" : "RFM Basic Weight (Beta Testing)");
-    this.kvRow("Role-Fit Equipment adjustment", `${wb.roleEquipmentAdjustmentW >= 0 ? "+" : ""}${wb.roleEquipmentAdjustmentW} kg`);
-    this.note(`Net change applied to Basic Weight: listed equipment ${wb.roleFitAdjustmentW >= 0 ? "+" : ""}${wb.roleFitAdjustmentW} kg; seat structures ${wb.seatStructureAdjustmentW >= 0 ? "+" : ""}${wb.seatStructureAdjustmentW} kg.`);
-    if (wb.basicWeightBasis === "MAINTENANCE"){
-      if (!wb.roleFitBaselineEstablished){
-        this.note("Recorded aircraft role-fit configuration not established; aircraft data must be accepted before this calculation is complete.");
-      } else if (wb.roleFitChanges.length){
-        this.table(
-          ["Role-fit item", "Change", "Wt delta", "Arm", "Moment delta"],
-          wb.roleFitChanges.map(x => [x.name, x.current ? "Installed" : "Removed", `${x.w > 0 ? "+" : ""}${x.w} kg`, `${x.arm} mm`, `${x.m > 0 ? "+" : ""}${Math.round(x.m)} kg·mm`]),
-          [67, 25, 25, 25, 46]
-        );
-      } else {
-        this.note("No listed role-fit equipment changes from the accepted aircraft record.");
-      }
-      if(wb.seatStructureChanges.length) this.table(["Seat structure","Change","Wt delta","Arm"],wb.seatStructureChanges.map(x=>[x.name,x.current?"Installed":"Removed",`${x.w>0?"+":""}${x.w} kg`,`${x.arm} mm`]),[91,32,30,35]);
-    }
-    const custom = Array.isArray(s.customExceptions) ? s.customExceptions : [];
-    this.spacer(2);
-    this.kvRow("Custom Exceptions", custom.length ? `${custom.length} recorded` : "None recorded");
-    if (custom.length){
-      this.table(
-        ["Description", "Wt delta", "Arm", "Moment", "Source / reference"],
-        custom.map(x => {
-          const w=Number(x.w)||0, arm=Number(x.arm)||0;
-          return [x.description || "—", `${w>=0?"+":""}${w} kg`, `${arm} mm`, `${Math.round(w*arm)} kg·mm`, x.source || "—"];
-        }),
-        [53, 24, 23, 38, 50]
-      );
-    } else {
-      this.note("No custom exceptions were recorded for this sortie.");
-    }
-    this.note(s.customExceptionsReviewed
-      ? "Aircraft documentation review was confirmed for custom exceptions."
-      : "Aircraft documentation review was not confirmed.");
+    const rfOnCount=Object.keys(AC.roleFit).filter(key=>roleFitIsInstalled(s,key)).length;
+    const wb=computeWB(this.tail);
+    this.kvRow("Basic Weight source",wb.basicWeightBasis==="MAINTENANCE"?"Recorded Aircraft Basic Weight":"RFM Basic Weight (Beta Testing)");
+    this.kvRow("Listed role-fit adjustment",signedAccounting(wb.roleFitAdjustmentW)+" kg");
+    this.kvRow("Seat-structure adjustment",signedAccounting(wb.seatStructureAdjustmentW)+" kg");
+    this.kvRow("Custom-exception adjustment",signedAccounting(wb.customExceptionW)+" kg");
+    this.note("The complete equipment accounting trail, including zero-delta ACCOUNTED entries, appears with the accepted aircraft record in Section 1.");
+    if(wb.seatStructureChanges.length) this.table(["Seat structure","Change","Delta kg","Arm mm"],wb.seatStructureChanges.map(x=>[x.name,x.current?"Installed":"Removed",signedAccounting(x.w),String(x.arm)]),[91,32,30,35]);
+    this.note(s.customExceptionsReviewed?"Aircraft documentation review was confirmed for custom exceptions.":"Aircraft documentation review was not confirmed.");
     const seatTotals=computeSeatTotals(s);
     const crewOccupants=Object.keys(AC.crewSeats).filter(k=>s.seats[k]&&s.occupants[k]).length;
     const paxOccupants=Object.keys(AC.paxSeats).filter(k=>s.seats[k]&&s.occupants[k]).length;
     this.kvRow("Current occupants", `${Math.round(seatTotals.occupantW)} kg (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);
-    this.note(`Role-fit installed equipment (${rfOnCount} items) is listed in Appendix A at the end of this document.`);
+    this.note(`Role-fit physical-fit view: ${rfOnCount} items fitted or retained from the accepted record. Declaration details are in Appendix A.`);
     this.spacer();
   }
 
@@ -600,7 +576,7 @@ class PDFContext {
     const crewW = 90.7;
     const paxW  = 90.0;
 
-    const kg = (n) => `${Math.round(n)} kg`;
+    const kg = (n) => `${fmtDecimal(n)} kg`;
     const seatApplied = (k,it) => {
       if (it.includedInRfmBasic) return 0;
       const current=!!s.seats[k];
@@ -617,7 +593,7 @@ class PDFContext {
           it.name,
           `${it.arm} mm`,
           it.includedInRfmBasic ? "Included in BW" : kg(seatApplied(k,it)),
-          occupied ? kg(crewW) : "vacant",
+          occupied ? kg(crewW)+" @ "+(it.occupantArm ?? it.arm)+" mm" : "vacant",
           kg(seatApplied(k,it)+(occupied?crewW:0))
         ];
       });
@@ -636,8 +612,8 @@ class PDFContext {
         ];
       });
 
-    const headers  = ["Seat", "Arm", "Seat Applied", "Occupant", "Total Applied"];
-    const colWidths = [68, 25, 22, 24, 22];
+    const headers  = ["Seat", "Seat Arm", "Seat Applied", "Occupant / Arm", "Total Applied"];
+    const colWidths = [62, 25, 25, 48, 28];
 
     if (crewRows.length) {
       this.setFont("bold", 8);
@@ -812,7 +788,7 @@ class PDFContext {
     const paxOccupants = Object.keys(AC.paxSeats).filter(k => s.seats[k] && s.occupants[k]).length;
     const missionCG = missionTotals.w ? Math.round(missionTotals.m / missionTotals.w) : null;
     const occupantCG = seatTotals.occupantW ? Math.round(seatTotals.occupantM / seatTotals.occupantW) : null;
-    const signed = v => `${v >= 0 ? "+" : ""}${v} kg`;
+    const signed = v => signedAccounting(v)+" kg";
 
     this.kvRow("Accepted Basic Weight & CG", `${s.accepted.basicW ?? "—"} kg @ ${s.accepted.basicCG ?? "—"} mm`);
     this.kvRow("Basic Weight Source", wb.basicWeightBasis === "MAINTENANCE" ? "Recorded Aircraft Basic Weight" : "RFM Basic Weight (Beta Testing)");
@@ -1178,43 +1154,25 @@ class PDFContext {
 
 
   drawRoleFitAppendix() {
-    const s = this.s;
-    this.newPage();
-    this.sectionHeader("Appendix A · Role-Fit Equipment Installed");
-
-    const wb = computeWB(this.tail);
-    this.note(wb.basicWeightBasis === "MAINTENANCE"
-      ? "Recorded Aircraft Basic Weight: unchanged items are already included in the accepted values; additions and removals are applied as differences."
-      : "RFM Basic Weight (Beta Testing): all installed variable role-fit items below are added to accepted Basic Weight/CG.");
-
-    const rfRows = Object.entries(AC.roleFit)
-      .filter(([k]) => s.roleFit[k])
-      .map(([, it]) => [it.name, `${it.w} kg`, `${it.arm} mm`])
-      .sort((a, b) => a[0].localeCompare(b[0]));  // alphabetical by name
-
-    if (rfRows.length === 0) {
-      this.note("No role-fit equipment installed.");
-    } else {
-      this.table(
-        ["Item", "Weight", "Arm"],
-        rfRows,
-        [130, 25, 33]
-      );
-    }
-
-    // Also list what is NOT installed for completeness
-    const rfOff = Object.entries(AC.roleFit)
-      .filter(([k]) => !s.roleFit[k])
-      .map(([, it]) => it.name)
-      .sort((a, b) => a.localeCompare(b));
-
-    if (rfOff.length) {
-      this.spacer(2);
-      this.note(`Not installed: ${rfOff.join(", ")}`);
-    }
+    const s=this.s;this.newPage();this.sectionHeader("Appendix A · Role-Fit Declarations");
+    this.note("No change makes no fit declaration. Add/remove equipment adjusts accepted weight. Already included — fitted and already excluded — removed both apply zero adjustment. Custom items use their linked accounting entry.");
+    const rows=roleFitAccountingRows(s).sort((a,b)=>a.name.localeCompare(b.name));
+    this.table(["Item","Declaration","Item kg","Arm mm","Delta kg"],rows.map(x=>[x.name,x.locked?ROLE_FIT_LABELS.EXCLUDED:ROLE_FIT_LABELS[x.declaration],fmtDecimal(x.itemW),fmtDecimal(x.arm),signedAccounting(x.w)]),[70,46,24,24,24]);
     this.spacer();
   }
 
+  drawAccountingTrail() {
+    const s=this.s, rf=roleFitAccountingRows(s).filter(x=>x.declaration!=="NEUTRAL"&&!x.custom);
+    const custom=customExceptionAccountingRows(s);
+    this.spacer(2);this.kvRow("Equipment accounting","Adjustments relative to accepted aircraft weight and moment");
+    const rows=rf.map(x=>[x.name,ROLE_FIT_LABELS[x.declaration],fmtDecimal(x.itemW),signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
+    for(const x of custom) rows.push(["Custom: "+(x.description||"Unnamed")+(x.source?" / "+x.source:""),x.accounting,fmtDecimal(x.inputW),signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
+    if(rows.length)this.table(["Item / source","Declaration","Item kg","Delta kg","Arm mm","Delta kg·mm"],rows,[57,27,24,24,22,34]);
+    else this.note("No equipment adjustments or ACCOUNTED declarations recorded. Neutral does not declare an item absent.");
+    const listed=computeRoleFitAdjustment(s), exceptions=computeCustomExceptionTotals(s);
+    this.kvRow("Net listed + custom adjustment",signedAccounting(listed.w+exceptions.w)+" kg / "+signedAccounting(listed.m+exceptions.m)+" kg·mm");
+    this.note("ACCOUNTED entries retain their supplied item weight and arm for traceability but apply zero weight and moment. Accepted maintenance removals are already included and are not subtracted again. Seat structures, occupants, mission loads and fuel are reported separately.");
+  }
 
   drawCertification() {
     const s  = this.s;

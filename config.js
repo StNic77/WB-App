@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Prepared for app v0.2.8 / Config v12 on 2026-09-26T18:52:14.635Z
- * Config data version: 12
+ * Local Mission Config review build, derived from v0.2.10 / Config v12
+ * Config data version: 13 (local, not released)
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 12,
-  "configReleasedAt": "2026-09-26T18:52:14.635Z",
+  "configVersion": 13,
+  "configReleasedAt": "2026-09-28T00:00:00.000Z",
   "changelog": [
+    {
+      "version": 13,
+      "at": "2026-09-28T00:00:00.000Z",
+      "note": "LOCAL REVIEW BUILD: explicit equipment accounting; corrected preset identifiers; complete CASEVAC four-rack system 120.09 kg at 8577 mm per supplied continuity notes. Not released."
+    },
     {
       "version": 12,
       "at": "2026-09-26T18:52:14.635Z",
@@ -75,8 +80,18 @@ const AC_META = {
     }
   ],
   "referenceDocuments": {
-    "currentId": "ref-2026-06-09-issue-1",
+    "currentId": "ref-issue-1-draft-2-built-04092026",
     "history": [
+      {
+        "id": "ref-issue-1-draft-2-built-04092026",
+        "designation": "DLTP 101C-615-RFM",
+        "versionType": "Issue",
+        "version": "1 Draft 2",
+        "versionDate": "04/09/2026",
+        "status": "Internal Preview",
+        "buildDate": "04/09/2026",
+        "configVersion": 13
+      },
       {
         "id": "ref-2026-06-09-issue-1",
         "designation": "DLTP 101C-615-RFM",
@@ -355,6 +370,7 @@ const AC_MAX_FUEL_KG = 4152; // kg — sum of all positive fill stages
 const AC_CREW_SEATS = {
   "C1": {
     "name": "C1 Pilot (Stbd)",
+    "occupantArm": 3473,
     "arm": 3673,
     "wSeat": 24.12,
     "alwaysInstalled": true,
@@ -363,6 +379,7 @@ const AC_CREW_SEATS = {
   },
   "C2": {
     "name": "C2 Pilot (Port)",
+    "occupantArm": 3473,
     "arm": 3673,
     "wSeat": 24.12,
     "alwaysInstalled": true,
@@ -371,21 +388,25 @@ const AC_CREW_SEATS = {
   },
   "C3": {
     "name": "C3 Cockpit Jump",
-    "arm": 4599,
+    "arm": 4559,
+    "occupantArm": 4459,
     "wSeat": 17.84
   },
   "C4": {
     "name": "C4 FE (Bay 2 Port)",
+    "occupantArm": 6262,
     "arm": 6469,
     "wSeat": 26.8
   },
   "C5": {
     "name": "C5 ST TL (Bay 4 Port)",
-    "arm": 8444,
+    "arm": 8440,
+    "occupantArm": 8244,
     "wSeat": 26.8
   },
   "C6": {
     "name": "C6 ST TM (Bay 5 Stbd)",
+    "occupantArm": 9234,
     "arm": 9434,
     "wSeat": 26.8
   }
@@ -758,9 +779,9 @@ const AC_ROLE_FIT = {
     "maintenanceIncluded": true
   },
   "RF_SAR_EQUIPMENT_FWD_SAR_CABINET": {
-    "name": "SAR Equipment Storage Cabinet",
+    "name": "SAR Equipment Storage Cabinet System",
     "w": 73.7,
-    "arm": 6275,
+    "arm": 5875,
     "normally": false,
     "maintenanceIncluded": false
   },
@@ -826,6 +847,14 @@ const AC_ROLE_FIT = {
     "arm": 14940,
     "normally": true,
     "maintenanceIncluded": true
+  },
+  "RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM": {
+    "name": "CASEVAC Rack System",
+    "w": 120.09,
+    "arm": 8577,
+    "normally": false,
+    "maintenanceIncluded": false,
+    "source": "Supplied CH-149-615 continuity notes: complete four-rack system; local review build"
   }
 };
 
@@ -1134,54 +1163,33 @@ const AC_PRESETS = {
       "C6"
     ],
     "roleFitOn": [
-      "RF_SECONDARY_HOIST",
-      "RF_TRAKKA",
-      "RF_SEA_TRAY",
-      "RF_DIVE_O2_RACK",
-      "RF_AIR_COOLING",
-      "RF_FLOAT_SYS",
-      "RF_LIFERAFT_SPONSONS",
-      "RF_LASHING_KIT",
-      "RF_RIPU",
-      "RF_RIPU_CABLES",
-      "RF_MR_SLIP",
-      "RF_TR_SLIP",
-      "RF_FIELD_TOOLKIT",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
+      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
+      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
+      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
+      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
+      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
+      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
       "RF_STOW_TOOLKIT",
       "RF_STOW_STOKES_RAMP",
       "RF_STOW_STOKES_CABIN",
       "RF_STOW_BASKET_PORT",
       "RF_STOW_BASKET_STBD",
-      "RF_EOIR_MX15",
-      "RF_SENSOR_WS",
-      "RF_PTA_COT",
-      "RF_SAR_CABINET",
-      "RF_EOIR_HANDCTRL",
-      "RF_ICE_PROTECTION_TR_SLIP_RING",
-      "RF_ICE_PROTECTIO_MR_SLIP_RING",
-      "RF_ICE_PROTECTION_RIPU",
-      "RF_ICE_PROTECTION_RIPU_CABLES",
-      "RF_CODE_A_EQUIPMENT",
       "RF_SENSOR_SYSTEMS_EOIR_TURRET",
-      "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER",
       "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION",
-      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM",
+      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
+      "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER",
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
       "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
       "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
-      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
-      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
-      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
-      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
-      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
-      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
-      "RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM",
-      "RF_ICE_PROTECTION_MR_SLIP_RING",
       "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
-      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
-      "RF_SERVICING_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
-      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
       "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
@@ -1257,58 +1265,38 @@ const AC_PRESETS = {
       "C6"
     ],
     "roleFitOn": [
-      "RF_SECONDARY_HOIST",
-      "RF_TRAKKA",
-      "RF_SEA_TRAY",
-      "RF_DIVE_O2_RACK",
-      "RF_AIR_COOLING",
-      "RF_FLOAT_SYS",
-      "RF_LIFERAFT_SPONSONS",
-      "RF_LASHING_KIT",
-      "RF_RIPU",
-      "RF_RIPU_CABLES",
-      "RF_MR_SLIP",
-      "RF_TR_SLIP",
-      "RF_FIELD_TOOLKIT",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
+      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
+      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
+      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
+      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
+      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
+      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
       "RF_STOW_TOOLKIT",
       "RF_STOW_STOKES_RAMP",
       "RF_STOW_STOKES_CABIN",
       "RF_STOW_BASKET_PORT",
       "RF_STOW_BASKET_STBD",
-      "RF_EOIR_MX15",
-      "RF_SENSOR_WS",
-      "RF_SAR_CABINET",
-      "RF_EOIR_HANDCTRL",
-      "RF_ICE_PROTECTION_TR_SLIP_RING",
-      "RF_ICE_PROTECTIO_MR_SLIP_RING",
-      "RF_ICE_PROTECTION_RIPU",
-      "RF_ICE_PROTECTION_RIPU_CABLES",
-      "RF_CODE_A_EQUIPMENT",
       "RF_SENSOR_SYSTEMS_EOIR_TURRET",
-      "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER",
       "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION",
-      "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
+      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
+      "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER",
+      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
       "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
       "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
-      "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
-      "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
-      "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
-      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
-      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
-      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
-      "RF_ICE_PROTECTION_MR_SLIP_RING",
       "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
-      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
-      "RF_SERVICING_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_LASHING_KIT",
-      "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
-      "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
       "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
     ],
     "roleFitOff": [
-      "RF_PTA_COT"
+      "RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM"
     ],
     "missionOn": [
       "ME_SAR_ZONEH",
@@ -1347,7 +1335,7 @@ const AC_PRESETS = {
   },
   "CASEVAC": {
     "name": "CASEVAC",
-    "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off.",
+    "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off. Complete four-rack system is one 120.09 kg item at 8577 mm.",
     "image": "images/CASEVAC.png",
     "seats": {
       "crew": [
@@ -1369,50 +1357,34 @@ const AC_PRESETS = {
       "P3"
     ],
     "roleFitOn": [
-      "RF_SECONDARY_HOIST",
-      "RF_TRAKKA",
-      "RF_SEA_TRAY",
-      "RF_DIVE_O2_RACK",
-      "RF_AIR_COOLING",
-      "RF_FLOAT_SYS",
-      "RF_LIFERAFT_SPONSONS",
-      "RF_LASHING_KIT",
-      "RF_RIPU",
-      "RF_RIPU_CABLES",
-      "RF_MR_SLIP",
-      "RF_TR_SLIP",
-      "RF_FIELD_TOOLKIT",
-      "RF_STOW_TOOLKIT",
-      "RF_EOIR_MX15",
-      "RF_ICE_PROTECTION_TR_SLIP_RING",
-      "RF_ICE_PROTECTIO_MR_SLIP_RING",
-      "RF_ICE_PROTECTION_RIPU",
-      "RF_ICE_PROTECTION_RIPU_CABLES",
-      "RF_CODE_A_EQUIPMENT",
-      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
       "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
-      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
-      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
       "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
       "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
       "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
-      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
-      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
-      "RF_ICE_PROTECTION_MR_SLIP_RING",
-      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
-      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
-      "RF_SERVICING_FIELD_TOOL_KIT",
       "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
       "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
+      "RF_STOW_TOOLKIT",
+      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
       "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
+      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
+      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
-      "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
+      "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER",
+      "RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM"
     ],
     "roleFitOff": [
-      "RF_SAR_CABINET",
-      "RF_SENSOR_WS",
-      "RF_PTA_COT",
+      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
+      "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION",
+      "RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM",
       "RF_STOW_STOKES_RAMP",
       "RF_STOW_STOKES_CABIN",
       "RF_STOW_BASKET_PORT",
@@ -1488,47 +1460,33 @@ const AC_PRESETS = {
       "C4"
     ],
     "roleFitOn": [
-      "RF_SECONDARY_HOIST",
-      "RF_TRAKKA",
-      "RF_SEA_TRAY",
-      "RF_DIVE_O2_RACK",
-      "RF_AIR_COOLING",
-      "RF_FLOAT_SYS",
-      "RF_LIFERAFT_SPONSONS",
-      "RF_LASHING_KIT",
-      "RF_EOIR_MX15",
-      "RF_MR_SLIP",
-      "RF_TR_SLIP",
-      "RF_FIELD_TOOLKIT",
-      "RF_STOW_TOOLKIT",
-      "RF_RIPU",
-      "RF_RIPU_CABLES",
-      "RF_ICE_PROTECTION_TR_SLIP_RING",
-      "RF_ICE_PROTECTIO_MR_SLIP_RING",
-      "RF_ICE_PROTECTION_RIPU",
-      "RF_ICE_PROTECTION_RIPU_CABLES",
-      "RF_CODE_A_EQUIPMENT",
-      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
+      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
       "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
-      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
-      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
+      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
       "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK",
       "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM",
       "RF_AIRCRAFT_SYSTEMS_SPONSON_LIFERAFTS",
-      "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
-      "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK",
-      "RF_ICE_PROTECTION_MR_SLIP_RING",
-      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
-      "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
-      "RF_SERVICING_FIELD_TOOL_KIT",
       "RF_SERVICING_EQUIPMENT_LASHING_KIT",
+      "RF_SENSOR_SYSTEMS_EOIR_TURRET",
+      "RF_ICE_PROTECTION_MR_SLIP_RING",
+      "RF_ICE_PROTECTION_TR_SLIP_RING",
       "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT",
+      "RF_STOW_TOOLKIT",
+      "RF_ICE_PROTECTION_RIPU",
+      "RF_ICE_PROTECTION_RIPU_CABLES",
       "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP",
+      "RF_SENSOR_SYSTEMS_EOIR_BLANKING",
+      "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS",
+      "RF_SENSOR_SYSTEMS_EOIR_REMOVABLE_CABLES",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
       "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER"
     ],
-    "roleFitOff": [],
+    "roleFitOff": [
+      "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
+      "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION"
+    ],
     "missionOn": [
       "ME_OVERHEAD_PORT",
       "ME_OVERHEAD_STBD",
@@ -1570,9 +1528,24 @@ try {
     if (ov.missionEquip) AC.missionEquip = ov.missionEquip;
     if (ov.stowage)      AC.stowage      = ov.stowage;
     if (ov.roleFit)      AC.roleFit      = ov.roleFit;
-    if (ov.crewSeats)    AC.crewSeats    = ov.crewSeats;
+    if (ov.crewSeats) {
+      AC.crewSeats = ov.crewSeats;
+      for(const [key,seat] of Object.entries(AC.crewSeats)) {
+        if(seat.occupantArm==null && AC_CREW_SEATS[key]) seat.occupantArm=AC_CREW_SEATS[key].occupantArm;
+      }
+      if(AC.crewSeats.C3?.arm===4599) AC.crewSeats.C3.arm=4559;
+      if(AC.crewSeats.C5?.arm===8444) AC.crewSeats.C5.arm=8440;
+    }
     if (ov.paxSeats)     AC.paxSeats     = ov.paxSeats;
-    if (ov.referenceDocuments) AC.meta.referenceDocuments = ov.referenceDocuments;
+    if(AC.roleFit.RF_SAR_EQUIPMENT_FWD_SAR_CABINET?.arm===6275) AC.roleFit.RF_SAR_EQUIPMENT_FWD_SAR_CABINET.arm=5875;
+    if (ov.referenceDocuments) {
+      const updated=AC.meta.referenceDocuments.history[0];
+      AC.meta.referenceDocuments = ov.referenceDocuments;
+      if(AC.meta.referenceDocuments.currentId==='ref-2026-06-09-issue-1') {
+        AC.meta.referenceDocuments.history=[updated,...AC.meta.referenceDocuments.history.filter(x=>x.id!==updated.id)];
+        AC.meta.referenceDocuments.currentId=updated.id;
+      }
+    }
     // Restore preset missionOn/missionOff and roleFitOn/Off overrides
     if (ov.presets) {
       for (const pk of Object.keys(ov.presets)) {

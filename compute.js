@@ -62,52 +62,18 @@ function normalizeRoleFitState(state){
 }
 
 function computeRoleFitTotals(s){
-  // Accepted maintenance removals are authoritative. Dependency normalization
-  // must never silently reinstall an item recorded as removed at Acceptance.
-  if (s?.accepted?.isAccepted && basicWeightBasis(s) === "MAINTENANCE" && s.accepted.maintenanceBaseline?.roleFit){
-    for (const [k,it] of Object.entries(AC.roleFit)){
-      if (roleFitMaintenanceDefault(it) && s.accepted.maintenanceBaseline.roleFit[k] === false) s.roleFit[k] = false;
-    }
-  }
-
-  let w=0, m=0;
-  for (const k of Object.keys(AC.roleFit)){
-    if (!s.roleFit[k]) continue;
-    const it = AC.roleFit[k];
-    w += it.w;
-    m += it.w * it.arm;
-  }
-  return {w, m};
+  syncRoleFitPhysicalState(s);
+  let w=0,m=0;
+  for (const [key,item] of Object.entries(AC.roleFit)) if(roleFitIsInstalled(s,key)){w+=item.w;m+=item.w*item.arm;}
+  return {w,m};
 }
-
-function basicWeightBasis(s){
-  return s?.accepted?.basicWeightBasis === "MAINTENANCE" ? "MAINTENANCE" : "RFM";
-}
-
-function roleFitMaintenanceDefault(it){
-  return it?.maintenanceIncluded !== undefined ? !!it.maintenanceIncluded : !!it?.normally;
-}
-
+function basicWeightBasis(s){ return s?.accepted?.basicWeightBasis === "MAINTENANCE" ? "MAINTENANCE" : "RFM"; }
+function roleFitMaintenanceDefault(it){ return it?.maintenanceIncluded !== undefined ? !!it.maintenanceIncluded : !!it?.normally; }
 function seatMaintenanceDefault(it){ return !!it?.maintenanceIncluded; }
-
 function computeRoleFitAdjustment(s){
-  const current = computeRoleFitTotals(s);
-  if (basicWeightBasis(s) === "RFM") {
-    return {w:current.w, m:current.m, currentW:current.w, currentM:current.m, changes:[], baselineEstablished:true};
-  }
-  const baseline = s?.accepted?.maintenanceBaseline?.roleFit;
-  if (!baseline) return {w:0,m:0,currentW:current.w,currentM:current.m,changes:[],baselineEstablished:false};
-  let w=0, m=0;
-  const changes=[];
-  for (const k of Object.keys(AC.roleFit)){
-    const wasOn=!!baseline[k], isOn=!!s.roleFit[k];
-    if (wasOn === isOn) continue;
-    const it=AC.roleFit[k], sign=isOn ? 1 : -1;
-    const dw=sign*it.w, dm=dw*it.arm;
-    w += dw; m += dm;
-    changes.push({key:k,name:it.name,baseline:wasOn,current:isOn,w:dw,arm:it.arm,m:dm});
-  }
-  return {w,m,currentW:current.w,currentM:current.m,changes,baselineEstablished:true};
+  const current=computeRoleFitTotals(s), rows=roleFitAccountingRows(s);
+  return {w:rows.reduce((sum,x)=>sum+x.w,0),m:rows.reduce((sum,x)=>sum+x.m,0),currentW:current.w,currentM:current.m,
+    changes:rows.filter(x=>x.declaration!=='NEUTRAL'),baselineEstablished:!!s.accepted?.isAccepted};
 }
 
 function computeMissionTotals(s){
@@ -151,7 +117,7 @@ function computeSeatTotals(s){
     addSeatStructure(k, seat);
     if (s.seats[k] && s.occupants[k]){
       occupantW += crewW;
-      occupantM += crewW * seat.arm;
+      occupantM += crewW * (seat.occupantArm ?? seat.arm);
     }
   }
   // pax seats — occupants at PAX standard weight (90.00 kg)
@@ -190,15 +156,8 @@ function computeCargoTotals(s){
 }
 
 function computeCustomExceptionTotals(s){
-  let w=0, m=0;
-  for (const item of (Array.isArray(s.customExceptions) ? s.customExceptions : [])){
-    const iw = Number(item?.w);
-    const arm = Number(item?.arm);
-    if (!Number.isFinite(iw) || !Number.isFinite(arm)) continue;
-    w += iw;
-    m += iw * arm;
-  }
-  return {w, m};
+  const rows=customExceptionAccountingRows(s);
+  return {w:rows.reduce((sum,x)=>sum+x.w,0),m:rows.reduce((sum,x)=>sum+x.m,0)};
 }
 
 function solveFuelTanksFromTotal(totalKg){
@@ -465,16 +424,16 @@ function computeWB(tail){
   return {
     basicW, basicCG,
     basicWeightBasis: basicWeightBasis(s),
-    roleFitAdjustmentW: roundKg(rf.w),
+    roleFitAdjustmentW: rf.w,
     roleFitAdjustmentM: rf.m,
-    roleFitCurrentW: roundKg(rf.currentW),
+    roleFitCurrentW: rf.currentW,
     roleFitCurrentM: rf.currentM,
     roleFitChanges: rf.changes,
     roleFitBaselineEstablished: rf.baselineEstablished,
-    seatStructureAdjustmentW: roundKg(st.structureW),
+    seatStructureAdjustmentW: st.structureW,
     seatStructureAdjustmentM: st.structureM,
     seatStructureChanges: st.changes,
-    roleEquipmentAdjustmentW: roundKg(rf.w + st.structureW),
+    roleEquipmentAdjustmentW: rf.w + st.structureW,
     roleEquipmentAdjustmentM: rf.m + st.structureM,
     opW, opWExact, opCG, opM,       // exact mass retained for CG and limits
     nonFuelW, nonFuelWExact, nonFuelM, // OW + cargo + bay (no fuel), exact mass/moment retained

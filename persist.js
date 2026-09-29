@@ -22,10 +22,16 @@
    the new code doesn't expect. Increment STATE_SCHEMA whenever the session
    object shape in makeNewSession() changes.
    ========================= */
-const APP_VERSION  = "0.2.10";  // human-facing release version (shown in UI / PDF)
-const STATE_SCHEMA = 4;         // v4: sortie custom exceptions and review confirmation
+const APP_VERSION  = "0.2.12-dev";  // human-facing release version (shown in UI / PDF)
+const STATE_SCHEMA = 5;         // v5: explicit role-fit declarations and custom accounting
 
 const SESSION_KEY = "wb615_session";
+let sessionSaveBlocked=false;
+function showSessionMigrationWarning(message){
+  let el=document.getElementById("sessionMigrationWarning");
+  if(!el){el=document.createElement("div");el.id="sessionMigrationWarning";el.className="callout";el.setAttribute("role","alert");document.body.prepend(el);}
+  el.textContent=message;
+}
 
 /* =========================
    SAVE
@@ -35,7 +41,7 @@ const SESSION_KEY = "wb615_session";
    ========================= */
 function persistSession(){
   try {
-    if (typeof STORE === "undefined" || !STORE) return;
+    if (sessionSaveBlocked || typeof STORE === "undefined" || !STORE) return;
     const snapshot = {
       appVersion:   APP_VERSION,
       schema:       STATE_SCHEMA,
@@ -64,15 +70,16 @@ function restoreSession(){
 
     const snap = JSON.parse(raw);
 
-    // Schema gate: discard saves written by an incompatible session shape.
-    if (!snap || snap.schema !== STATE_SCHEMA){
-      console.warn("[persist] saved state schema mismatch (saved="
-        + (snap && snap.schema) + ", expected=" + STATE_SCHEMA + ") — discarding.");
-      localStorage.removeItem(SESSION_KEY);
+    if (!snap || ![4,STATE_SCHEMA].includes(snap.schema) || !snap.sessions || typeof snap.sessions!=="object"){
+      sessionSaveBlocked=true;
+      showSessionMigrationWarning("Saved session format is not supported. The original save is preserved; automatic saving is paused.");
       return false;
     }
-
-    if (!snap.sessions || typeof snap.sessions !== "object") return false;
+    const needsMigration=snap.schema===4 || Object.values(snap.sessions).some(s=>!s.roleFitDeclarations);
+    if(needsMigration){
+      const backupKey="wb615_session_before_accounting_v5";
+      if(!localStorage.getItem(backupKey)) localStorage.setItem(backupKey,raw);
+    }
 
     // Only restore sessions for tails that still exist in the current config.
     // (Protects against a config.js change removing a tail out from under a save.)
@@ -87,6 +94,9 @@ function restoreSession(){
         // Enforce the neutral-state rule for older saved sessions: without a
         // selected configuration, no mission equipment remains selected.
         const restored = STORE.sessions[tail];
+        normalizeRackSessionKey(restored);
+        if(needsMigration || !restored.roleFitDeclarations) migrateRoleFitDeclarations(restored);
+        syncRoleFitPhysicalState(restored);
         if (!restored.preset && restored.mission){
           for (const k of Object.keys(restored.mission)) restored.mission[k] = false;
         }
@@ -104,6 +114,8 @@ function restoreSession(){
       + " (app " + snap.appVersion + ")");
     return true;
   } catch (e) {
+    sessionSaveBlocked=true;
+    showSessionMigrationWarning("Saved data could not be safely restored or backed up. The original save is preserved; automatic saving is paused.");
     console.warn("[persist] restore failed:", e);
     return false;
   }
@@ -116,6 +128,7 @@ function restoreSession(){
    invalidates saved state — swiping the app closed does not.
    ========================= */
 function endPersistedSession(){
+  if(sessionSaveBlocked){alert("The original session is protected because it could not be safely restored. Preserve its data before clearing storage.");return;}
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
   try { localStorage.removeItem(SPLASH_ACK_KEY); } catch (e) {}  // re-show opening screen
   // These Certify fields are plain DOM inputs, not part of STORE. Resetting

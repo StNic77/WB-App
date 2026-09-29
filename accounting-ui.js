@@ -10,20 +10,27 @@ function renderAccountingWarnings(s){
 }
 function renderRoleFitDeclarations(s){
   const box=document.getElementById('roleFitList');box.replaceChildren();
-  document.getElementById('roleFitBasisMessage').textContent='Start with the weight entered on Accept. Only add or subtract equipment if its change is not already reflected in that weight. Expected fit is guidance, not a weight adjustment. Your manual choices are kept when you change configuration.';
-  const rows=roleFitAccountingRows(s).sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById('roleFitBasisMessage').textContent='Your accepted weight and arm already represent the aircraft’s recorded condition. Use this list to describe its equipment. Only add or subtract weight for changes not already reflected in the servicing record. Green: normally installed for this configuration. No colour: not normally installed. Yellow: a manual choice or custom exception. Colours describe configuration and overrides, not weight adjustments; check the adjustment shown below each item.';
+  const rows=roleFitAccountingRows(s).sort((a,b)=>Number(roleFitExpectation(s,b.key).installed)-Number(roleFitExpectation(s,a.key).installed)||a.name.localeCompare(b.name));
+  let previousGroup=null;
   for(const item of rows){
+    const normallyInstalled=roleFitExpectation(s,item.key).installed;
+    if(previousGroup!==normallyInstalled){
+      const heading=document.createElement('h3');heading.className='role-fit-group';heading.textContent=normallyInstalled?'Normally installed':'Not normally installed';box.append(heading);previousGroup=normallyInstalled;
+    }
     const row=document.createElement('div');row.className='role-declaration-row';row.dataset.roleKey=item.key;
+    row.dataset.fitStatus=(item.origin==='manual'&&!item.locked)||item.custom?'adjusted':normallyInstalled?'fitted':'excluded';
     const descriptions={NEUTRAL:'Confirm whether this item is included in the accepted weight. No adjustment is applied until you choose.',ADD:'The item is fitted, but its weight is not yet included in the accepted weight.',REMOVE:'The item is removed, but its weight has not yet been subtracted from the accepted weight.',ACCOUNTED:'The item is fitted and its weight is already included in the accepted weight.',EXCLUDED:'The item is removed and its removal is already reflected in the accepted weight.',CUSTOM:'Use the linked Custom Exception below to control this item’s accounting.'};
     row.innerHTML=`<div><div class="name">${escapeHtml(item.name)}</div><div class="meta mono">${fmtDecimal(item.itemW)} kg @ ${fmtDecimal(item.arm)} mm</div></div><div class="role-declaration-controls" role="group" aria-label="${escapeHtml(item.name)} declaration"></div>`;
     const controls=row.querySelector('.role-declaration-controls');
     const expected=roleFitExpectation(s,item.key), fit=document.createElement('div');
     fit.className='role-fit-expectation';fit.dataset.expectedFit=expected.installed?'installed':'not-installed';
     const badge=document.createElement('strong');
-    badge.textContent=`Expected fit: ${expected.installed?'Installed':'Not installed'} — ${AC.presets[s.preset]?expected.configuration+' configuration':'aircraft default'}`;
+    badge.textContent=`${expected.installed?'Normally installed':'Not normally installed'} — ${AC.presets[s.preset]?expected.configuration+' configuration':'aircraft default'}`;
     fit.append(badge);row.firstElementChild.querySelector('.meta').after(fit);
-    for(const action of ROLE_FIT_DECLARATIONS.filter(action=>action!=='NEUTRAL')){
-      const button=document.createElement('button');button.type='button';button.className='btn small';button.textContent=ROLE_FIT_LABELS[action];button.dataset.declaration=action;
+    const labels={ACCOUNTED:'Fitted · already included',EXCLUDED:'Removed · already excluded',ADD:'Add to accepted weight',REMOVE:'Subtract from accepted weight'};
+    for(const action of ['ACCOUNTED','EXCLUDED','ADD','REMOVE']){
+      const button=document.createElement('button');button.type='button';button.className='btn small';button.textContent=labels[action];button.dataset.declaration=action;
       button.setAttribute('aria-pressed',String((item.locked?'EXCLUDED':item.declaration)===action));button.disabled=item.locked||item.custom;
       button.onclick=()=>{const error=setRoleFitDeclaration(s,item.key,action);if(error)alert(error);render();};controls.append(button);
     }

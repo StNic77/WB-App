@@ -1195,3 +1195,7 @@ body.theme-light .xcheck-input-card {
 .custom-weight-input { display:flex; gap:8px; align-items:center; }
 .custom-weight-input input { min-width:0; flex:1; }
 .custom-weight-input button { min-width:48px; min-height:44px; flex-shrink:0; touch-action:manipulation; }
+.role-declaration-row[data-fit-status] { padding:14px 12px; margin-bottom:8px; border:1px solid var(--line); border-left:4px solid var(--line); border-radius:6px; }
+.role-declaration-row[data-fit-status="fitted"] { background:rgba(50,153,100,.12); border-left-color:#329964; }
+.role-declaration-row[data-fit-status="adjusted"] { background:rgba(225,174,40,.15); border-left-color:#bc8b16; }
+.role-fit-group { margin:20px 0 10px; }

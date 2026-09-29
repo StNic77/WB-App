@@ -2,7 +2,7 @@
 const RELEASE = Object.freeze({
   appVersion: '0.2.12-dev',
   configVersion: 13,
-  releaseId: 'v0.2.12-dev-c13-r10'
+  releaseId: 'v0.2.12-dev-c13-r12'
 });
 const CACHE_PREFIX = 'wb615-release-';
 const CACHE_NAME = CACHE_PREFIX + RELEASE.releaseId;

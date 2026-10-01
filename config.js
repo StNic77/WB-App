@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Local Mission Config review build, derived from v0.2.10 / Config v12
- * Config data version: 13 (local, not released)
+ * Exported by the Custodian Editor on 2026-09-30T14:59:53.451Z
+ * Config data version: 16
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,24 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 13,
-  "configReleasedAt": "2026-09-28T00:00:00.000Z",
+  "configVersion": 16,
+  "configReleasedAt": "2026-09-30T14:59:53.451Z",
   "changelog": [
+    {
+      "version": 16,
+      "at": "2026-09-30T14:59:53.451Z",
+      "note": "In development."
+    },
+    {
+      "version": 15,
+      "at": "2026-09-30T01:06:46.739Z",
+      "note": "Rebuilt mission equipment catalog with individual weights, quantities, and flexible stowage; added editable mission configurations; corrected Manual Fuel plots and PDFs; improved saved-session handling."
+    },
+    {
+      "version": 14,
+      "at": "2026-09-30T00:33:36.606Z",
+      "note": "Individual mission equipment, per-location quantities, custom configurations and Manual Fuel PDF parity."
+    },
     {
       "version": 13,
       "at": "2026-09-28T00:00:00.000Z",
@@ -370,45 +385,45 @@ const AC_MAX_FUEL_KG = 4152; // kg — sum of all positive fill stages
 const AC_CREW_SEATS = {
   "C1": {
     "name": "C1 Pilot (Stbd)",
-    "occupantArm": 3473,
     "arm": 3673,
     "wSeat": 24.12,
     "alwaysInstalled": true,
     "includedInRfmBasic": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": true,
+    "occupantArm": 3473
   },
   "C2": {
     "name": "C2 Pilot (Port)",
-    "occupantArm": 3473,
     "arm": 3673,
     "wSeat": 24.12,
     "alwaysInstalled": true,
     "includedInRfmBasic": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": true,
+    "occupantArm": 3473
   },
   "C3": {
     "name": "C3 Cockpit Jump",
     "arm": 4559,
-    "occupantArm": 4459,
-    "wSeat": 17.84
+    "wSeat": 17.84,
+    "occupantArm": 4459
   },
   "C4": {
     "name": "C4 FE (Bay 2 Port)",
-    "occupantArm": 6262,
     "arm": 6469,
-    "wSeat": 26.8
+    "wSeat": 26.8,
+    "occupantArm": 6262
   },
   "C5": {
     "name": "C5 ST TL (Bay 4 Port)",
     "arm": 8440,
-    "occupantArm": 8244,
-    "wSeat": 26.8
+    "wSeat": 26.8,
+    "occupantArm": 8244
   },
   "C6": {
     "name": "C6 ST TM (Bay 5 Stbd)",
-    "occupantArm": 9234,
     "arm": 9434,
-    "wSeat": 26.8
+    "wSeat": 26.8,
+    "occupantArm": 9234
   }
 };
 const AC_PAX_SEATS = {
@@ -619,6 +634,11 @@ const AC_STOWAGE = {
     "name": "Ramp Shelf Stbd Aft",
     "arm": 13228,
     "group": "Ramp"
+  },
+  "CABINET_TOP_SURFACE": {
+    "name": "On top of SAR cabinet",
+    "arm": 5875,
+    "group": "SAR Cabinet"
   }
 };
 
@@ -629,7 +649,7 @@ const AC_ROLE_FIT = {
     "w": 1.6,
     "arm": 12491,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_STOW_STOKES_RAMP": {
     "name": "Stowage: Stokes (Ramp) fittings",
@@ -699,7 +719,7 @@ const AC_ROLE_FIT = {
     "w": 43.2,
     "arm": 1684,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER": {
     "name": "WESCAM MX-15 Hand Controller (incl bracket/cable)",
@@ -720,28 +740,28 @@ const AC_ROLE_FIT = {
     "w": 34.47,
     "arm": 6340,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SENSOR_SYSTEMS_EOIR_BLANKING": {
     "name": "WESCAM MX-15 Blanking Removal (when turret installed)",
     "w": -0.95,
     "arm": 1908,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS": {
     "name": "WESCAM MX-15 Removable Structure and Fittings",
     "w": 0.11,
     "arm": 3241,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK": {
     "name": "Air Cooling Pack",
     "w": 64.62,
     "arm": 9673,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM": {
     "name": "Floatation System",
@@ -769,17 +789,17 @@ const AC_ROLE_FIT = {
     "w": 10.3,
     "arm": 8127,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK": {
     "name": "Dive Bottle / O2 Rack",
     "w": 7,
     "arm": 10849,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SAR_EQUIPMENT_FWD_SAR_CABINET": {
-    "name": "SAR Equipment Storage Cabinet System",
+    "name": "SAR Equipment Storage Cabinet",
     "w": 73.7,
     "arm": 5875,
     "normally": false,
@@ -804,52 +824,52 @@ const AC_ROLE_FIT = {
     "w": 3.17,
     "arm": 1800,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_LASHING_KIT": {
     "name": "Lashing/Tie Down Rings",
     "w": 9.76,
     "arm": 7243,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT": {
     "name": "Field Tool Kit and Spares Pack",
     "w": 5.98,
     "arm": 12688,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP": {
-    "name": "Plugs and Covers",
+    "name": "Plugs and Covers ",
     "w": 23,
     "arm": 10690,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW": {
     "name": "ICS Headset Cables - Crew (3 Off, 6M)",
     "w": 2.48,
     "arm": 8625,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX": {
     "name": "ICS Headset Cables - Passenger (4 Off, 2M)",
     "w": 1.16,
     "arm": 8625,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER": {
     "name": "Maintenance Ladder",
     "w": 27,
     "arm": 14940,
     "normally": true,
-    "maintenanceIncluded": true
+    "maintenanceIncluded": false
   },
   "RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM": {
-    "name": "CASEVAC Rack System",
+    "name": "CASEVAC Stretcher Rack (4 Off)",
     "w": 120.09,
     "arm": 8577,
     "normally": false,
@@ -860,277 +880,647 @@ const AC_ROLE_FIT = {
 
 // SECTION 9 — MISSION EQUIPMENT
 const AC_MISSION_EQUIP = {
-  "ME_SAR_ZONEH": {
-    "name": "SAR Equipment (Alpine/Camp/Drill/Extraction/MedSled/MTN-Belay/REEL/Rope x2)",
-    "w": 112.5,
-    "stow": "SAR_CABINET_BOTTOM",
-    "group": "SAR Equipment",
-    "on": true
+  "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25": {
+    "name": "B25 — Aircraft Commander",
+    "unitWeight": 20,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "PORT_FWD_SHELF_MID",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
   },
-  "ME_RESCUE_BASKET_PORT": {
-    "name": "Rescue Basket (Port)",
-    "w": 31.8,
-    "stow": "CABIN_PORT_STOW",
-    "group": "SAR Equipment",
-    "on": true
+  "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_RON_BAG": {
+    "name": "RON BAG — Aircraft Commander",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_FWD_BTM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
   },
-  "ME_RESCUE_BASKET_STBD": {
-    "name": "Rescue Basket (Stbd)",
-    "w": 31.8,
-    "stow": "CABIN_STBD_STOW",
-    "group": "SAR Equipment",
-    "on": false
+  "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG": {
+    "name": "EFB BAG — Aircraft Commander",
+    "unitWeight": 5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CUSTOM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true,
+    "customArm": 3473
   },
-  "ME_STOKES_RAMP": {
-    "name": "Stokes Litter (Ramp)",
-    "w": 49,
-    "stow": "RAMP_STOW",
-    "group": "SAR Equipment",
-    "on": true
+  "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25": {
+    "name": "B25 — First Officer",
+    "unitWeight": 20,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "PORT_FWD_SHELF_TOP",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
   },
-  "ME_STOKES_CABIN": {
-    "name": "Stokes Litter (Cabin)",
-    "w": 49,
-    "stow": "CABIN_DEPLOYED",
-    "group": "SAR Equipment",
-    "on": false
+  "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_RON_BAG": {
+    "name": "RON BAG — First Officer",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_FWD_BTM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
   },
-  "ME_MED_ZONEG": {
-    "name": "Medical Equipment (Supp/Pen x2/Casualty/AED/Misc Bag)",
-    "w": 68,
-    "stow": "SAR_CABINET_MIDDLE",
-    "group": "Medical Equipment",
-    "on": true
+  "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG": {
+    "name": "EFB BAG — First Officer",
+    "unitWeight": 5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CUSTOM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true,
+    "customArm": 3473
   },
-  "ME_AVIOX_O2_PRIMARY": {
-    "name": "AviOx O2 Primary (est)",
-    "w": 10,
-    "stow": "PTA_COT_AREA",
-    "group": "Medical Equipment",
-    "on": true
+  "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_B25": {
+    "name": "B25 — Flight Engineer",
+    "unitWeight": 20,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "PORT_FWD_SHELF_BOT",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
   },
-  "ME_AVIOX_O2_SPARE": {
-    "name": "AviOx O2 Spare (est)",
-    "w": 10,
-    "stow": "PTA_COT_AREA",
-    "group": "Medical Equipment",
-    "on": true
+  "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_RON_BAG": {
+    "name": "RON BAG — Flight Engineer",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_FWD_BTM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
   },
-  "ME_ALSE_ZONED": {
-    "name": "ALSE Equipment (Arctic tent/sleep/basic/pax vests)",
-    "w": 50.5,
+  "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG": {
+    "name": "HELMET BAG — Flight Engineer",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CUSTOM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true,
+    "customArm": 6262
+  },
+  "ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_B25": {
+    "name": "B25 / Dive Gear — ST Team Lead",
+    "unitWeight": 40,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "RAMP_PORT_FWD",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
+  },
+  "ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_RON_BAG": {
+    "name": "RON BAG — ST Team Lead",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "RAMP_PORT_AFT",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
+  },
+  "ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_HOIST_BAG": {
+    "name": "HOIST BAG — ST Team Lead",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CUSTOM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true,
+    "customArm": 8244
+  },
+  "ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_B25": {
+    "name": "B25 / Dive Gear — ST Team Member",
+    "unitWeight": 40,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "RAMP_STBD_FWD",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
+  },
+  "ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_RON_BAG": {
+    "name": "RON BAG — ST Team Member",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "RAMP_STBD_AFT",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true
+  },
+  "ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_HOIST_BAG": {
+    "name": "HOIST BAG — ST Team Member",
+    "unitWeight": 10,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CUSTOM",
+    "group": "CREW PERSONAL EQUIP",
+    "active": true,
+    "customArm": 9234
+  },
+  "ME_AIRCRAFT_ALSE_EQUIP_ARCTIC_KIT_A": {
+    "name": "Arctic Kit A",
+    "unitWeight": 23,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
     "stow": "SAR_CABINET_TOP",
-    "group": "ALSE",
-    "on": true
+    "group": "AIRCRAFT ALSE EQUIP",
+    "active": true
   },
-  "ME_QDIS_X3": {
-    "name": "Quick Don Immersion Suits x3",
-    "w": 6,
+  "ME_AIRCRAFT_ALSE_EQUIP_ARCTIC_KIT_B": {
+    "name": "Arctic Kit B",
+    "unitWeight": 20,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_FWD_TOP",
+    "group": "AIRCRAFT ALSE EQUIP",
+    "active": true,
+    "description": "Specific missions only — winter months"
+  },
+  "ME_AIRCRAFT_ALSE_EQUIP_SLEEP_KIT": {
+    "name": "Sleep Kit",
+    "unitWeight": 12,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_TOP",
+    "group": "AIRCRAFT ALSE EQUIP",
+    "active": true
+  },
+  "ME_AIRCRAFT_ALSE_EQUIP_BASIC_KIT": {
+    "name": "Basic Kit",
+    "unitWeight": 18.2,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_TOP",
+    "group": "AIRCRAFT ALSE EQUIP",
+    "active": true
+  },
+  "ME_AIRCRAFT_ALSE_EQUIP_PAX_LIFE_VESTS": {
+    "name": "PAX Life Vests",
+    "unitWeight": 1.8,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_TOP",
+    "group": "AIRCRAFT ALSE EQUIP",
+    "active": true
+  },
+  "ME_AIRCRAFT_ALSE_EQUIP_QUICK_DON_IMMERSION_SUITS": {
+    "name": "Quick Don Immersion Suits",
+    "unitWeight": 3.25,
+    "defaultQuantity": 3,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
     "stow": "SAR_CABINET_UPPER",
-    "group": "ALSE",
-    "on": true
+    "group": "AIRCRAFT ALSE EQUIP",
+    "active": true
   },
-  "ME_NVGS_X5": {
-    "name": "NVGs x5",
-    "w": 4.5,
-    "stow": "LOCKBOX_TOP",
-    "group": "Misc / Mission Kits",
-    "on": true
+  "ME_SAR_MEDICAL_EQUIP_PENETRATION_KIT": {
+    "name": "Penetration Kit",
+    "unitWeight": 14.35,
+    "defaultQuantity": 2,
+    "missionQuantityEditable": true,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_MIDDLE",
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
   },
-  "ME_SAR_RIFLE": {
-    "name": "SAR Rifle",
-    "w": 2.5,
-    "stow": "OVERHEAD_STBD",
-    "group": "Misc / Mission Kits",
-    "on": true
+  "ME_SAR_MEDICAL_EQUIP_SUPPLEMENTAL_KIT": {
+    "name": "Supplemental Kit",
+    "unitWeight": 15.9,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_MIDDLE",
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
   },
-  "ME_SAR_DRUG": {
-    "name": "SAR Drug Kit",
-    "w": 1,
+  "ME_SAR_MEDICAL_EQUIP_AED": {
+    "name": "AED",
+    "unitWeight": 3.7,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_MIDDLE",
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
+  },
+  "ME_SAR_MEDICAL_EQUIP_CASUALTY_BAG": {
+    "name": "Casualty Bag",
+    "unitWeight": 2.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_MIDDLE",
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
+  },
+  "ME_SAR_MEDICAL_EQUIP_MED_SLED": {
+    "name": "Med Sled",
+    "unitWeight": 15,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
+  },
+  "ME_SAR_MEDICAL_EQUIP_NARCOTICS_KIT": {
+    "name": "Narcotics Kit",
+    "unitWeight": 0.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
     "stow": "OVERHEAD_PORT",
-    "group": "Medical Equipment",
-    "on": true
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
+  },
+  "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_PRIMARY": {
+    "name": "AviOx O2 Primary",
+    "unitWeight": 8.35,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "PTA_COT_AREA",
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
+  },
+  "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_SPARE_BOTTLES": {
+    "name": "AviOx O2 Spare Bottles",
+    "unitWeight": 12.7,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "PTA_COT_AREA",
+    "group": "SAR MEDICAL EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_NVG_SET_AND_CASE": {
+    "name": "NVG Set and Case",
+    "unitWeight": 1.25,
+    "defaultQuantity": 5,
+    "missionQuantityEditable": true,
+    "minQuantity": 0,
+    "stow": "LOCKBOX_TOP",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_STOKES_LITTER_FLOTATION_KIT": {
+    "name": "Stokes Litter Flotation Kit",
+    "unitWeight": 2.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CUSTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "customArm": 14940
+  },
+  "ME_SAR_MISSION_EQUIP_HOIST_KIT": {
+    "name": "Hoist Kit incl Short/Long Rescue Collar",
+    "unitWeight": 2.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CABINET_TOP_SURFACE",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_GUIDELINE": {
+    "name": "Guideline",
+    "unitWeight": 5,
+    "defaultQuantity": 2,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "BASKET",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "followBasket": true
+  },
+  "ME_SAR_MISSION_EQUIP_GUIDELINE_WEIGHT": {
+    "name": "Guideline Weight",
+    "unitWeight": 2,
+    "defaultQuantity": 2,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "BASKET",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "followBasket": true
+  },
+  "ME_SAR_MISSION_EQUIP_MOUNTAIN_LINK": {
+    "name": "Mountain Link",
+    "unitWeight": 0.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CABINET_TOP_SURFACE",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_STOKES_LITTER_CABIN": {
+    "name": "Stokes Litter (Cabin)",
+    "unitWeight": 49,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CABIN_DEPLOYED",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_STOKES_LITTER_RAMP": {
+    "name": "Stokes Litter (Ramp)",
+    "unitWeight": 49,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "RAMP_STOW",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_RESCUE_BASKET_PORT": {
+    "name": "Rescue Basket (Port)",
+    "unitWeight": 31.8,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CABIN_PORT_STOW",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "isBasket": true
+  },
+  "ME_SAR_MISSION_EQUIP_RESCUE_BASKET_STBD": {
+    "name": "Rescue Basket (Stbd)",
+    "unitWeight": 31.8,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "CABIN_STBD_STOW",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "isBasket": true
+  },
+  "ME_SAR_MISSION_EQUIP_COMMS_BAG": {
+    "name": "Comms Bag",
+    "unitWeight": 8.6,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_MIDDLE",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_CAMP_KIT": {
+    "name": "Camp Kit",
+    "unitWeight": 22,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_DRILL_KIT": {
+    "name": "Drill Kit",
+    "unitWeight": 8.25,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_ROPE_LOWERING_SYSTEM": {
+    "name": "Rope Lowering System",
+    "unitWeight": 13,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_ROPE_RESCUE_KIT": {
+    "name": "Rope Rescue Kit",
+    "unitWeight": 22,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_FORCE_EXTRACTION_TOOL": {
+    "name": "Force Extraction Tool",
+    "unitWeight": 4.2,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_SAR_RIFLE": {
+    "name": "SAR Rifle",
+    "unitWeight": 5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "OVERHEAD_STBD",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_SAR_SHOTGUN": {
+    "name": "SAR Shotgun",
+    "unitWeight": 5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "OVERHEAD_STBD",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "description": "When carried"
+  },
+  "ME_SAR_MISSION_EQUIP_HUMAN_REMAINS_BAG": {
+    "name": "Human Remains Bag",
+    "unitWeight": 4,
+    "defaultQuantity": 2,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_TALON_STRETCHER": {
+    "name": "Talon Stretcher",
+    "unitWeight": 6.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "PTA_COT_AREA",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_MISCELLANEOUS_BAG": {
+    "name": "Miscellaneous Bag",
+    "unitWeight": 3,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_MIDDLE",
+    "group": "SAR MISSION EQUIP",
+    "active": true
+  },
+  "ME_SAR_MISSION_EQUIP_ALPINE_KIT": {
+    "name": "Alpine Kit",
+    "unitWeight": 18.35,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "description": "Specific missions only"
+  },
+  "ME_SAR_MISSION_EQUIP_OPERATIONAL_DIVE_KIT_BOTTLES": {
+    "name": "Operational Dive Kit (Bottles)",
+    "unitWeight": 80,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "BAY55",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "description": "Specific missions only"
+  },
+  "ME_SAR_MISSION_EQUIP_OPERATIONAL_DIVE_KIT_EQUIP": {
+    "name": "Operational Dive Kit (Equip)",
+    "unitWeight": 80,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "BAY55",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "description": "Specific missions only"
+  },
+  "ME_SAR_MISSION_EQUIP_REEL_SPLINT": {
+    "name": "Reel Splint",
+    "unitWeight": 4.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_BOTTOM",
+    "group": "SAR MISSION EQUIP",
+    "active": true,
+    "description": "Specific missions only"
+  },
+  "ME_CREW_COMFORT_EQUIP_BMS_BOX": {
+    "name": "BMS Box",
+    "unitWeight": 11,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_FWD_BTM",
+    "group": "CREW COMFORT EQUIP",
+    "active": true
+  },
+  "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG": {
+    "name": "Water Bottle Storage Bag",
+    "unitWeight": 7.5,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_UPPER",
+    "group": "CREW COMFORT EQUIP",
+    "active": true,
+    "followBasket": false
+  },
+  "ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL": {
+    "name": "POL Container and POL",
+    "unitWeight": 11,
+    "defaultQuantity": 1,
+    "missionQuantityEditable": false,
+    "minQuantity": 0,
+    "stow": "SAR_CABINET_FWD_BTM",
+    "group": "SERVICING EQUIP",
+    "active": true,
+    "alwaysInclude": true
   },
   "ME_PORT_FWD_SHELF_TOP": {
     "name": "Port Fwd Shelf Top",
     "w": 0,
     "stow": "PORT_FWD_SHELF_TOP",
-    "group": "Stowage",
-    "on": false
+    "group": "Stowage"
   },
   "ME_PORT_FWD_SHELF_MID": {
     "name": "Port Fwd Shelf Middle",
     "w": 0,
     "stow": "PORT_FWD_SHELF_MID",
-    "group": "Stowage",
-    "on": false
+    "group": "Stowage"
   },
   "ME_PORT_FWD_SHELF_BOT": {
     "name": "Port Fwd Shelf Bottom",
     "w": 0,
     "stow": "PORT_FWD_SHELF_BOT",
-    "group": "Stowage",
-    "on": false
+    "group": "Stowage"
   },
   "ME_RAMP_SHELF_PORT_FWD": {
     "name": "Ramp Shelf Port Fwd",
     "w": 0,
     "stow": "RAMP_PORT_FWD",
-    "group": "Stowage",
-    "on": false
+    "group": "Stowage"
   },
   "ME_RAMP_SHELF_PORT_AFT": {
     "name": "Ramp Shelf Port Aft",
     "w": 0,
     "stow": "RAMP_PORT_AFT",
-    "group": "Stowage",
-    "on": false
+    "group": "Stowage"
   },
   "ME_RAMP_SHELF_STBD_FWD": {
     "name": "Ramp Shelf Stbd Fwd",
     "w": 0,
     "stow": "RAMP_STBD_FWD",
-    "group": "Stowage",
-    "on": false
+    "group": "Stowage"
   },
   "ME_RAMP_SHELF_STBD_AFT": {
     "name": "Ramp Shelf Stbd Aft",
     "w": 0,
     "stow": "RAMP_STBD_AFT",
-    "group": "Stowage",
-    "on": false
+    "group": "Stowage"
   },
   "ME_OVERHEAD_PORT": {
     "name": "Overhead Bin (Port)",
     "w": 0,
     "stow": "OVERHEAD_PORT",
-    "group": "Stowage",
-    "on": true
+    "group": "Stowage"
   },
   "ME_OVERHEAD_STBD": {
     "name": "Overhead Bin (Stbd)",
     "w": 0,
     "stow": "OVERHEAD_STBD",
-    "group": "Stowage",
-    "on": true
-  },
-  "ME_AC_B25": {
-    "name": "B25 AC",
-    "w": 20,
-    "stow": "PORT_FWD_SHELF_MID",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_FO_B25": {
-    "name": "B25 FO",
-    "w": 20,
-    "stow": "PORT_FWD_SHELF_TOP",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_FE_B25": {
-    "name": "B25 FE",
-    "w": 20,
-    "stow": "PORT_FWD_SHELF_BOT",
-    "group": "Personal Equipment",
-    "on": false,
-    "customArm": 6262
-  },
-  "ME_STTL_B25": {
-    "name": "B25/Dive Gear Team Lead",
-    "w": 40,
-    "stow": "RAMP_PORT_FWD",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_STTM_B25": {
-    "name": "B25/Dive Gear Team Member ",
-    "w": 40,
-    "stow": "RAMP_STBD_FWD",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_AC_RON_BAG": {
-    "name": "RON bag AC",
-    "w": 10,
-    "stow": "SAR_CABINET_FWD_BTM",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_FO_RON_BAG": {
-    "name": "RON Bag FO",
-    "w": 10,
-    "stow": "SAR_CABINET_FWD_BTM",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_FE_RON_BAG": {
-    "name": "RON Bag FE",
-    "w": 10,
-    "stow": "SAR_CABINET_FWD_BTM",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_STTL_RON_BAG": {
-    "name": "RON Bag Team Lead",
-    "w": 10,
-    "stow": "RAMP_PORT_AFT",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_STTM_RON_BAG": {
-    "name": "RON Bag Team Member ",
-    "w": 10,
-    "stow": "RAMP_STBD_AFT",
-    "group": "Personal Equipment",
-    "on": false
-  },
-  "ME_AC_EFB_BAG": {
-    "name": "EFB Bag AC",
-    "w": 5,
-    "stow": "CUSTOM",
-    "group": "Personal Equipment",
-    "on": false,
-    "customArm": 3473
-  },
-  "ME_FO_EFB_BAG": {
-    "name": "EFB Bag FO",
-    "w": 5,
-    "stow": "CUSTOM",
-    "group": "Personal Equipment",
-    "on": false,
-    "customArm": 3473
-  },
-  "ME_FE_HELMET_BAG": {
-    "name": "Helmet Bag FE",
-    "w": 10,
-    "stow": "CUSTOM",
-    "group": "Personal Equipment",
-    "on": false,
-    "customArm": 6262
-  },
-  "ME_STTL_HOIST_BAG": {
-    "name": "Hoist Bag Team Lead ",
-    "w": 10,
-    "stow": "CUSTOM",
-    "group": "Personal Equipment",
-    "on": false,
-    "customArm": 8244
-  },
-  "ME_STTM_HOIST_BAG": {
-    "name": "Hoist Bag Team Member ",
-    "w": 10,
-    "stow": "CUSTOM",
-    "group": "Personal Equipment",
-    "on": false,
-    "customArm": 9234
-  },
-  "ME_NVG_6TH_CREW": {
-    "name": "NVG Set for 6th Crew",
-    "w": 0.9,
-    "stow": "LOCKBOX_BTM",
-    "group": "Misc / Mission Kits",
-    "on": false
+    "group": "Stowage"
   }
 };
 
@@ -1196,17 +1586,30 @@ const AC_PRESETS = {
     ],
     "roleFitOff": [],
     "missionOn": [
-      "ME_SAR_ZONEH",
-      "ME_MED_ZONEG",
-      "ME_AVIOX_O2_PRIMARY",
-      "ME_AVIOX_O2_SPARE",
-      "ME_ALSE_ZONED",
-      "ME_RESCUE_BASKET_STBD",
-      "ME_STOKES_RAMP",
-      "ME_QDIS_X3",
-      "ME_NVGS_X5",
-      "ME_SAR_RIFLE",
-      "ME_SAR_DRUG",
+      "ME_SAR_MEDICAL_EQUIP_MED_SLED",
+      "ME_SAR_MISSION_EQUIP_MOUNTAIN_LINK",
+      "ME_SAR_MISSION_EQUIP_CAMP_KIT",
+      "ME_SAR_MISSION_EQUIP_DRILL_KIT",
+      "ME_SAR_MISSION_EQUIP_ROPE_LOWERING_SYSTEM",
+      "ME_SAR_MISSION_EQUIP_ROPE_RESCUE_KIT",
+      "ME_SAR_MISSION_EQUIP_FORCE_EXTRACTION_TOOL",
+      "ME_SAR_MEDICAL_EQUIP_PENETRATION_KIT",
+      "ME_SAR_MEDICAL_EQUIP_SUPPLEMENTAL_KIT",
+      "ME_SAR_MEDICAL_EQUIP_AED",
+      "ME_SAR_MEDICAL_EQUIP_CASUALTY_BAG",
+      "ME_SAR_MISSION_EQUIP_MISCELLANEOUS_BAG",
+      "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_PRIMARY",
+      "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_SPARE_BOTTLES",
+      "ME_AIRCRAFT_ALSE_EQUIP_ARCTIC_KIT_A",
+      "ME_AIRCRAFT_ALSE_EQUIP_SLEEP_KIT",
+      "ME_AIRCRAFT_ALSE_EQUIP_BASIC_KIT",
+      "ME_AIRCRAFT_ALSE_EQUIP_PAX_LIFE_VESTS",
+      "ME_SAR_MISSION_EQUIP_RESCUE_BASKET_STBD",
+      "ME_SAR_MISSION_EQUIP_STOKES_LITTER_RAMP",
+      "ME_AIRCRAFT_ALSE_EQUIP_QUICK_DON_IMMERSION_SUITS",
+      "ME_SAR_MISSION_EQUIP_NVG_SET_AND_CASE",
+      "ME_SAR_MISSION_EQUIP_SAR_RIFLE",
+      "ME_SAR_MEDICAL_EQUIP_NARCOTICS_KIT",
       "ME_PORT_FWD_SHELF_TOP",
       "ME_PORT_FWD_SHELF_MID",
       "ME_PORT_FWD_SHELF_BOT",
@@ -1214,22 +1617,30 @@ const AC_PRESETS = {
       "ME_RAMP_SHELF_PORT_AFT",
       "ME_RAMP_SHELF_STBD_FWD",
       "ME_RAMP_SHELF_STBD_AFT",
-      "ME_ALSE_ARCTIC2",
-      "ME_NEW_THINGY",
       "ME_OVERHEAD_PORT",
       "ME_OVERHEAD_STBD",
-      "ME_STTL_B25",
-      "ME_STTM_B25",
-      "ME_FO_B25",
-      "ME_FE_B25",
-      "ME_AC_B25",
-      "ME_STTM_HOIST_BAG",
-      "ME_STTL_HOIST_BAG",
-      "ME_FO_EFB_BAG",
-      "ME_FE_HELMET_BAG",
-      "ME_AC_EFB_BAG"
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_B25",
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_B25",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25",
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_HOIST_BAG",
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_HOIST_BAG",
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG",
+      "ME_SAR_MISSION_EQUIP_STOKES_LITTER_FLOTATION_KIT",
+      "ME_SAR_MISSION_EQUIP_HOIST_KIT",
+      "ME_SAR_MISSION_EQUIP_GUIDELINE",
+      "ME_SAR_MISSION_EQUIP_GUIDELINE_WEIGHT",
+      "ME_SAR_MISSION_EQUIP_COMMS_BAG",
+      "ME_SAR_MISSION_EQUIP_HUMAN_REMAINS_BAG",
+      "ME_SAR_MISSION_EQUIP_TALON_STRETCHER",
+      "ME_CREW_COMFORT_EQUIP_BMS_BOX",
+      "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG"
     ],
-    "missionOff": []
+    "missionOff": [],
+    "active": true
   },
   "SAR10": {
     "name": "SAR-10 Pax",
@@ -1299,17 +1710,30 @@ const AC_PRESETS = {
       "RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM"
     ],
     "missionOn": [
-      "ME_SAR_ZONEH",
-      "ME_MED_ZONEG",
-      "ME_AVIOX_O2_PRIMARY",
-      "ME_AVIOX_O2_SPARE",
-      "ME_ALSE_ZONED",
-      "ME_RESCUE_BASKET_PORT",
-      "ME_STOKES_RAMP",
-      "ME_QDIS_X3",
-      "ME_NVGS_X5",
-      "ME_SAR_RIFLE",
-      "ME_SAR_DRUG",
+      "ME_SAR_MEDICAL_EQUIP_MED_SLED",
+      "ME_SAR_MISSION_EQUIP_MOUNTAIN_LINK",
+      "ME_SAR_MISSION_EQUIP_CAMP_KIT",
+      "ME_SAR_MISSION_EQUIP_DRILL_KIT",
+      "ME_SAR_MISSION_EQUIP_ROPE_LOWERING_SYSTEM",
+      "ME_SAR_MISSION_EQUIP_ROPE_RESCUE_KIT",
+      "ME_SAR_MISSION_EQUIP_FORCE_EXTRACTION_TOOL",
+      "ME_SAR_MEDICAL_EQUIP_PENETRATION_KIT",
+      "ME_SAR_MEDICAL_EQUIP_SUPPLEMENTAL_KIT",
+      "ME_SAR_MEDICAL_EQUIP_AED",
+      "ME_SAR_MEDICAL_EQUIP_CASUALTY_BAG",
+      "ME_SAR_MISSION_EQUIP_MISCELLANEOUS_BAG",
+      "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_PRIMARY",
+      "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_SPARE_BOTTLES",
+      "ME_AIRCRAFT_ALSE_EQUIP_ARCTIC_KIT_A",
+      "ME_AIRCRAFT_ALSE_EQUIP_SLEEP_KIT",
+      "ME_AIRCRAFT_ALSE_EQUIP_BASIC_KIT",
+      "ME_AIRCRAFT_ALSE_EQUIP_PAX_LIFE_VESTS",
+      "ME_SAR_MISSION_EQUIP_RESCUE_BASKET_PORT",
+      "ME_SAR_MISSION_EQUIP_STOKES_LITTER_RAMP",
+      "ME_AIRCRAFT_ALSE_EQUIP_QUICK_DON_IMMERSION_SUITS",
+      "ME_SAR_MISSION_EQUIP_NVG_SET_AND_CASE",
+      "ME_SAR_MISSION_EQUIP_SAR_RIFLE",
+      "ME_SAR_MEDICAL_EQUIP_NARCOTICS_KIT",
       "ME_PORT_FWD_SHELF_TOP",
       "ME_PORT_FWD_SHELF_MID",
       "ME_PORT_FWD_SHELF_BOT",
@@ -1317,21 +1741,30 @@ const AC_PRESETS = {
       "ME_RAMP_SHELF_PORT_AFT",
       "ME_RAMP_SHELF_STBD_FWD",
       "ME_RAMP_SHELF_STBD_AFT",
-      "ME_ALSE_ARCTIC2",
       "ME_OVERHEAD_PORT",
       "ME_OVERHEAD_STBD",
-      "ME_STTL_B25",
-      "ME_STTM_B25",
-      "ME_FO_B25",
-      "ME_FE_B25",
-      "ME_AC_B25",
-      "ME_STTM_HOIST_BAG",
-      "ME_STTL_HOIST_BAG",
-      "ME_FO_EFB_BAG",
-      "ME_FE_HELMET_BAG",
-      "ME_AC_EFB_BAG"
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_B25",
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_B25",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25",
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_HOIST_BAG",
+      "ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_HOIST_BAG",
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG",
+      "ME_SAR_MISSION_EQUIP_STOKES_LITTER_FLOTATION_KIT",
+      "ME_SAR_MISSION_EQUIP_HOIST_KIT",
+      "ME_SAR_MISSION_EQUIP_GUIDELINE",
+      "ME_SAR_MISSION_EQUIP_GUIDELINE_WEIGHT",
+      "ME_SAR_MISSION_EQUIP_COMMS_BAG",
+      "ME_SAR_MISSION_EQUIP_HUMAN_REMAINS_BAG",
+      "ME_SAR_MISSION_EQUIP_TALON_STRETCHER",
+      "ME_CREW_COMFORT_EQUIP_BMS_BOX",
+      "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG"
     ],
-    "missionOff": []
+    "missionOff": [],
+    "active": true
   },
   "CASEVAC": {
     "name": "CASEVAC",
@@ -1393,36 +1826,49 @@ const AC_PRESETS = {
     "missionOn": [
       "ME_OVERHEAD_PORT",
       "ME_OVERHEAD_STBD",
-      "ME_FO_B25",
-      "ME_FE_B25",
-      "ME_AC_B25",
-      "ME_FO_EFB_BAG",
-      "ME_FE_HELMET_BAG",
-      "ME_AC_EFB_BAG"
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_B25",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG"
     ],
     "missionOff": [
-      "ME_SAR_ZONEH",
-      "ME_RESCUE_BASKET_PORT",
-      "ME_RESCUE_BASKET_STBD",
-      "ME_STOKES_RAMP",
-      "ME_STOKES_CABIN",
-      "ME_MED_ZONEG",
-      "ME_AVIOX_O2_PRIMARY",
-      "ME_AVIOX_O2_SPARE",
-      "ME_ALSE_ZONED",
-      "ME_QDIS_X3",
-      "ME_NVGS_X5",
-      "ME_SAR_RIFLE",
-      "ME_SAR_DRUG",
+      "ME_SAR_MEDICAL_EQUIP_MED_SLED",
+      "ME_SAR_MISSION_EQUIP_MOUNTAIN_LINK",
+      "ME_SAR_MISSION_EQUIP_CAMP_KIT",
+      "ME_SAR_MISSION_EQUIP_DRILL_KIT",
+      "ME_SAR_MISSION_EQUIP_ROPE_LOWERING_SYSTEM",
+      "ME_SAR_MISSION_EQUIP_ROPE_RESCUE_KIT",
+      "ME_SAR_MISSION_EQUIP_FORCE_EXTRACTION_TOOL",
+      "ME_SAR_MISSION_EQUIP_RESCUE_BASKET_PORT",
+      "ME_SAR_MISSION_EQUIP_RESCUE_BASKET_STBD",
+      "ME_SAR_MISSION_EQUIP_STOKES_LITTER_RAMP",
+      "ME_SAR_MISSION_EQUIP_STOKES_LITTER_CABIN",
+      "ME_SAR_MEDICAL_EQUIP_PENETRATION_KIT",
+      "ME_SAR_MEDICAL_EQUIP_SUPPLEMENTAL_KIT",
+      "ME_SAR_MEDICAL_EQUIP_AED",
+      "ME_SAR_MEDICAL_EQUIP_CASUALTY_BAG",
+      "ME_SAR_MISSION_EQUIP_MISCELLANEOUS_BAG",
+      "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_PRIMARY",
+      "ME_SAR_MEDICAL_EQUIP_AVIOX_O2_SPARE_BOTTLES",
+      "ME_AIRCRAFT_ALSE_EQUIP_ARCTIC_KIT_A",
+      "ME_AIRCRAFT_ALSE_EQUIP_SLEEP_KIT",
+      "ME_AIRCRAFT_ALSE_EQUIP_BASIC_KIT",
+      "ME_AIRCRAFT_ALSE_EQUIP_PAX_LIFE_VESTS",
+      "ME_AIRCRAFT_ALSE_EQUIP_QUICK_DON_IMMERSION_SUITS",
+      "ME_SAR_MISSION_EQUIP_NVG_SET_AND_CASE",
+      "ME_SAR_MISSION_EQUIP_SAR_RIFLE",
+      "ME_SAR_MEDICAL_EQUIP_NARCOTICS_KIT",
       "ME_PORT_FWD_SHELF_TOP",
       "ME_PORT_FWD_SHELF_MID",
       "ME_PORT_FWD_SHELF_BOT",
       "ME_RAMP_SHELF_PORT_FWD",
       "ME_RAMP_SHELF_PORT_AFT",
       "ME_RAMP_SHELF_STBD_FWD",
-      "ME_RAMP_SHELF_STBD_AFT",
-      "ME_ALSE_KIT"
-    ]
+      "ME_RAMP_SHELF_STBD_AFT"
+    ],
+    "active": true
   },
   "TRANSPORT": {
     "name": "Transport",
@@ -1490,14 +1936,15 @@ const AC_PRESETS = {
     "missionOn": [
       "ME_OVERHEAD_PORT",
       "ME_OVERHEAD_STBD",
-      "ME_FO_B25",
-      "ME_FE_B25",
-      "ME_AC_B25",
-      "ME_FO_EFB_BAG",
-      "ME_FE_HELMET_BAG",
-      "ME_AC_EFB_BAG"
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_B25",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25",
+      "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG",
+      "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG",
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG"
     ],
-    "missionOff": []
+    "missionOff": [],
+    "active": true
   }
 };
 
@@ -1520,42 +1967,4 @@ const AC = {
   presets:       AC_PRESETS
 };
 
-// Apply localStorage overrides
-try {
-  const saved = localStorage.getItem('ac_config_overrides');
-  if (saved) {
-    const ov = JSON.parse(saved);
-    if (ov.missionEquip) AC.missionEquip = ov.missionEquip;
-    if (ov.stowage)      AC.stowage      = ov.stowage;
-    if (ov.roleFit)      AC.roleFit      = ov.roleFit;
-    if (ov.crewSeats) {
-      AC.crewSeats = ov.crewSeats;
-      for(const [key,seat] of Object.entries(AC.crewSeats)) {
-        if(seat.occupantArm==null && AC_CREW_SEATS[key]) seat.occupantArm=AC_CREW_SEATS[key].occupantArm;
-      }
-      if(AC.crewSeats.C3?.arm===4599) AC.crewSeats.C3.arm=4559;
-      if(AC.crewSeats.C5?.arm===8444) AC.crewSeats.C5.arm=8440;
-    }
-    if (ov.paxSeats)     AC.paxSeats     = ov.paxSeats;
-    if(AC.roleFit.RF_SAR_EQUIPMENT_FWD_SAR_CABINET?.arm===6275) AC.roleFit.RF_SAR_EQUIPMENT_FWD_SAR_CABINET.arm=5875;
-    if (ov.referenceDocuments) {
-      const updated=AC.meta.referenceDocuments.history[0];
-      AC.meta.referenceDocuments = ov.referenceDocuments;
-      if(AC.meta.referenceDocuments.currentId==='ref-2026-06-09-issue-1') {
-        AC.meta.referenceDocuments.history=[updated,...AC.meta.referenceDocuments.history.filter(x=>x.id!==updated.id)];
-        AC.meta.referenceDocuments.currentId=updated.id;
-      }
-    }
-    // Restore preset missionOn/missionOff and roleFitOn/Off overrides
-    if (ov.presets) {
-      for (const pk of Object.keys(ov.presets)) {
-        if (AC.presets[pk]) {
-          if (ov.presets[pk].missionOn)  AC.presets[pk].missionOn  = ov.presets[pk].missionOn;
-          if (ov.presets[pk].missionOff) AC.presets[pk].missionOff = ov.presets[pk].missionOff;
-          if (ov.presets[pk].roleFitOn)  AC.presets[pk].roleFitOn  = ov.presets[pk].roleFitOn;
-          if (ov.presets[pk].roleFitOff) AC.presets[pk].roleFitOff = ov.presets[pk].roleFitOff;
-        }
-      }
-    }
-  }
-} catch (e) { console.warn('Could not load config overrides:', e); }
+// Device overrides are validated and loaded by mission.js.

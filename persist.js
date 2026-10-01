@@ -22,8 +22,8 @@
    the new code doesn't expect. Increment STATE_SCHEMA whenever the session
    object shape in makeNewSession() changes.
    ========================= */
-const APP_VERSION  = "0.2.12-dev";  // human-facing release version (shown in UI / PDF)
-const STATE_SCHEMA = 5;         // v5: explicit role-fit declarations and custom accounting
+const APP_VERSION  = "0.2.13-dev";  // human-facing release version (shown in UI / PDF)
+const STATE_SCHEMA = 6;         // v6: mission quantities and per-location allocations
 
 const SESSION_KEY = "wb615_session";
 let sessionSaveBlocked=false;
@@ -45,6 +45,8 @@ function persistSession(){
     const snapshot = {
       appVersion:   APP_VERSION,
       schema:       STATE_SCHEMA,
+      missionSignature: missionCatalogueSignature(),
+      roleFitSignature: roleFitAccountingSignature(),
       savedAt:      new Date().toISOString(),
       selectedTail: STORE.selectedTail,
       activeTab:    (typeof activeTab !== "undefined") ? activeTab : "HOME",
@@ -70,10 +72,20 @@ function restoreSession(){
 
     const snap = JSON.parse(raw);
 
-    if (!snap || ![4,STATE_SCHEMA].includes(snap.schema) || !snap.sessions || typeof snap.sessions!=="object"){
+    if (!snap || ![4,5,STATE_SCHEMA].includes(snap.schema) || !snap.sessions || typeof snap.sessions!=="object"){
       sessionSaveBlocked=true;
       showSessionMigrationWarning("Saved session format is not supported. The original save is preserved; automatic saving is paused.");
       return false;
+    }
+    // Validate before replacing live sessions, so malformed saves cannot partly load.
+    for(const s of Object.values(snap.sessions)){
+      if(!s || typeof s!=="object" || !s.accepted || !s.fuel || !s.seats || !s.bays || !Array.isArray(s.cargo))throw new Error('Incomplete saved session');
+      if(s.missionLoads){
+        for(const rows of Object.values(s.missionLoads)){
+          if(!Array.isArray(rows)||rows.some(r=>!r||typeof r.id!=='string'||!Number.isInteger(r.quantity)||r.quantity<0||typeof r.stow!=='string'))throw new Error('Invalid equipment allocation');
+          if(new Set(rows.map(r=>r.id)).size!==rows.length)throw new Error('Duplicate equipment allocation identity');
+        }
+      }
     }
     const needsMigration=snap.schema===4 || Object.values(snap.sessions).some(s=>!s.roleFitDeclarations);
     if(needsMigration){
@@ -91,15 +103,25 @@ function restoreSession(){
         if (!a.basicWeightBasis) a.basicWeightBasis = "MAINTENANCE";
         if (!("maintenanceBaseline" in a)) a.maintenanceBaseline = null;
 
-        // Enforce the neutral-state rule for older saved sessions: without a
-        // selected configuration, no mission equipment remains selected.
         const restored = STORE.sessions[tail];
         normalizeRackSessionKey(restored);
         if(needsMigration || !restored.roleFitDeclarations) migrateRoleFitDeclarations(restored);
-        syncRoleFitPhysicalState(restored);
-        if (!restored.preset && restored.mission){
-          for (const k of Object.keys(restored.mission)) restored.mission[k] = false;
+        if(snap.roleFitSignature!==roleFitAccountingSignature() && restored.accepted?.isAccepted){
+          if(!localStorage.getItem('wb615_session_before_fit_defaults_v2'))localStorage.setItem('wb615_session_before_fit_defaults_v2',raw);
+          restored.accountingReviewRequired=true;
+          invalidateAccountingCertification(restored);
         }
+        syncRoleFitPhysicalState(restored);
+        if(snap.schema!==STATE_SCHEMA){
+          if(!localStorage.getItem('wb615_session_before_mission_v2'))localStorage.setItem('wb615_session_before_mission_v2',raw);
+          restored.mission={};restored.missionLoads={};
+          for(const [key,it] of Object.entries(AC.missionEquip))restored.mission[key]=missionAutomaticDefault(restored,key,it);
+          restored.missionReviewRequired=true;
+          invalidateAccountingCertification(restored);
+        } else if(snap.missionSignature!==missionCatalogueSignature()){
+          restored.missionReviewRequired=true;invalidateAccountingCertification(restored);
+        }
+
       }
     }
 
@@ -128,8 +150,24 @@ function restoreSession(){
    invalidates saved state — swiping the app closed does not.
    ========================= */
 function endPersistedSession(){
-  if(sessionSaveBlocked){alert("The original session is protected because it could not be safely restored. Preserve its data before clearing storage.");return;}
-  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  try {
+    if (sessionSaveBlocked){
+      const original = localStorage.getItem(SESSION_KEY);
+      if (original !== null){
+        // Preserve the exact original, including invalid JSON, before an explicit reset.
+        const backupKey = `${SESSION_KEY}_before_explicit_reset_${Date.now()}`;
+        localStorage.setItem(backupKey, original);
+        if (localStorage.getItem(backupKey) !== original) throw new Error("Session backup could not be verified");
+      }
+    }
+    localStorage.removeItem(SESSION_KEY);
+  } catch (e) {
+    alert("The session could not be backed up or cleared because browser storage is unavailable or full. Your original save has been kept. Free some browser storage and try again.");
+    return false;
+  }
+  sessionSaveBlocked = false;
+  document.getElementById("sessionMigrationWarning")?.remove();
+  if (typeof missionConfigNotice !== "undefined" && missionConfigNotice) showSessionMigrationWarning(missionConfigNotice);
   try { localStorage.removeItem(SPLASH_ACK_KEY); } catch (e) {}  // re-show opening screen
   // These Certify fields are plain DOM inputs, not part of STORE. Resetting
   // the sessions alone leaves their previous values visible on the next tail.
@@ -143,6 +181,7 @@ function endPersistedSession(){
     initTails();
   }
   if (typeof activeTab !== "undefined") activeTab = "HOME";
+  return true;
 }
 
 /* When the snapshot was last written (for UI display). */

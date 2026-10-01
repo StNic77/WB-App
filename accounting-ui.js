@@ -2,43 +2,49 @@ function renderAccountingWarnings(s){
   const notice=document.getElementById('accountingReviewNotice');
   notice.hidden=!s.accountingReviewRequired;
   if(s.accountingReviewRequired){
-    notice.innerHTML='<b>Review required.</b> This saved session used the previous installed/not-installed controls. The original save is preserved. Check every declaration against the accepted aircraft record before certifying. <button class="btn" id="confirmAccountingReview" type="button">I have reviewed these declarations</button>';
+    notice.innerHTML='<b>Review required.</b> Role-fit data or accounting rules have changed. Check the fitted equipment and weight adjustments against the accepted aircraft record before certifying. <button class="btn" id="confirmAccountingReview" type="button">I have reviewed these declarations</button>';
     notice.querySelector('button').onclick=()=>{s.accountingReviewRequired=false;render();};
   }
-  const issues=accountingIssues(s), host=document.getElementById('accountingIssues');
+  const issues=[...accountingIssues(s),...missionIssues(s)], host=document.getElementById('accountingIssues');
   host.hidden=!issues.length; host.textContent=issues.join(' ');
 }
 function renderRoleFitDeclarations(s){
   const box=document.getElementById('roleFitList');box.replaceChildren();
-  document.getElementById('roleFitBasisMessage').textContent='Your accepted weight and arm already represent the aircraft’s recorded condition. Use this list to describe its equipment. Only add or subtract weight for changes not already reflected in the servicing record. Green: normally installed for this configuration. No colour: not normally installed. Yellow: a manual choice or custom exception. Colours describe configuration and overrides, not weight adjustments; check the adjustment shown below each item.';
+  document.getElementById('roleFitBasisMessage').textContent='Basic Weight is the starting weight entered or selected on the Accept page. Equipment adjustments are applied to that starting weight to calculate the aircraft’s operating weight.';
   const rows=roleFitAccountingRows(s).sort((a,b)=>Number(roleFitExpectation(s,b.key).installed)-Number(roleFitExpectation(s,a.key).installed)||a.name.localeCompare(b.name));
-  let previousGroup=null;
   for(const item of rows){
     const normallyInstalled=roleFitExpectation(s,item.key).installed;
-    if(previousGroup!==normallyInstalled){
-      const heading=document.createElement('h3');heading.className='role-fit-group';heading.textContent=normallyInstalled?'Normally installed':'Not normally installed';box.append(heading);previousGroup=normallyInstalled;
-    }
+
     const row=document.createElement('div');row.className='role-declaration-row';row.dataset.roleKey=item.key;
-    row.dataset.fitStatus=(item.origin==='manual'&&!item.locked)||item.custom?'adjusted':normallyInstalled?'fitted':'excluded';
-    const descriptions={NEUTRAL:'Confirm whether this item is included in the accepted weight. No adjustment is applied until you choose.',ADD:'The item is fitted, but its weight is not yet included in the accepted weight.',REMOVE:'The item is removed, but its weight has not yet been subtracted from the accepted weight.',ACCOUNTED:'The item is fitted and its weight is already included in the accepted weight.',EXCLUDED:'The item is removed and its removal is already reflected in the accepted weight.',CUSTOM:'Use the linked Custom Exception below to control this item’s accounting.'};
+    row.dataset.fitStatus=(item.origin==='manual'&&!item.locked)||item.custom?'adjusted':!s.preset?'default':normallyInstalled?'fitted':'excluded';
+    const descriptions={NEUTRAL:'Confirm the equipment state and Basic Weight inclusion.',ADD:'Fitted. Its weight and moment are added to Basic Weight.',REMOVE:'Not fitted. Its weight and moment are subtracted from Basic Weight.',ACCOUNTED:'Fitted. Already included in Basic Weight; no adjustment.',EXCLUDED:'Not fitted. Already excluded from Basic Weight; no adjustment.',CUSTOM:'Accounting is controlled by the linked Custom Exception.'};
     row.innerHTML=`<div><div class="name">${escapeHtml(item.name)}</div><div class="meta mono">${fmtDecimal(item.itemW)} kg @ ${fmtDecimal(item.arm)} mm</div></div><div class="role-declaration-controls" role="group" aria-label="${escapeHtml(item.name)} declaration"></div>`;
     const controls=row.querySelector('.role-declaration-controls');
     const expected=roleFitExpectation(s,item.key), fit=document.createElement('div');
     fit.className='role-fit-expectation';fit.dataset.expectedFit=expected.installed?'installed':'not-installed';
     const badge=document.createElement('strong');
-    badge.textContent=`${expected.installed?'Normally installed':'Not normally installed'} — ${AC.presets[s.preset]?expected.configuration+' configuration':'aircraft default'}`;
+    badge.textContent=item.locked?'Not fitted · Recorded on Accept':item.custom?'Custom Exception':item.origin==='manual'?(item.current?'Fitted':'Not fitted')+' · Manual override of '+(AC.presets[s.preset]?.name||'aircraft default'):AC.presets[s.preset]?(item.current?'Fitted':'Not fitted')+' for '+expected.configuration:(expected.normal?'Normally fitted':'Not normally fitted')+' · Applies unless the selected configuration specifies otherwise';
     fit.append(badge);row.firstElementChild.querySelector('.meta').after(fit);
-    const labels={ACCOUNTED:'Fitted · already included',EXCLUDED:'Removed · already excluded',ADD:'Add to accepted weight',REMOVE:'Subtract from accepted weight'};
+    const labels={ACCOUNTED:'Fitted · Included in Basic Weight',EXCLUDED:'Not Fitted · Excluded from Basic Weight',ADD:'Fitted · Added to Basic Weight',REMOVE:'Not Fitted · Subtracted from Basic Weight'};
     for(const action of ['ACCOUNTED','EXCLUDED','ADD','REMOVE']){
       const button=document.createElement('button');button.type='button';button.className='btn small';button.textContent=labels[action];button.dataset.declaration=action;
       button.setAttribute('aria-pressed',String((item.locked?'EXCLUDED':item.declaration)===action));button.disabled=item.locked||item.custom;
-      button.onclick=()=>{const error=setRoleFitDeclaration(s,item.key,action);if(error)alert(error);render();};controls.append(button);
+      button.onclick=()=>{
+        const apply=()=>{const error=setRoleFitDeclaration(s,item.key,action);if(error)alert(error);render();};
+        if(action!=='REMOVE'){apply();return;}
+        row.querySelector('[data-subtract-confirm]')?.remove();
+        const panel=document.createElement('div');panel.dataset.subtractConfirm='';panel.className='callout';panel.setAttribute('role','alert');
+        const message=document.createElement('p');message.textContent=item.name+': subtract '+fmtDecimal(item.itemW)+' kg from Basic Weight? Confirm this item is not fitted and its weight is included in the basic weight entered on Accept. If already excluded, choose “Not Fitted · Excluded from Basic Weight” instead.';
+        const cancel=document.createElement('button');cancel.type='button';cancel.className='btn';cancel.textContent='Cancel';cancel.onclick=()=>{panel.remove();button.focus();};
+        const confirm=document.createElement('button');confirm.type='button';confirm.className='btn bad';confirm.textContent='Confirm Subtraction';confirm.onclick=apply;
+        panel.append(message,cancel,confirm);row.append(panel);cancel.focus();
+      };controls.append(button);
     }
     const helper=document.createElement('div');helper.className='role-fit-helper small';helper.setAttribute('aria-live','polite');
-    helper.textContent=(item.locked?'Already recorded as removed on Accept. This item is locked to prevent subtracting it again.':descriptions[item.declaration]||'Review this declaration.')+` Weight adjustment: ${item.w>0?'+':''}${fmtDecimal(item.w)} kg.`+(roleFitDeclaration(s,item.key)==='NEUTRAL'&&item.declaration!=='NEUTRAL'&&!item.custom?' Selected from the accepted aircraft configuration.':'');
+    helper.textContent=(item.locked?'Already recorded as removed on Accept. This item is locked to prevent subtracting it again.':descriptions[item.declaration]||'Review this declaration.')+` Weight adjustment: ${item.w>0?'+':''}${fmtDecimal(item.w)} kg.`;
     row.append(helper);
     if(item.origin==='manual'&&!item.locked&&!item.custom){
-      const reset=document.createElement('button');reset.type='button';reset.className='btn small';reset.textContent='Use preset';
+      const reset=document.createElement('button');reset.type='button';reset.className='btn small';reset.textContent='Use configuration default';
       reset.title='Release this manual choice and use the current preset for this item only';
       reset.onclick=()=>{setRoleFitDeclaration(s,item.key,presetRoleFitDeclaration(s,AC.presets[s.preset],item.key),'preset');render();};controls.append(reset);
     }
@@ -46,8 +52,10 @@ function renderRoleFitDeclarations(s){
   }
 }
 function updateDocumentationReview(s){
-  document.getElementById('customExceptionsCard').dataset.reviewed=String(!!s.customExceptionsReviewed);
-  document.getElementById('documentationReviewStatus').textContent=s.customExceptionsReviewed?'✓ Aircraft documentation review confirmed':'Review required before certification';
+  document.getElementById('customExceptionsCard').dataset.empty=String(!(s.customExceptions||[]).length);
+  document.querySelector('.custom-review-check').style.display=(s.customExceptions||[]).length?'flex':'none';
+  document.getElementById('customExceptionsCard').dataset.reviewed=String(!(s.customExceptions||[]).length || !!s.customExceptionsReviewed);
+  document.getElementById('documentationReviewStatus').textContent=!(s.customExceptions||[]).length?'None recorded':s.customExceptionsReviewed?'✓ Aircraft documentation review confirmed':'Review required before certification';
 }
 function renderCustomExceptions(s){
   const host=document.getElementById('customExceptionsList'), add=document.getElementById('btnAddCustomException'), reviewed=document.getElementById('customExceptionsReviewed');
@@ -91,5 +99,5 @@ function renderCustomExceptions(s){
     host.append(row);refreshApplied();
   }
   add.onclick=()=>{s.customExceptions.push({id:'CE-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),description:'',w:0,arm:0,source:'',accounting:'APPLY',roleFitKey:''});s.customExceptionsReviewed=false;invalidateAccountingCertification(s);render();};
-  reviewed.checked=!!s.customExceptionsReviewed;reviewed.onchange=()=>{s.customExceptionsReviewed=reviewed.checked;invalidateAccountingCertification(s);render();};
+  reviewed.disabled=!s.customExceptions.length;reviewed.checked=!!s.customExceptionsReviewed;reviewed.onchange=()=>{s.customExceptionsReviewed=reviewed.checked;invalidateAccountingCertification(s);render();};
 }

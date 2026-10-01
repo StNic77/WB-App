@@ -1,0 +1,167 @@
+const {test,after}=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path'),http=require('http');
+const {chromium}=require('C:/Users/sstni/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const root=path.resolve(__dirname,'..'),out=path.resolve(root,'../Archive/outputs/mission-revision');
+const PEN='ME_SAR_MEDICAL_EQUIP_PENETRATION_KIT',NVG='ME_SAR_MISSION_EQUIP_NVG_SET_AND_CASE',POL='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL';
+const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);let server,browser;
+after(async()=>{await browser?.close();if(server)await new Promise(r=>server.close(r));});
+test('Mission catalogue, allocations, editor, fuel and PDF revision',async t=>{
+ fs.mkdirSync(out,{recursive:true});server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost');const f=path.join(root,url.pathname==='/'?'index.html':url.pathname);res.setHeader('Content-Type',f.endsWith('.js')?'application/javascript':f.endsWith('.html')?'text/html':f.endsWith('.css')?'text/css':'application/octet-stream');try{res.end(fs.readFileSync(f));}catch{res.statusCode=404;res.end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ browser=await chromium.launch({channel:'msedge',headless:true});const context=await browser.newContext({viewport:{width:1180,height:900}}),page=await context.newPage();page.setDefaultTimeout(8000);const errors=[],dialogs=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>{dialogs.push(d.message());d.accept();});
+ await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>typeof STORE!=='undefined');await page.click('#splashAck');
+ async function fresh(){await page.evaluate(()=>{const tail=STORE.tails[0];STORE.selectedTail=tail;STORE.sessions[tail]=makeNewSession(tail,false);const s=STORE.sessions[tail];Object.assign(s.accepted,{isAccepted:true,basicW:10000,basicCG:8200,basicWeightBasis:'MAINTENANCE',maintenanceBaseline:fleetMaintenanceBaseline(),maintenanceExceptions:[]});s.mission={};s.fuel.total=1000;s.fuel.landing=300;s.customExceptionsReviewed=true;setTab('MISSION');});}
+ await t.test('custom exceptions require confirmation only with entries; fuel calculator removed',async()=>{
+  await fresh();
+  const result=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];const messages=[];for(const entries of [[],[{description:'Test',w:2,arm:8400,accounting:'APPLY'}],[]]){s.customExceptions=entries;s.customExceptionsReviewed=false;renderCustomExceptions(s);renderCertify();document.getElementById('certSvc').value='TEST';document.getElementById('btnCertify').click();messages.push(document.getElementById('certMsg').textContent.includes('Custom Exceptions review has not been confirmed'));}setTab('FUEL');return {messages,calculator:!!document.getElementById('burnKpi'),tanks:document.querySelectorAll('[data-tank]').length};});
+  assert.deepEqual(result,{messages:[false,true,false],calculator:false,tanks:5});
+ });
+ await t.test('Mission Config concise wording, collapsed exceptions and actual-load summary',async()=>{
+  await fresh();await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];s.customExceptions=[];setTab('CONFIG');});
+  assert.equal(await page.locator('#customExceptionsCard').getAttribute('open'),null);assert.equal(await page.locator('.custom-review-check').isVisible(),false);assert.equal(await page.locator('.role-fit-group').count(),0);
+  assert.match(await page.locator('#roleFitBasisMessage').textContent(),/starting weight/);
+  await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];applyPreset(s.tail,'SAR3');setTab('CONFIG');document.getElementById('roleFitDetails').open=true;});
+  assert.match(await page.locator('#configurationQuickSummary').textContent(),/SAR-3 Pax applied/);
+  const actual=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];return fmtDecimal(computeMissionTotals(s).w)+' kg';});assert.ok((await page.locator('#configurationQuickSummary').textContent()).includes(actual));
+  await page.screenshot({path:path.join(out,'mission-config-wording.png'),fullPage:true});
+ });
+ await t.test('catalogue references, weights, groups and arms',async()=>{
+  const r=await page.evaluate(()=>({issues:missionConfigurationIssues(AC),items:AC.missionEquip,stowage:AC.stowage,presets:AC.presets}));assert.deepEqual(r.issues,[]);assert.equal(r.items[NVG].defaultQuantity,5);near(r.items[PEN].unitWeight,14.35);
+  assert.equal(r.items.ME_AIRCRAFT_ALSE_EQUIP_QUICK_DON_IMMERSION_SUITS.defaultQuantity,3);near(r.items.ME_AIRCRAFT_ALSE_EQUIP_QUICK_DON_IMMERSION_SUITS.unitWeight,3.25);
+  assert.equal(r.items.ME_AIRCRAFT_ALSE_EQUIP_PAX_LIFE_VESTS.defaultQuantity,1);assert.equal(r.items.ME_SAR_MEDICAL_EQUIP_AVIOX_O2_SPARE_BOTTLES.defaultQuantity,1);
+  assert.equal(r.stowage.SAR_CABINET_MIDDLE.arm,6275);assert.equal(r.stowage.CABINET_TOP_SURFACE.arm,5875);
+  assert.ok(!r.items.ME_SAR_ZONEH);assert.ok(!r.items.ME_NVG_6TH_CREW);assert.ok(r.presets.SAR3.missionOn.includes('ME_SAR_MISSION_EQUIP_TALON_STRETCHER'));
+ });
+ await t.test('CASEVAC six penetration kits at six individual locations, independent math',async()=>{
+  await fresh();const r=await page.evaluate(key=>{const s=STORE.sessions[STORE.selectedTail];applyPreset(s.tail,'CASEVAC');s.mission={[key]:true};s.missionLoads={[key]:['BAY1','BAY2','BAY3','BAY4','BAY5','BAY55'].map((stow,i)=>({id:String(i),quantity:1,stow}))};render();return {total:computeMissionTotals(s),issues:missionIssues(s),def:AC.missionEquip[key].defaultQuantity};},PEN);
+  near(r.total.w,86.1);near(r.total.m,14.35*(5375+6375+7375+8375+9375+10125));assert.deepEqual(r.issues,[]);assert.equal(r.def,2);
+  await page.evaluate(()=>{STORE.sessions[STORE.selectedTail].ui.meGroups['SAR MEDICAL EQUIP']=true;render();});await page.screenshot({path:path.join(out,'casevac-locations.png'),fullPage:true});
+ });
+ await t.test('NVG plus/minus, boundaries, split, fixed-item adjustment, persistence and defaults',async()=>{
+  await fresh();await page.evaluate(key=>{const s=STORE.sessions[STORE.selectedTail];s.mission={[key]:true};s.missionLoads={[key]:[{id:'base',quantity:5,stow:'BAY55'}]};s.ui.meGroups['SAR MISSION EQUIP']=true;render();},NVG);
+  await page.getByRole('button',{name:'Increase NVG Set and Case quantity at location 1',exact:true}).click();near(await page.evaluate(()=>computeMissionTotals(STORE.sessions[STORE.selectedTail]).w),7.5);assert.equal(await page.evaluate(key=>AC.missionEquip[key].defaultQuantity,NVG),5);
+  await page.reload();await page.waitForFunction(()=>STORE.selectedTail);near(await page.evaluate(()=>computeMissionTotals(STORE.sessions[STORE.selectedTail]).w),7.5);
+  await page.evaluate(key=>{AC.missionEquip[key].maxQuantity=6;AC.missionEquip[key].minQuantity=6;render();},NVG);assert.ok(await page.getByRole('button',{name:'Increase NVG Set and Case quantity at location 1',exact:true}).isDisabled());assert.ok(await page.getByRole('button',{name:'Decrease NVG Set and Case quantity at location 1',exact:true}).isDisabled());
+  await page.getByRole('button',{name:'Split location',exact:true}).click();assert.equal(await page.getByRole('combobox',{name:/NVG Set and Case location/}).count(),2);await page.getByRole('combobox',{name:'NVG Set and Case location 2',exact:true}).selectOption('BAY1');near(await page.evaluate(()=>computeMissionTotals(STORE.sessions[STORE.selectedTail]).m),1.25*(5*10125+5375));
+  await page.evaluate(key=>{delete AC.missionEquip[key].maxQuantity;AC.missionEquip[key].minQuantity=0;const s=STORE.sessions[STORE.selectedTail];s.mission={ME_AIRCRAFT_ALSE_EQUIP_QUICK_DON_IMMERSION_SUITS:true};s.ui.meGroups['AIRCRAFT ALSE EQUIP']=true;render();},NVG);
+  assert.equal(await page.getByRole('button',{name:/Increase Quick Don/}).count(),0);await page.getByRole('button',{name:'Adjust mission quantity',exact:true}).click();assert.equal(await page.getByRole('button',{name:/Increase Quick Don/}).count(),1);near(await page.evaluate(()=>computeMissionTotals(STORE.sessions[STORE.selectedTail]).w),9.75);
+ });
+ await t.test('basket contents follow chosen basket and detect missing or ambiguous carrier',async()=>{
+  await fresh();const r=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail],guide='ME_SAR_MISSION_EQUIP_GUIDELINE',basket='ME_SAR_MISSION_EQUIP_RESCUE_BASKET_PORT',other='ME_SAR_MISSION_EQUIP_RESCUE_BASKET_STBD';s.mission={[guide]:true,[basket]:true};const initial=missionRows(s).find(r=>r.key===guide).arm;s.missionLoads={[basket]:[{id:'base',quantity:1,stow:'BAY55'}]};const moved=missionRows(s).find(r=>r.key===guide).arm;s.mission[other]=true;const ambiguous=missionIssues(s);s.missionLoads[guide]=[{id:'base',quantity:2,stow:'BASKET',basketRef:{key:basket,id:'base'}}];const linked=missionRows(s).find(r=>r.key===guide).arm;s.mission[basket]=false;return {initial,moved,ambiguous,linked,missing:missionIssues(s)};});assert.equal(r.initial,10937);assert.equal(r.moved,10125);assert.ok(r.ambiguous.length);assert.equal(r.linked,10125);assert.ok(r.missing.length);
+ });
+ await t.test('POL defaults follow cabinet availability and manual relocation remains available',async()=>{
+  await fresh();const r=await page.evaluate(key=>{const s=STORE.sessions[STORE.selectedTail];return Object.keys(AC.presets).map(p=>{applyPreset(s.tail,p);return {preset:p,on:s.mission[key],cabinet:roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_FWD_SAR_CABINET'),issues:missionIssues(s)};});},POL);assert.ok(r.every(x=>x.on===x.cabinet));assert.equal(r.find(x=>x.preset==='CASEVAC').on,false);
+  const manual=await page.evaluate(key=>{const s=STORE.sessions[STORE.selectedTail];applyPreset(s.tail,'CASEVAC');s.mission[key]=true;s.missionLoads[key]=[{id:'base',quantity:1,stow:'BAY55'}];return {row:missionRows(s).find(r=>r.key===key),issues:missionIssues(s)};},POL);assert.equal(manual.row.w,11);assert.equal(manual.row.arm,10125);assert.ok(!manual.issues.some(x=>x.includes('POL')));
+ });
+ await t.test('manual departure uses entered tanks, mapped landing independent, no path in app or PDF',async()=>{
+  await fresh();const r=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];for(const key of Object.keys(AC.roleFit))s.roleFitDeclarationOrigins[key]='manual';s.fuel.manualTanks=true;s.fuel.tanks={T1:1000,T2:0,T3:0,T4:0,T5:0};const a=fuelPlotState(s.tail);s.fuel.tanks={T1:0,T2:0,T3:1000,T4:0,T5:0};const b=fuelPlotState(s.tail);setTab('FUEL');return {a,b,title:document.querySelector('[data-fuel-plot-title]').textContent,advisory:document.getElementById('envNotesFuel').textContent};});assert.notEqual(r.a.departure.cg,r.b.departure.cg);assert.deepEqual(r.a.landing,r.b.landing);assert.equal(r.a.track.length,0);assert.equal(r.b.track.length,0);assert.match(r.title,/Departure/);assert.match(r.advisory,/Departure CG reflects entered/);
+  // Independent landing moment at 300 kg: distribution from positive fill stages, checked separately below.
+  const mapped=await page.evaluate(()=>solveFuelTanksFromTotal(300));const arms=await page.evaluate(()=>AC.fuelTankArms);const fm=Object.entries(mapped).reduce((n,[key,w])=>n+w*arms[key],0);assert.equal(r.a.landing.cg,Math.round((10000*8200+fm)/10300));
+  for(const manual of [true,false]){
+   const pdf=await page.evaluate(manual=>{const s=STORE.sessions[STORE.selectedTail];s.fuel.manualTanks=manual;const doc=new window.jspdf.jsPDF(),texts=[],lines=[];const text=doc.text.bind(doc),line=doc.line.bind(doc);doc.text=(value,...args)=>{texts.push(String(value));return text(value,...args);};doc.line=(...args)=>{lines.push(args);return line(...args);};const p=new PDFContext(doc,s.tail,s,computeWB(s.tail));p.drawEnvelopePlot();return {texts,lines:lines.length,track:computeBurnTrack(s.tail).length,pdf:doc.output('datauristring').split(',')[1]};},manual);
+   fs.writeFileSync(path.join(out,manual?'manual-fuel.pdf':'stage-fuel.pdf'),Buffer.from(pdf.pdf,'base64'));
+   if(manual){assert.ok(!pdf.texts.some(x=>x.includes('Burn track (')));assert.ok(pdf.texts.some(x=>x.includes('No predicted path')));assert.equal(pdf.track,0);}else{assert.ok(pdf.texts.some(x=>x.includes('Burn track (')));assert.ok(pdf.track>2);}
+  }
+  await page.evaluate(()=>{STORE.sessions[STORE.selectedTail].fuel.manualTanks=true;render();});await page.screenshot({path:path.join(out,'manual-fuel.png'),fullPage:true});
+ });
+ await t.test('editor preserves style, saves exact/negative weights, rejects fractional quantities',async()=>{
+  await fresh();await page.evaluate(()=>{EDITOR.authed=true;editorInitDraft();setTab('EDITOR');});assert.equal(await page.locator('#missionGroupOptions').count(),0);assert.equal(await page.locator('[data-f="group"]').first().locator('option').count(),6);
+  const weight=page.locator(`[data-k="${PEN}"][data-f="unitWeight"]`);await weight.fill('-14.35');await weight.press('Tab');near(await page.evaluate(key=>AC.missionEquip[key].unitWeight,PEN),-14.35);
+  await page.locator(`[data-k="${PEN}"][data-f="defaultQuantity"]`).fill('1.5');await page.locator(`[data-k="${PEN}"][data-f="defaultQuantity"]`).press('Tab');assert.equal(await page.evaluate(key=>AC.missionEquip[key].defaultQuantity,PEN),2);
+  await page.locator(`[data-k="${PEN}"][data-f="unitWeight"]`).fill('14.35');await page.locator(`[data-k="${PEN}"][data-f="unitWeight"]`).press('Tab');
+  await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(out,'editor-equipment.png'),fullPage:false});
+ });
+ await t.test('create duplicate rename retire and delete configurations, reload, unit correction propagates',async()=>{
+  await page.locator('[data-edsec="CONFIGURATIONS"]').click();await page.locator('#configurationNewName').fill('CASEVAC Six Pen Kits');await page.locator('#configurationCreate').click();
+  const key=await page.evaluate(()=>Object.keys(AC.presets).find(k=>AC.presets[k].name==='CASEVAC Six Pen Kits'));assert.ok(key);
+  await page.evaluate(({key,pen})=>{EDITOR.draft.presets[key].missionOn=[pen];editorSaveDraft();applyPreset(STORE.selectedTail,key);}, {key,pen:PEN});
+  const r=await page.evaluate(pen=>{const s=STORE.sessions[STORE.selectedTail];s.missionLoads[pen]=[{id:'base',quantity:6,stow:'BAY55'}];const before=computeMissionTotals(s).w;EDITOR.draft.missionEquip[pen].unitWeight=15;editorSaveDraft();return [before,computeMissionTotals(s).w,AC.missionEquip[pen].defaultQuantity];},PEN);near(r[0],86.1);near(r[1],90);assert.equal(r[2],2);
+  await page.reload();await page.waitForFunction(()=>STORE.selectedTail);assert.equal(await page.evaluate(key=>AC.presets[key].name,key),'CASEVAC Six Pen Kits');
+  await page.evaluate(()=>{EDITOR.authed=true;editorInitDraft();EDITOR.activeSection='CONFIGURATIONS';setTab('EDITOR');});
+  let card=page.locator(`[data-configuration-key="${key}"]`);await card.locator('summary').first().click();await card.locator('[data-config-field="name"]').fill('CASEVAC Custom');await card.locator('[data-config-field="name"]').press('Tab');await card.locator('[data-config-duplicate]').click();
+  const copy=await page.evaluate(()=>Object.keys(AC.presets).find(k=>AC.presets[k].name==='CASEVAC Custom Copy'));assert.ok(copy);card=page.locator(`[data-configuration-key="${copy}"]`);await card.locator('summary').first().click();await card.locator('[data-config-active]').uncheck();assert.equal(await page.evaluate(key=>AC.presets[key].active,copy),false);await card.locator('[data-config-delete]').click();assert.equal(await page.evaluate(key=>!!AC.presets[key],copy),false);
+  await page.screenshot({path:path.join(out,'editor-configurations.png'),fullPage:false});
+ });
+ await t.test('bay reference edits serve both mission equipment and bay loads',async()=>{
+  await page.evaluate(()=>{EDITOR.activeSection='STOWAGE';renderEditor();});const input=page.locator('[data-bay-arm="BAY55"]');await input.fill('10130');await input.press('Tab');const arms=await page.evaluate(()=>({bay:AC.bayArms.BAY55,mission:missionLocations().BAY55.arm,duplicate:AC.stowage.BAY55}));assert.equal(arms.bay,10130);assert.equal(arms.mission,10130);assert.equal(arms.duplicate,undefined);await input.fill('10125');await input.press('Tab');
+ });
+ await t.test('config export contains custom configurations, signed weights and new schema fields',async()=>{
+  const download=page.waitForEvent('download');await page.evaluate(()=>editorExportConfig());const saved=await download;const file=path.join(out,'exported-config.js');await saved.saveAs(file);
+  const source=fs.readFileSync(file,'utf8');const vm=require('vm'),c={};vm.createContext(c);vm.runInContext(source+'\n;globalThis.ac=AC;',c);
+  assert.ok(Object.values(c.ac.presets).some(p=>p.name==='CASEVAC Custom'));assert.equal(c.ac.missionEquip[PEN].unitWeight,15);assert.equal(c.ac.missionEquip[PEN].defaultQuantity,2);assert.equal(c.ac.stowage.CABINET_TOP_SURFACE.arm,5875);assert.ok(!source.includes('ME_NEW_THINGY'));
+ });
+ await t.test('retired and missing items stay visible for review; PDF keeps actual quantity and negative mass',async()=>{
+  await fresh();const r=await page.evaluate(key=>{const s=STORE.sessions[STORE.selectedTail];const item=AC.missionEquip[key];item.active=false;applyPreset(s.tail,'SAR3');const retired=missionIssues(s);item.active=true;s.mission={[key]:true,ME_REMOVED:true};const missing=missionIssues(s);delete s.mission.ME_REMOVED;s.missionLoads[key]=[{id:'a',quantity:2,stow:'BAY1'},{id:'b',quantity:4,stow:'BAY55'}];item.unitWeight=-14.35;const total=computeMissionTotals(s);const p=new PDFContext(new window.jspdf.jsPDF(),s.tail,s,computeWB(s.tail)),tables=[];p.table=(h,r)=>tables.push(r);p.drawMissionEquip();item.unitWeight=14.35;return {retired,missing,total,text:JSON.stringify(tables)};},PEN);
+  assert.ok(r.retired.some(x=>x.includes('retired')));assert.ok(r.missing.some(x=>x.includes('ME_REMOVED')));near(r.total.w,-86.1);near(r.total.m,-14.35*(2*5375+4*10125));assert.match(r.text,/2 x -14.35 kg/);assert.match(r.text,/4 x -14.35 kg/);
+ });
+ await t.test('iPad-sized editor and mission controls fit without horizontal overflow',async()=>{
+  await page.setViewportSize({width:820,height:1180});await page.evaluate(()=>{EDITOR.authed=true;editorInitDraft();EDITOR.activeSection='MISSION';setTab('EDITOR');window.scrollTo(0,0);});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(out,'editor-ipad.png'),fullPage:false});
+  await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];s.ui.meGroups['SAR MEDICAL EQUIP']=true;setTab('MISSION');window.scrollTo(0,0);});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(out,'mission-ipad.png'),fullPage:false});
+  await page.setViewportSize({width:1180,height:900});
+ });
+ await t.test('Editor stowage switches, quantity settings and seat columns',async()=>{
+  await fresh();await page.evaluate(()=>{EDITOR.authed=true;editorInitDraft();EDITOR.activeSection='ROLEFIT';setTab('EDITOR');});
+  const key='RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM';await page.locator('[data-k="'+key+'"][data-f="isStowage"]').check();
+  assert.ok(await page.evaluate(key=>missionLocations()['ROLEFIT:'+key],key));
+  await page.locator('[data-edsec="MISSION"]').click();assert.ok(await page.locator('[data-f="stow"]').first().locator('option[value="ROLEFIT:'+key+'"]').count());
+  assert.match(await page.locator('[data-f="active"]').first().locator('..').textContent(),/Available for use/);
+  const flags=await page.evaluate(()=>['ME_SAR_MEDICAL_EQUIP_AVIOX_O2_SPARE_BOTTLES','ME_SAR_MISSION_EQUIP_GUIDELINE','ME_SAR_MISSION_EQUIP_GUIDELINE_WEIGHT','ME_SAR_MISSION_EQUIP_HUMAN_REMAINS_BAG','ME_AIRCRAFT_ALSE_EQUIP_PAX_LIFE_VESTS'].map(k=>AC.missionEquip[k].missionQuantityEditable));assert.deepEqual(flags,[false,false,false,false,false]);
+  await page.locator('[data-edsec="SEATBASE"]').click();const columns=await page.locator('[data-field="normallyInstalled"]').evaluateAll(els=>els.map(e=>Math.round(e.getBoundingClientRect().left)));assert.equal(new Set(columns).size,1);await page.screenshot({path:path.join(out,'seat-baseline-aligned.png'),fullPage:false});
+ });
+ await t.test('generic mission and role-fit stowage follows carriers and blocks unavailable/cyclic links',async()=>{
+  await fresh();const r=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail],rf='RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM',basket='ME_SAR_MISSION_EQUIP_RESCUE_BASKET_PORT';AC.roleFit[rf].isStowage=true;setRoleFitDeclaration(s,rf,'ADD');const row={stow:'ROLEFIT:'+rf};const arm=resolveMissionLocation(s,row).arm;setRoleFitDeclaration(s,rf,'EXCLUDED');const missing=resolveMissionLocation(s,row).error;s.mission[basket]=true;s.missionLoads[basket]=[{id:'base',quantity:1,stow:'BAY55'}];const linked=resolveMissionLocation(s,{stow:'CARRIER:'+basket}).arm;s.missionLoads[basket][0].stow='BAY1';const moved=resolveMissionLocation(s,{stow:'CARRIER:'+basket}).arm;s.missionLoads[basket][0].stow='CARRIER:'+basket;const cycle=resolveMissionLocation(s,{stow:'CARRIER:'+basket}).error;delete AC.roleFit[rf].isStowage;return {arm,missing,linked,moved,cycle};});assert.equal(r.arm,10375);assert.ok(r.missing);assert.equal(r.linked,10125);assert.equal(r.moved,5375);assert.match(r.cycle,/cycle/);
+ });
+ await t.test('extra crew UI in PAX seat adds bags once and survives reload and preset changes',async()=>{
+  await fresh();await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];s.occupants={};s.seats.P2=true;setTab('SEATS');});
+  await page.locator('#openExtraCrew').click();await page.locator('#extraCrewSeat').selectOption('P2');
+  assert.equal(await page.locator('#extraCrewGear input:checked').count(),2);
+  await page.locator('#extraCrewGear select').nth(0).selectOption('BAY55');await page.locator('#extraCrewGear select').nth(1).selectOption('BAY55');
+  await page.screenshot({path:path.join(out,'extra-crew-form.png'),fullPage:false});await page.locator('#extraCrewApply').click();
+  const added=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];return {occupant:s.occupants.P2,weight:computeSeatTotals(s).occupantW,moment:computeSeatTotals(s).occupantM,gear:computeMissionTotals(s).w,defaults:AC.missionEquip.ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25.defaultQuantity};});
+  assert.equal(added.occupant.type,'crew');near(added.weight,90.7);near(added.moment,90.7*11762);near(added.gear,25);assert.equal(added.defaults,1);
+  const pdf=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail],p=new PDFContext(new window.jspdf.jsPDF(),s.tail,s,computeWB(s.tail));const rows=[];p.table=(h,r)=>rows.push(...r);p.drawSeats();return JSON.stringify(rows);});assert.match(pdf,/90.7 kg \(crew\)/);
+  await page.reload();await page.waitForFunction(()=>STORE.selectedTail);assert.equal(await page.evaluate(()=>STORE.sessions[STORE.selectedTail].occupants.P2.crewId),added.occupant.crewId);
+  const preserved=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];applyPreset(s.tail,'SAR3');return Object.values(s.missionLoads).flat().filter(r=>r.crewId).length;});assert.equal(preserved,2);
+  const cleared=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];clearSeatOccupant(s,'P2');return {person:s.occupants.P2,bags:Object.values(s.missionLoads).flat().filter(r=>r.crewId).length};});assert.deepEqual(cleared,{person:null,bags:0});
+ });
+ await t.test('extra crew checks existing loads and all proposed bags; summary persists',async()=>{
+  await fresh();await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];s.occupants={};s.seats.P2=true;s.zones=[{id:'PORT_FWD_SHELF_MID',w:1}];setTab('SEATS');});
+  await page.locator('#openExtraCrew').click();await page.locator('#extraCrewSeat').selectOption('P2');
+  await page.locator('#extraCrewGear select').nth(0).selectOption('PORT_FWD_SHELF_MID');await page.locator('#extraCrewGear select').nth(1).selectOption('PORT_FWD_SHELF_MID');
+  assert.match(await page.locator('#extraCrewGear').textContent(),/26 kg; limit 22 kg/);assert.equal(await page.locator('#extraCrewApply').isDisabled(),true);
+  const rejected=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail],before=JSON.stringify(s),gear=crewEquipmentChoices('Pilot').filter(c=>c.checked).map(c=>({key:c.key,allocation:{stow:'PORT_FWD_SHELF_MID'}}));return {error:addExtraCrew(s,'Pilot','P2',gear),unchanged:before===JSON.stringify(s)};});assert.match(rejected.error,/26 kg/);assert.equal(rejected.unchanged,true);
+  await page.screenshot({path:path.join(out,'extra-crew-overload.png'),fullPage:false});
+  await page.locator('#extraCrewGear select').nth(1).selectOption('BAY55');assert.equal(await page.locator('#extraCrewApply').isDisabled(),false);await page.locator('#extraCrewApply').click();
+  assert.match(await page.locator('#addedCrewSummary').textContent(),/Pilot.*P2/);assert.match(await page.locator('#addedCrewSummary').textContent(),/Bay 5.5/);
+  await page.reload();await page.waitForFunction(()=>STORE.selectedTail);await page.evaluate(()=>setTab('SEATS'));await page.locator('#openExtraCrew').click();assert.match(await page.locator('#addedCrewSummary').textContent(),/Pilot.*P2/);await page.screenshot({path:path.join(out,'added-crew-summary.png'),fullPage:false});
+  const subsequent=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];return extraCrewStowageCheck(s,[{key:crewEquipmentChoices('Pilot')[1].key,allocation:{stow:'PORT_FWD_SHELF_MID'}}]);});assert.match(subsequent[0].message,/26 kg/);
+ });
+ await t.test('extra crew rejects invalid location without partial mutation; role bag defaults',async()=>{
+  await fresh();const r=await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];s.seats.P2=true;s.occupants.P2=null;const before=JSON.stringify(s);const key=crewEquipmentChoices('Flight Engineer')[0].key;const error=addExtraCrew(s,'Flight Engineer','P2',[{key,allocation:{stow:''}}]);return {error,unchanged:before===JSON.stringify(s),roles:['Pilot','Flight Engineer','SAR Tech'].map(role=>crewEquipmentChoices(role).map(c=>({key:c.key,checked:c.checked})))};});assert.ok(r.error);assert.equal(r.unchanged,true);for(const role of r.roles)assert.deepEqual(role.map(c=>c.checked),[true,true,false]);
+ });
+ await t.test('old override and old session cannot reintroduce coarse equipment',async()=>{
+  await page.evaluate(()=>{localStorage.setItem('ac_config_overrides',JSON.stringify({missionEquip:{ME_SAR_ZONEH:{w:999}},stowage:{BROKEN:{arm:0}}}));const s=STORE.sessions[STORE.selectedTail];s.mission={ME_SAR_ZONEH:true};localStorage.setItem('wb615_session',JSON.stringify({schema:5,selectedTail:s.tail,sessions:{[s.tail]:s}}));});
+  await page.reload();await page.waitForFunction(()=>STORE.selectedTail);const r=await page.evaluate(()=>({old:!!AC.missionEquip.ME_SAR_ZONEH,stow:!!AC.stowage.SAR_CABINET_TOP,backup:!!localStorage.getItem('ac_config_overrides_before_mission_v2'),sessionBackup:!!localStorage.getItem('wb615_session_before_mission_v2'),review:STORE.sessions[STORE.selectedTail].missionReviewRequired}));assert.deepEqual(r,{old:false,stow:true,backup:true,sessionBackup:true,review:true});
+ });
+ await t.test('end session clears mission overrides, keeps catalogue defaults',async()=>{await page.evaluate(()=>endPersistedSession());const r=await page.evaluate(key=>Object.values(STORE.sessions).every(s=>Object.keys(s.missionLoads).length===0)&&AC.missionEquip[key].defaultQuantity===5,NVG);assert.equal(r,true);});
+ await t.test('malformed allocations preserve original save without partial restore',async()=>{
+  await fresh();await page.evaluate(()=>{persistSession();const snap=JSON.parse(localStorage.getItem('wb615_session'));snap.sessions[STORE.selectedTail].missionLoads={bad:{quantity:2}};localStorage.setItem('wb615_session',JSON.stringify(snap));});await page.reload();const r=await page.evaluate(()=>({blocked:sessionSaveBlocked,warning:document.getElementById('sessionMigrationWarning').textContent,original:JSON.parse(localStorage.getItem('wb615_session')).sessions[STORE.selectedTail]?.missionLoads}));assert.equal(r.blocked,true);assert.match(r.warning,/preserved/);
+ });
+ await t.test('explicit reset backs up protected original, preserves Editor data and resumes saving',async()=>{
+  const original=await page.evaluate(()=>localStorage.getItem('wb615_session'));
+  const editor=await page.evaluate(()=>localStorage.getItem('ac_config_overrides'));
+  await page.evaluate(()=>{document.getElementById('splashOverlay').hidden=true;setTab('HOME');});
+  await page.locator('#btnEndSession').click();
+  const result=await page.evaluate(()=>({blocked:sessionSaveBlocked,backups:Object.keys(localStorage).filter(k=>k.startsWith('wb615_session_before_explicit_reset_')).map(k=>localStorage.getItem(k)),editor:localStorage.getItem('ac_config_overrides'),empty:Object.values(STORE.sessions).every(s=>Object.keys(s.missionLoads).length===0)}));
+  assert.equal(result.blocked,false);assert.ok(result.backups.includes(original));assert.equal(result.editor,editor);assert.equal(result.empty,true);
+  await page.evaluate(()=>persistSession());await page.reload();assert.equal(await page.evaluate(()=>sessionSaveBlocked),false);
+ });
+ await t.test('unsupported JSON survives reset; failed backup leaves original and state untouched',async()=>{
+  await page.evaluate(()=>localStorage.setItem('wb615_session','invalid JSON original'));await page.reload();
+  const failed=await page.evaluate(()=>{const state=STORE.sessions,old=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new Error('Quota exceeded');};let result;try{result=endPersistedSession();}finally{Storage.prototype.setItem=old;}return {result,blocked:sessionSaveBlocked,original:localStorage.getItem('wb615_session'),same:state===STORE.sessions};});
+  assert.deepEqual(failed,{result:false,blocked:true,original:'invalid JSON original',same:true});
+  const cleared=await page.evaluate(()=>({result:endPersistedSession(),blocked:sessionSaveBlocked,backup:Object.keys(localStorage).some(k=>k.startsWith('wb615_session_before_explicit_reset_')&&localStorage.getItem(k)==='invalid JSON original')}));
+  assert.deepEqual(cleared,{result:true,blocked:false,backup:true});
+ });
+ assert.deepEqual(errors,[]);
+});
+

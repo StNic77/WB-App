@@ -48,10 +48,9 @@
     <div class="splash-note" id="splashCfgNote"></div>
 
     <div class="splash-disclaimer">
-      This application is a <b>planning aid</b>. It does not connect to, command, or
-      replace any aircraft system. The Flight Engineer remains responsible for entering
-      and confirming all values in the MCDU through the aircraft's own certified process.
-      Verify the configuration version above is the current published data before use.
+      <p>This application calculates weight and balance values for entry into the aircraft MCDU. Accurate aircraft data, configuration, and loading inputs are essential to those calculations.</p>
+      <p>The application does not connect to or control aircraft systems. The flight engineer must verify the inputs and calculated results, then enter and confirm the required values in the MCDU using the applicable aircraft procedures.</p>
+      <p>Before use, confirm that the application’s configuration data and reference documents are current and applicable to the aircraft.</p>
     </div>
 
     <div class="splash-offline-guide">
@@ -214,12 +213,13 @@
       <div class="small" style="margin-top:10px;">
         Selecting a preset applies the standard seats, role-fit equipment and mission equipment for that configuration. Maintenance Exceptions remain unchanged. Select another preset at any time to change the configuration.
       </div>
+      <div id="configurationQuickSummary" class="callout small" style="margin-top:10px" role="status"></div>
       <div id="presetImageHost" style="margin-top:14px;"></div>
     </div>
 
     <div class="card" style="padding:14px;">
   <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-    <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+    <h2 data-fuel-plot-title style="margin:0;">Envelope & Predicted CG Path</h2>
     <button class="btn small" id="envToggleConfig" type="button">Collapse</button>
   </div>
   <div id="envWrapConfig" style="margin-top:10px;">
@@ -228,8 +228,8 @@
   </div>
 </div>
 
-    <div class="card documentation-review" id="customExceptionsCard" data-reviewed="false">
-      <h2>Custom Exceptions <small>Current sortie only</small></h2><p id="documentationReviewStatus" role="status"></p><p>Before certifying weight and balance, review the current aircraft documentation and record any applicable additions, removals or substitutions below. Check the confirmation box even if there are no custom exceptions.</p>
+    <details class="card documentation-review" id="customExceptionsCard" data-reviewed="false">
+      <summary><strong>Custom Exceptions</strong> · Current sortie only <span id="documentationReviewStatus" class="small" role="status"></span></summary><p>Record any custom additions, removals or substitutions below. If entries are made, confirm them against aircraft documentation before certifying. No confirmation is required when there are no custom exceptions.</p>
       <div class="callout small" style="margin-bottom:10px;">
         Record additions, removals or substitutions. Choose APPLY to adjust the accepted weight, or ACCOUNTED when the signed change is already included in it. If an entry represents a listed role-fit item, select that item below so it is counted only here. Confirm all entries against aircraft documentation.
       </div>
@@ -242,7 +242,7 @@
         <span>I have reviewed the current aircraft documentation and recorded all applicable custom exceptions for this sortie.</span>
       </label>
       <div class="small" style="margin-top:8px;">Custom exceptions are cleared when the aircraft is returned or the session is ended.</div>
-    </div>
+    </details>
 
 
     <div class="card">
@@ -271,7 +271,7 @@
 
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-        <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+        <h2 data-fuel-plot-title style="margin:0;">Envelope & Predicted CG Path</h2>
         <button class="btn small" id="envToggleMission" type="button">Collapse</button>
       </div>
       <div id="envWrapMission" style="margin-top:10px;">
@@ -301,7 +301,7 @@
 
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-        <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+        <h2 data-fuel-plot-title style="margin:0;">Envelope & Predicted CG Path</h2>
         <button class="btn small" id="envToggleSeats" type="button">Collapse</button>
       </div>
       <div id="envWrapSeats" style="margin-top:10px;">
@@ -360,7 +360,7 @@
 
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-        <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+        <h2 data-fuel-plot-title style="margin:0;">Envelope & Predicted CG Path</h2>
         <button class="btn small" id="envToggleFuel" type="button">Collapse</button>
       </div>
       <div id="envWrapFuel" style="margin-top:10px;">
@@ -384,44 +384,17 @@
           <div class="lbl">Landing Fuel (kg)</div>
           <input id="landingFuelInput" inputmode="numeric" placeholder="e.g., 300"/>
           <div class="small" style="margin-top:6px;">
-            Landing fuel affects predicted CG path + endurance/range.
+            Landing fuel sets the mapped landing CG.
           </div>
         </div>
       </div>
 <div id="fuelBriefKpi"></div>
 
       <div class="hr"></div>
-      <div class="twoCol">
-        <div>
-          <h2 style="margin-top:0">Tanks</h2>
-          <div id="tankTable"></div>
-          <div class="small" style="margin-top:6px;" id="tankModeText"></div>
-        </div>
-        <div>
-          <h2 style="margin-top:0">Fuel Burn / Endurance</h2>
-          <div class="twoCol">
-            <div>
-              <div class="lbl">Observed Total Fuel (kg)</div>
-              <input id="burnFuelObs" inputmode="numeric" placeholder="Enter current fuel total"/>
-            </div>
-            <div>
-              <div class="lbl">Ground Speed (kt)</div>
-              <input id="burnGSObs" inputmode="numeric" placeholder="e.g., 120"/>
-            </div>
-          </div>
-          <div class="row" style="margin-top:10px;">
-            <button class="btn" id="btnAddBurnObs">Add observation (logs time)</button>
-            <button class="btn bad" id="btnClearBurn">Clear session</button>
-          </div>
-          <div class="hr"></div>
-          <div class="kpi" id="burnKpi"></div>
-          <div class="small" id="burnSmall"></div>
-<div id="burnLog"></div>
-        </div>
-      </div>
+      <h2 style="margin-top:0">Tanks</h2>
+      <div id="tankTable"></div>
+      <div class="small" style="margin-top:6px;" id="tankModeText"></div>
     </div>
-
-    
   </section>
 
   <!-- LOAD PLANNING (Cabin & Cargo) --> 
@@ -430,7 +403,7 @@
 
   <div class="card" style="padding:14px;">
     <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-      <h2 style="margin:0;">Envelope & Predicted CG Path</h2>
+      <h2 data-fuel-plot-title style="margin:0;">Envelope & Predicted CG Path</h2>
       <button class="btn small" id="envToggleCargo" type="button">Collapse</button>
     </div>
     <div id="envWrapCargo" style="margin-top:10px;">
@@ -594,7 +567,7 @@
     <!-- Envelope reference -->
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-        <h2 style="margin:0;">Envelope &amp; Predicted CG Path <small>(reference)</small></h2>
+        <h2 data-fuel-plot-title style="margin:0;">Envelope &amp; Predicted CG Path</h2>
         <button class="btn small" id="envToggleCertify" type="button">Collapse</button>
       </div>
       <div id="envWrapCertify" style="margin-top:10px;">
@@ -619,6 +592,7 @@
 
 <script src="jspdf.umd.min.js"></script>
 <script src="config.js"></script>
+<script src="mission.js"></script>
 <script src="accounting.js"></script>
 <script src="persist.js"></script>
 <script src="mcdu.js"></script>
@@ -626,6 +600,8 @@
 <script src="pdf.js"></script>
 <script src="editor.js"></script>
 <script src="accounting-ui.js"></script>
+<script src="mission-ui.js"></script>
+<script src="extra-crew.js"></script>
 <script src="app.js"></script>
 
 <script>

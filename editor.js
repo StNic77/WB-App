@@ -36,13 +36,19 @@ function editorSaveDraft() {
   // Persist current draft to localStorage and mutate AC so the rest
   // of the app immediately sees the changes without a reload.
   try {
+    EDITOR.draft.bayArms ??= JSON.parse(JSON.stringify(AC.bayArms));
     for(const preset of Object.values(EDITOR.draft.presets)){
       for(const field of ['roleFitOn','roleFitOff']) preset[field]=[...new Set((preset[field]||[]).filter(k=>!!EDITOR.draft.roleFit[k]))];
     }
+    const issues=missionConfigurationIssues(EDITOR.draft);
+    if(issues.length){alert(issues.join("\n"));return false;}
     const payload = {
+      missionSchema: MISSION_SCHEMA,
+      baseConfigVersion: AC_META.configVersion,
       roleFitAccountingVersion: 1,
       missionEquip: EDITOR.draft.missionEquip,
       stowage:      EDITOR.draft.stowage,
+      bayArms:      EDITOR.draft.bayArms || AC.bayArms,
       roleFit:      EDITOR.draft.roleFit,
       crewSeats:    EDITOR.draft.crewSeats,
       paxSeats:     EDITOR.draft.paxSeats,
@@ -54,21 +60,13 @@ function editorSaveDraft() {
     // Mutate live AC so the app sees changes immediately
     AC.missionEquip = EDITOR.draft.missionEquip;
     AC.stowage      = EDITOR.draft.stowage;
+    AC.bayArms      = EDITOR.draft.bayArms || AC.bayArms;
     AC.roleFit      = EDITOR.draft.roleFit;
     AC.crewSeats    = EDITOR.draft.crewSeats;
     AC.paxSeats     = EDITOR.draft.paxSeats;
     AC.meta.referenceDocuments = EDITOR.draft.referenceDocuments;
 
-    // Merge preset missionOn/Off and roleFitOn/Off back into live AC.presets
-    // (seats/notes/image are not edited here so we leave those alone)
-    for (const pk of Object.keys(EDITOR.draft.presets)) {
-      if (AC.presets[pk]) {
-        AC.presets[pk].missionOn  = EDITOR.draft.presets[pk].missionOn  || [];
-        AC.presets[pk].missionOff = EDITOR.draft.presets[pk].missionOff || [];
-        AC.presets[pk].roleFitOn  = EDITOR.draft.presets[pk].roleFitOn  || [];
-        AC.presets[pk].roleFitOff = EDITOR.draft.presets[pk].roleFitOff || [];
-      }
-    }
+    AC.presets = EDITOR.draft.presets;
 
     // Also update the live session's roleFit state for any tail currently loaded —
     // "normally installed" changes should take effect immediately without a reload.
@@ -90,6 +88,7 @@ function editorSaveDraft() {
       }
     }
     persistSession();
+    return true;
   } catch (e) {
     alert("Failed to save changes: " + e.message);
   }
@@ -110,20 +109,12 @@ function editorInitDraft() {
   // Deep-clone current AC state into an editable draft.
   // Presets carry missionOn/Off AND roleFitOn/Off so the editor
   // can manage both mission equipment and role-fit preset membership.
-  const presetsDraft = {};
-  for (const [pk, p] of Object.entries(AC.presets)) {
-    presetsDraft[pk] = {
-      name:       p.name,
-      missionOn:  JSON.parse(JSON.stringify(Array.isArray(p.missionOn)  ? p.missionOn  : [])),
-      missionOff: JSON.parse(JSON.stringify(Array.isArray(p.missionOff) ? p.missionOff : [])),
-      roleFitOn:  JSON.parse(JSON.stringify(Array.isArray(p.roleFitOn)  ? p.roleFitOn  : [])),
-      roleFitOff: JSON.parse(JSON.stringify(Array.isArray(p.roleFitOff) ? p.roleFitOff : []))
-    };
-  }
+  const presetsDraft = JSON.parse(JSON.stringify(AC.presets));
 
   EDITOR.draft = {
     missionEquip: JSON.parse(JSON.stringify(AC.missionEquip)),
     stowage:      JSON.parse(JSON.stringify(AC.stowage)),
+    bayArms:      JSON.parse(JSON.stringify(AC.bayArms)),
     roleFit:      JSON.parse(JSON.stringify(AC.roleFit)),
     crewSeats:    JSON.parse(JSON.stringify(AC.crewSeats)),
     paxSeats:     JSON.parse(JSON.stringify(AC.paxSeats)),
@@ -222,10 +213,11 @@ function renderEditorLogin(host) {
 function renderEditorMain(host) {
   const tabs = [
     { id: "MISSION",  label: "Mission Equipment" },
-    { id: "STOWAGE",  label: "Stowage Locations" },
-    { id: "ROLEFIT",  label: "Role-Fit Equipment" },
+    { id: "ROLEFIT",  label: "Role Fit Equipment" },
     { id: "SEATBASE", label: "Seat Baseline" },
-    { id: "REFERENCE", label: "Reference Document" }
+    { id: "STOWAGE",  label: "Stowage Locations" },
+    { id: "REFERENCE", label: "Reference Documents" },
+    { id: "CONFIGURATIONS", label: "Configurations" }
   ];
 
   host.innerHTML = `
@@ -276,11 +268,77 @@ function renderEditorMain(host) {
 
   // Render active section
   const secHost = document.getElementById("editorSectionHost");
+  if (EDITOR.activeSection === "CONFIGURATIONS") renderEditorConfigurations(secHost);
   if (EDITOR.activeSection === "MISSION")  renderEditorMission(secHost);
   if (EDITOR.activeSection === "STOWAGE")  renderEditorStowage(secHost);
   if (EDITOR.activeSection === "ROLEFIT")  renderEditorRoleFit(secHost);
   if (EDITOR.activeSection === "SEATBASE") renderEditorSeatBaseline(secHost);
   if (EDITOR.activeSection === "REFERENCE") renderEditorReference(secHost);
+}
+
+function renderEditorConfigurations(host){
+  const presets=EDITOR.draft.presets;
+  host.innerHTML='<div class="small muted">Configurations reference catalogue items. Weights and arms stay in the equipment catalogue. Changes save locally.</div><div id="configurationCards"></div><div class="card"><div class="row"><label>New configuration name<input id="configurationNewName"></label><button class="btn good" id="configurationCreate">Create configuration</button></div></div>';
+  const list=host.querySelector('#configurationCards');
+  const newKey=()=> 'CONFIG_'+Date.now().toString(36).toUpperCase()+'_'+Math.random().toString(36).slice(2,6).toUpperCase();
+  const refresh=()=>{editorSaveDraft();renderEditor();};
+  host.querySelector('#configurationCreate').onclick=()=>{
+    const name=host.querySelector('#configurationNewName').value.trim();if(!name){alert('Enter a configuration name.');return;}
+    presets[newKey()]={name,notes:'',active:true,seats:{crew:[],pax:[]},occupants:[],roleFitOn:[],roleFitOff:[],missionOn:[],missionOff:[]};refresh();
+  };
+  for(const [key,p] of Object.entries(presets)){
+    const card=document.createElement('details');card.className='card';card.dataset.configurationKey=key;
+    card.innerHTML=`<summary><b>${escHtml(p.name)}</b>${p.active===false?' · Retired':''}</summary>
+      <div class="row" style="margin-top:10px"><label style="flex:1">Name<input data-config-field="name" value="${escHtml(p.name)}"></label><label style="flex:2">Description<input data-config-field="notes" value="${escHtml(p.notes||'')}"></label></div>
+      <div class="row" style="margin-top:10px"><label><input type="checkbox" style="width:auto" data-config-active ${p.active!==false?'checked':''}> Available for use<small>Uncheck to retire this item. Its definition is retained; existing configurations and mission loads may need review.</small></label><button class="btn" data-config-duplicate>Duplicate</button><button class="btn bad" data-config-delete>Delete</button></div>
+      <h3>Mission equipment</h3><div data-config-equipment></div>
+      <details><summary>Seats, default occupants and role-fit equipment</summary><div data-config-fit></div></details>`;
+    card.querySelectorAll('[data-config-field]').forEach(input=>input.onchange=()=>{
+      const field=input.dataset.configField;if(field==='name'&&!input.value.trim()){input.value=p.name;return;}
+      p[field]=input.value.trim();editorSaveDraft();card.querySelector('summary b').textContent=p.name;
+    });
+    card.querySelector('[data-config-active]').onchange=e=>{p.active=e.target.checked;editorSaveDraft();};
+    card.querySelector('[data-config-duplicate]').onclick=()=>{presets[newKey()]={...JSON.parse(JSON.stringify(p)),name:p.name+' Copy',active:true};refresh();};
+    card.querySelector('[data-config-delete]').onclick=()=>{
+      if(Object.values(STORE.sessions).some(s=>s.preset===key)){alert('This configuration is used by a session. Retire it or select another configuration first.');return;}
+      if(!confirm('Delete configuration "'+p.name+'"?'))return;delete presets[key];refresh();
+    };
+    const equipment=card.querySelector('[data-config-equipment]');
+    for(const group of MISSION_GROUPS){
+      const section=document.createElement('details');section.innerHTML='<summary>'+group+'</summary>';
+      for(const [id,it] of Object.entries(EDITOR.draft.missionEquip)){
+        if(it.group!==group)continue;
+        const label=document.createElement('label');label.className='small';label.style.cssText='display:block;margin:8px 0';
+        const check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.checked=(p.missionOn||[]).includes(id)||!!it.alwaysInclude;check.disabled=!!it.alwaysInclude||(it.active===false&&!check.checked);
+        check.onchange=()=>{p.missionOn=(p.missionOn||[]).filter(k=>k!==id);p.missionOff=(p.missionOff||[]).filter(k=>k!==id);if(check.checked)p.missionOn.push(id);editorSaveDraft();};
+        label.append(check,document.createTextNode(' '+it.name+(it.active===false?' (retired)':'')+(it.alwaysInclude?(id==='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL'?' · With SAR cabinet':' · Every configuration'):'')));section.append(label);
+      }
+      equipment.append(section);
+    }
+    const fit=card.querySelector('[data-config-fit]');
+    fit.innerHTML='<section class="config-fit-section"><h3>Seats and default occupants</h3><div class="config-seat-row config-fit-heading"><span>Seat</span><span>Installed</span><span>Occupied</span></div><div data-config-seats></div></section><section class="config-fit-section"><h3>Role Fit Equipment</h3><div data-config-rolefit></div></section>';
+    const seatsHost=fit.querySelector('[data-config-seats]');
+    const roleFitHost=fit.querySelector('[data-config-rolefit]');
+    for(const [kind,catalogue] of [['crew',EDITOR.draft.crewSeats],['pax',EDITOR.draft.paxSeats]]){
+      for(const [id,it] of Object.entries(catalogue)){
+        const label=document.createElement('div');label.className='config-seat-row small';
+        const name=document.createElement('span');name.textContent=it.name;label.append(name);
+        for(const occupant of [false,true]){
+          const cb=document.createElement('input');cb.type='checkbox';cb.style.width='auto';cb.checked=occupant?(p.occupants||[]).includes(id):(p.seats?.[kind]||[]).includes(id);
+          cb.setAttribute('aria-label',it.name+(occupant?' occupied':' installed'));
+          cb.onchange=()=>{p.seats??={crew:[],pax:[]};const list=occupant?(p.occupants??=[]):(p.seats[kind]??=[]);const i=list.indexOf(id);if(i>=0)list.splice(i,1);if(cb.checked)list.push(id);if(occupant&&cb.checked&&!p.seats[kind].includes(id))p.seats[kind].push(id);if(!occupant&&!cb.checked)p.occupants=(p.occupants||[]).filter(x=>x!==id);editorSaveDraft();};
+          label.append(cb);
+        }seatsHost.append(label);
+      }
+    }
+    for(const [id,it] of Object.entries(EDITOR.draft.roleFit)){
+      const label=document.createElement('label');label.className='config-rolefit-row small';
+      const name=document.createElement('span');name.textContent=it.name;label.append(name);
+      const select=document.createElement('select');select.innerHTML=`<option value="">Aircraft Default — ${it.normally?'Installed':'Not Installed'}</option><option value="on">Installed</option><option value="off">Removed</option>`;select.value=(p.roleFitOn||[]).includes(id)?'on':(p.roleFitOff||[]).includes(id)?'off':'';
+      select.onchange=()=>{p.roleFitOn=(p.roleFitOn||[]).filter(k=>k!==id);p.roleFitOff=(p.roleFitOff||[]).filter(k=>k!==id);if(select.value==='on')p.roleFitOn.push(id);if(select.value==='off')p.roleFitOff.push(id);editorSaveDraft();};label.append(select);roleFitHost.append(label);
+    }
+    list.append(card);
+  }
 }
 
 function renderEditorReference(host){
@@ -316,12 +374,12 @@ function renderEditorReference(host){
 
 function renderEditorSeatBaseline(host){
   const entries=[...Object.entries(EDITOR.draft.crewSeats).map(x=>[...x,"crew"]),...Object.entries(EDITOR.draft.paxSeats).map(x=>[...x,"pax"])];
-  host.innerHTML=`<div class="small muted" style="margin-bottom:10px;">Define seat structures that are normally installed and those represented in fleet Maintenance Basic Weight. C1/C2 are fixed because the RFM includes them in Basic Weight.</div><div id="seatBaselineList"></div>`;
+  host.innerHTML=`<div class="small muted" style="margin-bottom:10px;">Define seat structures that are normally installed and those included in Recorded Aircraft Basic Weight. C1/C2 are fixed because the RFM includes them in Basic Weight.</div><div id="seatBaselineList"></div>`;
   const list=host.querySelector("#seatBaselineList");
   for(const [k,it,group] of entries){
     const fixed=!!it.includedInRfmBasic;
-    const row=document.createElement("div"); row.className="toggle";
-    row.innerHTML=`<div class="left"><div class="name">${k} · ${escHtml(it.name)}</div><div class="meta mono">${it.wSeat} kg @ ${it.arm} mm${group==="crew"?" · Occupant 90.7 kg @ "+(it.occupantArm ?? it.arm)+" mm":""}${fixed?" · included in RFM Basic Weight":" · variable Role Equipment"}</div></div><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="normallyInstalled" ${it.normallyInstalled||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Normally installed</label><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="maintenanceIncluded" ${it.maintenanceIncluded||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Included in Maintenance BW</label>`;
+    const row=document.createElement("div"); row.className="toggle seat-baseline-row";
+    row.innerHTML=`<div class="left"><div class="name">${k} · ${escHtml(it.name)}</div><div class="meta mono">${it.wSeat} kg @ ${it.arm} mm${group==="crew"?" · Occupant 90.7 kg @ "+(it.occupantArm ?? it.arm)+" mm":""}${fixed?" · included in RFM Basic Weight":" · variable Role Equipment"}</div></div><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="normallyInstalled" ${it.normallyInstalled||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Normally installed</label><label class="small"><input type="checkbox" data-seat="${k}" data-group="${group}" data-field="maintenanceIncluded" ${it.maintenanceIncluded||fixed?"checked":""} ${fixed?"disabled":""} style="width:auto;"> Included in Recorded Aircraft Basic Weight</label>`;
     list.appendChild(row);
   }
   list.querySelectorAll("input[data-seat]").forEach(el=>el.onchange=()=>{
@@ -338,7 +396,7 @@ function renderEditorSeatBaseline(host){
 
 function renderEditorMission(host) {
   const items   = EDITOR.draft.missionEquip;
-  const stowage = EDITOR.draft.stowage;
+  const stowage = missionLocations(EDITOR.draft);
 
   // Mission Equipment tab shows sortie kit only — stowage LOCATIONS
   // (port-fwd shelves, ramp shelves, overhead bins) live in their own
@@ -346,7 +404,7 @@ function renderEditorMission(host) {
   // purely an editor-view split.
   const keys = Object.keys(items)
     .filter(k => (items[k].group || "") !== "Stowage")
-    .sort();
+    .sort((a,b)=>MISSION_GROUPS.indexOf(items[a].group)-MISSION_GROUPS.indexOf(items[b].group)||a.localeCompare(b));
 
   // Build stowage dropdown options grouped by stowage group
   const stowByGroup = {};
@@ -359,6 +417,7 @@ function renderEditorMission(host) {
     const custSel = (selectedId === "CUSTOM") ? "selected" : "";
     let out = '<option value="">— pick stowage —</option>';
     out += `<option value="CUSTOM" ${custSel}>— Custom CG arm —</option>`;
+    out += `<option value="BASKET" ${selectedId==="BASKET"?"selected":""}>Follow carrying basket</option>`;
     for (const g of Object.keys(stowByGroup).sort()) {
       out += `<optgroup label="${g}">`;
       for (const s of stowByGroup[g].sort((a,b) => a.name.localeCompare(b.name))) {
@@ -370,10 +429,7 @@ function renderEditorMission(host) {
     return out;
   };
 
-  // Existing groups from current data (for dropdown)
-  const groups = Array.from(new Set(
-    Object.values(items).map(it => it.group || "Mission Equipment")
-  )).sort();
+  const groups = MISSION_GROUPS;
 
   host.innerHTML = `
     <div class="small muted" style="margin-bottom:10px;">
@@ -388,16 +444,6 @@ function renderEditorMission(host) {
       <button class="btn good" id="missionAddBtn">+ Add New Mission Equipment</button>
     </div>
   `;
-
-  // Datalist must live directly on document.body for reliable browser linkage —
-  // datalists buried inside deeply-nested innerHTML subtrees are not consistently
-  // resolved by all browsers when inputs reference them by id.
-  const _oldDl = document.getElementById("missionGroupOptions");
-  if (_oldDl) _oldDl.remove();
-  const _dl = document.createElement("datalist");
-  _dl.id = "missionGroupOptions";
-  _dl.innerHTML = groups.map(g => `<option value="${escHtml(g)}">`).join("");
-  document.body.appendChild(_dl);
 
   const list = document.getElementById("missionItemList");
 
@@ -419,20 +465,20 @@ function renderEditorMission(host) {
       const pName = EDITOR.draft.presets[pk]?.name || pk;
       const chk   = isInPreset(k, pk) ? "checked" : "";
       return `<label class="small" style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;">
-        <input type="checkbox" data-k="${k}" data-preset="${pk}" ${chk} style="width:auto;cursor:pointer;">
+        <input type="checkbox" data-k="${k}" data-preset="${pk}" ${it.alwaysInclude?'disabled':''} ${chk} style="width:auto;cursor:pointer;">
         ${escHtml(pName)}
       </label>`;
     }).join("");
 
     row.innerHTML = `
-      <div class="row" style="align-items:flex-end;">
+      <h3>Item Details</h3><div class="row" style="align-items:flex-end;">
         <div style="flex: 2 1 260px;">
           <div class="lbl">Name</div>
           <input type="text" data-k="${k}" data-f="name" value="${escHtml(it.name)}">
         </div>
         <div style="flex: 0 0 100px;">
-          <div class="lbl">Weight (kg)</div>
-          <input type="number" step="0.01" data-k="${k}" data-f="w" value="${it.w}">
+          <div class="lbl">Unit weight (kg)</div>
+          <input type="number" step="any" data-k="${k}" data-f="unitWeight" value="${it.unitWeight}">
         </div>
         <div style="flex: 2 1 240px;">
           <div class="lbl">Stowage</div>
@@ -447,15 +493,29 @@ function renderEditorMission(host) {
         </div>
         <div style="flex: 1 1 160px;">
           <div class="lbl">Group</div>
-          <input type="text" data-k="${k}" data-f="group" value="${escHtml(it.group || "")}"
-                 list="missionGroupOptions">
+          <select data-k="${k}" data-f="group">${groups.map(g=>`<option ${g===it.group?"selected":""}>${g}</option>`).join("")}</select>
         </div>
       </div>
+      <div class="row" style="margin-top:10px;gap:10px;">
+        <label style="flex:2 1 220px;">Description<input data-k="${k}" data-f="description" value="${escHtml(it.description||'')}"></label>
+      </div><h3>Default Load</h3><p class="small muted">Each quantity represents one item. Changes made for a mission do not change these defaults.</p><div class="row">
+        <label>Default quantity<input style="width:100px" type="number" min="0" step="1" data-k="${k}" data-f="defaultQuantity" value="${it.defaultQuantity}"></label>
+        <label>Minimum<input style="width:90px" type="number" min="0" step="1" data-k="${k}" data-f="minQuantity" value="${it.minQuantity??''}"></label>
+        <label>Maximum<input style="width:130px" type="number" min="0" step="1" data-k="${k}" data-f="maxQuantity" value="${it.maxQuantity??''}" placeholder="No maximum" title="No maximum when left blank"></label>
+      </div>
+        <span class="small mono" data-default-total="${k}">Default load: ${it.defaultQuantity} × ${it.unitWeight} = ${fmtDecimal(it.defaultQuantity*it.unitWeight)} kg</span>
+      <h3>Mission Options</h3><div class="editor-mission-options">
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="missionQuantityEditable" ${it.missionQuantityEditable?'checked':''}> Show quantity buttons in Mission Equipment<small>Show quick −/+ buttons during a mission. Extras can still be added through the item’s adjustment controls when unchecked.</small></label>
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="alwaysInclude" ${it.alwaysInclude?'checked':''}> ${k==='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL'?'Carry by default when the SAR cabinet is fitted':'Carry by default in all configurations'}<small>${k==='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL'?'Otherwise, the crew can add this item manually and select its stowage location.':'Select this item whenever a configuration is applied. The crew can deselect it for an individual mission.'}</small></label>
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="active" ${it.active!==false?'checked':''}> Available for use<small>Uncheck to retire this item. Its definition is retained; existing configurations and mission loads may need review.</small></label>
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="isBasket" ${it.isBasket?'checked':''}> Allow this item to be a stowage location<small>Other equipment can be assigned to this item and follows its location when moved. If this item is not carried, its contents must be relocated or removed.</small></label>
+
+      </div>
       <div class="row" style="margin-top:10px; align-items:center; flex-wrap:wrap; gap:8px;">
-        <div class="small mono muted" style="flex:0 0 auto;">Key: ${k}</div>
-        <div class="small muted" style="flex:0 0 auto;">Loaded by default in:</div>
+        <div class="small mono muted" style="flex:1 1 100%;min-width:0;overflow-wrap:anywhere;">Key: ${k}<div class="small">This identifier links the item to configurations and saved selections. It cannot be edited. To use a different key, create a replacement, update its configurations, then delete the old item. Existing mission selections need review.</div></div>
+        <div class="small muted" style="flex:0 0 auto;">Carried by default in these configurations:</div>
         <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; flex:1 1 auto;">
-          ${presetChecks}
+          ${it.alwaysInclude?'<div class="small">Selected automatically where its default-carry rule applies. Individual configuration selections do not apply.</div>':''}${presetChecks}
         </div>
         <button class="btn bad" data-delk="${k}" style="flex:0 0 auto;">Delete</button>
       </div>
@@ -471,19 +531,26 @@ function renderEditorMission(host) {
       const item = EDITOR.draft.missionEquip[k];
       if (!item) return;
 
-      if (f === "w") {
-        item.w = parseFloat(el.value) || 0;
+      const before=JSON.parse(JSON.stringify(item));
+      if(el.type === "checkbox") item[f]=el.checked;
+      else if (["defaultQuantity","minQuantity","maxQuantity"].includes(f)) {
+        if(el.value===""&&f!=="defaultQuantity")delete item[f];else item[f]=el.valueAsNumber;
+      } else if (f === "unitWeight") {
+        item.unitWeight = el.valueAsNumber;
       } else if (f === "customArm") {
         item.customArm = parseInt(el.value, 10) || 0;
       } else if (f === "stow") {
         item[f] = el.value;
+        item.followBasket=el.value==="BASKET";
         // Show/hide the custom arm input for this item
         const wrap = list.querySelector(`[data-customarm-wrap="${k}"]`);
         if (wrap) wrap.style.display = (el.value === "CUSTOM") ? "block" : "none";
       } else {
         item[f] = el.value;
       }
-      editorSaveDraft();
+      if(!editorSaveDraft()){EDITOR.draft.missionEquip[k]=before;renderEditor();}
+      else if(['isBasket','alwaysInclude'].includes(f)){renderEditor();}
+      else {const total=list.querySelector(`[data-default-total="${k}"]`);if(total)total.textContent=`Default load: ${item.defaultQuantity} × ${item.unitWeight} = ${fmtDecimal(item.defaultQuantity*item.unitWeight)} kg`;}
     });
   });
 
@@ -513,6 +580,7 @@ function renderEditorMission(host) {
       const k = btn.dataset.delk;
       const it = EDITOR.draft.missionEquip[k];
       if (!confirm(`Delete "${it?.name || k}"?\n\nThis removes it from the library.`)) return;
+      if(Object.values(STORE.sessions).some(s=>s.mission?.[k])){alert("This item is used by a mission. Retire it or remove it from that mission first.");return;}
       delete EDITOR.draft.missionEquip[k];
       editorRemovePresetItem(k, ["missionOn", "missionOff"]);
       editorSaveDraft();
@@ -536,7 +604,7 @@ function renderEditorMission(host) {
       <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
         <div class="lbl">New item key (UPPERCASE, numbers, underscores only)</div>
         <div class="row" style="gap:8px; align-items:center;">
-          <input type="text" id="missionNewKeyInput" placeholder="e.g. ME_NEW_RADIO"
+          <p class="small">A unique identifier connecting this item to configurations and saved selections. Separate from its displayed name; cannot be changed after creation.</p><input type="text" id="missionNewKeyInput" placeholder="e.g. ME_NEW_RADIO"
                  style="flex:1; text-transform:uppercase; font-family:monospace;">
           <button class="btn good" id="missionNewKeyConfirm">Add</button>
           <button class="btn" id="missionNewKeyCancel">Cancel</button>
@@ -552,17 +620,15 @@ function renderEditorMission(host) {
 
     const tryAdd = () => {
       let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-      if (!key) { err.textContent = "Key cannot be empty."; return; }
+      if (!key.startsWith("ME_")) { err.textContent = "Key must start with ME_."; return; }
       if (Object.keys(EDITOR.draft.missionEquip).includes(key)) {
         err.textContent = `Key "${key}" is already in use. Choose another.`; return;
       }
       const firstStow = Object.keys(EDITOR.draft.stowage)[0] || "";
       EDITOR.draft.missionEquip[key] = {
         name:  "New Equipment Item",
-        w:     0,
-        stow:  firstStow,
-        group: "",
-        on:    false
+        unitWeight: 0, defaultQuantity:1, minQuantity:0, missionQuantityEditable:false, active:true,
+        stow: firstStow, group: MISSION_GROUPS[0]
       };
       editorSaveDraft();
       renderEditor();
@@ -594,192 +660,26 @@ function renderEditorMission(host) {
    cabinet is excluded — it is a role-fit item, edited in Role-Fit.
    ========================= */
 
-function renderEditorStowage(host) {
-  const items   = EDITOR.draft.missionEquip;
-  const stowage = EDITOR.draft.stowage;
-
-  const keys = Object.keys(items)
-    .filter(k => (items[k].group || "") === "Stowage")
-    .sort();
-
-  const stowByGroup = {};
-  for (const [id, loc] of Object.entries(stowage)) {
-    const g = loc.group || "Other";
-    if (!stowByGroup[g]) stowByGroup[g] = [];
-    stowByGroup[g].push({ id, name: loc.name, arm: loc.arm });
+function renderEditorStowage(host){
+  host.innerHTML='<div class="small muted">Location reference arms are shared by equipment and mission allocations. Cabinet mass and shelf arms remain distinct.</div><div id="locationCards"></div><div class="card row"><input id="locationNewKey" placeholder="New location key"><button class="btn good" id="locationAdd">Add Stowage Location</button></div>';
+  const list=host.querySelector('#locationCards');
+  for(const [id,arm] of Object.entries(EDITOR.draft.bayArms||{})){
+    const row=document.createElement('div');row.className='card';row.style.padding='12px';
+    row.innerHTML=`<div class="row"><b>${escHtml(missionLocations(EDITOR.draft)[id].name)}</b><label>Shared bay arm (mm)<input type="number" step="any" value="${arm}" data-bay-arm="${id}"></label></div><div class="small muted">Used by both mission equipment and bay loads.</div>`;
+    row.querySelector('input').onchange=e=>{if(!Number.isFinite(e.target.valueAsNumber)){e.target.value=EDITOR.draft.bayArms[id];return;}EDITOR.draft.bayArms[id]=e.target.valueAsNumber;editorSaveDraft();};list.append(row);
   }
-  const stowOptionsHtml = (selectedId) => {
-    let out = '<option value="">— pick stowage —</option>';
-    for (const g of Object.keys(stowByGroup).sort()) {
-      out += `<optgroup label="${g}">`;
-      for (const s of stowByGroup[g].sort((a,b) => a.name.localeCompare(b.name))) {
-        const sel = (s.id === selectedId) ? "selected" : "";
-        out += `<option value="${s.id}" ${sel}>${s.name} (${s.arm} mm)</option>`;
-      }
-      out += "</optgroup>";
-    }
-    return out;
-  };
-
-  host.innerHTML = `
-    <div class="small muted" style="margin-bottom:10px;">
-      ${keys.length} stowage location${keys.length === 1 ? "" : "s"}.
-      Permanently-installed shelves and bins. Preset checkboxes set whether the
-      location is available (deployed) for that mission configuration.
-      The SAR cabinet is managed under Role-Fit.
-    </div>
-
-    <div id="stowageItemList"></div>
-
-    <div class="hr"></div>
-    <div id="stowageAddForm"></div>
-    <div class="row">
-      <button class="btn good" id="stowageAddBtn">+ Add New Stowage Location</button>
-    </div>
-  `;
-
-  const list = document.getElementById("stowageItemList");
-
-  const presetKeys = Object.keys(EDITOR.draft.presets);
-  const isInPreset = (k, pk) => {
-    const mOn = EDITOR.draft.presets[pk]?.missionOn;
-    return Array.isArray(mOn) && mOn.includes(k);
-  };
-
-  for (const k of keys) {
-    const it = items[k];
-    const row = document.createElement("div");
-    row.className = "card";
-    row.style.marginBottom = "8px";
-    row.style.padding = "12px";
-
-    const presetChecks = presetKeys.map(pk => {
-      const pName = EDITOR.draft.presets[pk]?.name || pk;
-      const chk   = isInPreset(k, pk) ? "checked" : "";
-      return `<label class="small" style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;">
-        <input type="checkbox" data-k="${k}" data-preset="${pk}" ${chk} style="width:auto;cursor:pointer;">
-        ${escHtml(pName)}
-      </label>`;
-    }).join("");
-
-    row.innerHTML = `
-      <div class="row" style="align-items:flex-end;">
-        <div style="flex: 2 1 240px;">
-          <div class="lbl">Location Name</div>
-          <input type="text" data-k="${k}" data-f="name" value="${escHtml(it.name)}">
-        </div>
-        <div style="flex: 2 1 240px;">
-          <div class="lbl">Stowage Reference (arm)</div>
-          <select data-k="${k}" data-f="stow">
-            ${stowOptionsHtml(it.stow)}
-          </select>
-        </div>
-      </div>
-      <div style="margin-top:8px;">
-        <div class="lbl">Available (deployed) in preset:</div>
-        <div class="row" style="gap:14px; flex-wrap:wrap; margin-top:4px;">
-          ${presetChecks}
-        </div>
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <button class="btn bad" data-delk="${k}" style="flex:0 0 auto;">Delete</button>
-      </div>
-    `;
-    list.appendChild(row);
+  for(const [id,loc] of Object.entries(EDITOR.draft.stowage)){
+    const row=document.createElement('div');row.className='card';row.style.padding='12px';
+    row.innerHTML=`<div class="small mono muted">${escHtml(id)}</div><div class="row"><label style="flex:2">Name<input data-location="name" value="${escHtml(loc.name)}"></label><label>Arm (mm)<input type="number" step="any" data-location="arm" value="${loc.arm}"></label><label>Location group<select data-location="group">${['SAR Cabinet','Cabin','Port Fwd Shelves','Ramp','Cabin Bays'].map(g=>`<option ${loc.group===g?'selected':''}>${g}</option>`).join('')}</select></label><button class="btn bad" data-location-delete>Delete</button></div>`;
+    row.querySelectorAll('[data-location]').forEach(el=>el.onchange=()=>{const field=el.dataset.location;if(field==='arm'&&!Number.isFinite(el.valueAsNumber)){el.value=loc.arm;return;}loc[field]=field==='arm'?el.valueAsNumber:el.value;editorSaveDraft();});
+    row.querySelector('[data-location-delete]').onclick=()=>{
+      const referenced=Object.values(EDITOR.draft.missionEquip).some(it=>it.stow===id)||Object.values(STORE.sessions).some(s=>Object.values(s.missionLoads||{}).flat().some(r=>r.stow===id)||(s.zones||[]).some(z=>z.id===id&&z.w));
+      if(referenced){alert('This location is referenced by equipment or a mission. Relocate those entries first.');return;}
+      if(!confirm('Delete '+loc.name+'?'))return;delete EDITOR.draft.stowage[id];editorSaveDraft();renderEditor();
+    };list.append(row);
   }
-
-  if (!keys.length) {
-    list.innerHTML = `<div class="small muted">No stowage locations defined yet.</div>`;
-  }
-
-  list.querySelectorAll("[data-k][data-f]").forEach(el => {
-    el.addEventListener("change", () => {
-      const k    = el.dataset.k;
-      const f    = el.dataset.f;
-      const item = EDITOR.draft.missionEquip[k];
-      if (!item) return;
-      item[f] = el.value;
-      editorSaveDraft();
-    });
-  });
-
-  list.querySelectorAll("[data-preset]").forEach(el => {
-    el.addEventListener("change", () => {
-      const k  = el.dataset.k;
-      const pk = el.dataset.preset;
-      const pd = EDITOR.draft.presets[pk];
-      if (!pd) return;
-      if (!Array.isArray(pd.missionOn))  pd.missionOn  = [];
-      if (!Array.isArray(pd.missionOff)) pd.missionOff = [];
-      if (el.checked) {
-        if (!pd.missionOn.includes(k)) pd.missionOn.push(k);
-        pd.missionOff = pd.missionOff.filter(x => x !== k);
-      } else {
-        pd.missionOn = pd.missionOn.filter(x => x !== k);
-      }
-      editorSaveDraft();
-    });
-  });
-
-  list.querySelectorAll("[data-delk]").forEach(btn => {
-    btn.onclick = () => {
-      const k = btn.dataset.delk;
-      const it = EDITOR.draft.missionEquip[k];
-      if (!confirm(`Delete stowage location "${it?.name || k}"?\n\nThis removes it from the library.`)) return;
-      delete EDITOR.draft.missionEquip[k];
-      editorSaveDraft();
-      renderEditor();
-      if (typeof render === "function") render();
-    };
-  });
-
-  document.getElementById("stowageAddBtn").onclick = () => {
-    const addForm = document.getElementById("stowageAddForm");
-    if (!addForm) return;
-    if (addForm.dataset.open === "1") {
-      addForm.innerHTML = ""; addForm.dataset.open = "0"; return;
-    }
-    addForm.dataset.open = "1";
-    addForm.innerHTML = `
-      <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
-        <div class="lbl">New stowage key (UPPERCASE, numbers, underscores only)</div>
-        <div class="row" style="gap:8px; align-items:center;">
-          <input type="text" id="stowageNewKeyInput" placeholder="e.g. ME_NEW_SHELF"
-                 style="flex:1; text-transform:uppercase; font-family:monospace;">
-          <button class="btn good" id="stowageNewKeyConfirm">Add</button>
-          <button class="btn" id="stowageNewKeyCancel">Cancel</button>
-        </div>
-        <div id="stowageNewKeyErr" class="small" style="color:var(--bad,#e55); margin-top:4px; min-height:16px;"></div>
-      </div>
-    `;
-    const inp = document.getElementById("stowageNewKeyInput");
-    const err = document.getElementById("stowageNewKeyErr");
-    document.getElementById("stowageNewKeyConfirm").onclick = () => {
-      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-      if (!key) { err.textContent = "Key cannot be empty."; return; }
-      if (Object.keys(EDITOR.draft.missionEquip).includes(key)) {
-        err.textContent = `Key "${key}" is already in use.`; return;
-      }
-      const firstStow = Object.keys(EDITOR.draft.stowage)[0] || "";
-      EDITOR.draft.missionEquip[key] = {
-        name: "New Stowage Location", w: 0, stow: firstStow, group: "Stowage", on: false
-      };
-      editorSaveDraft();
-      renderEditor();
-      if (typeof render === "function") render();
-    };
-    document.getElementById("stowageNewKeyCancel").onclick = () => {
-      addForm.innerHTML = ""; addForm.dataset.open = "0";
-    };
-    inp.focus();
-    inp.addEventListener("input", () => { inp.value = inp.value.toUpperCase(); });
-  };
+  host.querySelector('#locationAdd').onclick=()=>{const id=host.querySelector('#locationNewKey').value.trim().toUpperCase();if(!/^[A-Z0-9_]+$/.test(id)||missionLocations(EDITOR.draft)[id]){alert('Enter a unique uppercase location key.');return;}EDITOR.draft.stowage[id]={name:'New location',arm:0,group:'Cabin'};editorSaveDraft();renderEditor();};
 }
-
-
-/* =========================
-   ROLE-FIT EDITOR
-   ========================= */
 
 function renderEditorRoleFit(host) {
   const roleFit = EDITOR.draft.roleFit;
@@ -842,16 +742,19 @@ function renderEditorRoleFit(host) {
         </div>
       </div>
       <div class="row" style="margin-top:10px; align-items:center; flex-wrap:wrap; gap:8px;">
-        <div class="small mono muted" style="flex:0 0 auto;">Key: ${k}</div>
+        <div class="small mono muted" style="flex:1 1 100%;min-width:0;overflow-wrap:anywhere;">Key: ${k}<div class="small">This identifier links the item to configurations and saved selections and cannot be edited. Create a replacement with a new key and update its configurations before deleting this item. Existing mission selections need review.</div></div>
         <label class="small" style="flex:0 0 auto; display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" data-k="${k}" data-f="normally" ${it.normally ? "checked" : ""}
                  style="width:auto; cursor:pointer;"> Default installed state
         </label>
         <label class="small" style="flex:0 0 auto; display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" data-k="${k}" data-f="maintenanceIncluded" ${it.maintenanceIncluded ? "checked" : ""}
-                 style="width:auto; cursor:pointer;"> Included in fleet Maintenance BW
+                 style="width:auto; cursor:pointer;" title="Default assumption for aircraft weighing records. Record aircraft-specific differences under Maintenance Exceptions on Accept."> Included in Recorded Aircraft Basic Weight
         </label>
       </div>
+      <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="isStowage" ${it.isStowage?'checked':''}> Allow this item to be a stowage location</label>
+      <p class="small muted">Other equipment can be assigned to this item. If it is not fitted, its contents must be relocated or removed.</p>
+      <p class="small muted">Recorded Aircraft Basic Weight inclusion is the default assumption for weighing records. Record aircraft-specific differences under Maintenance Exceptions on Accept.</p>
       <div class="row" style="margin-top:8px; align-items:center; flex-wrap:wrap; gap:10px;">
         <div class="small muted" style="flex:0 0 auto;">Installed in:</div>
         ${presetChecks}
@@ -884,7 +787,7 @@ function renderEditorRoleFit(host) {
       if (!it) return;
       it[f] = el.checked === true;
       // Fleet defaults never replace per-sortie declarations.
-      editorSaveDraft();
+      editorSaveDraft();if(f==='isStowage')renderEditor();
     });
   });
 
@@ -936,7 +839,7 @@ function renderEditorRoleFit(host) {
       <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
         <div class="lbl">New item key (UPPERCASE, numbers, underscores only)</div>
         <div class="row" style="gap:8px; align-items:center;">
-          <input type="text" id="rfNewKeyInput" placeholder="e.g. RF_NEW_ITEM"
+          <p class="small">A unique identifier connecting this item to configurations and saved selections. Separate from its displayed name; cannot be changed after creation.</p><input type="text" id="rfNewKeyInput" placeholder="e.g. RF_NEW_ITEM"
                  style="flex:1; text-transform:uppercase; font-family:monospace;">
           <button class="btn good" id="rfNewKeyConfirm">Add</button>
           <button class="btn" id="rfNewKeyCancel">Cancel</button>
@@ -983,6 +886,7 @@ function renderEditorRoleFit(host) {
 // publish changes to the fleet (until cloud hosting is ready).
 
 function editorExportConfig() {
+  if(!editorSaveDraft()) return;
   // Read the current config.js from disk is not possible in-browser;
   // we rebuild the file content from AC values.
 
@@ -1046,7 +950,7 @@ function editorExportConfig() {
   push("const AC_ENVELOPE = " + stringifyPretty(AC.envelope) + ";");
   push("");
   push("// SECTION 3 — BAY ARMS");
-  push("const AC_BAY_ARMS = " + stringifyPretty(AC.bayArms) + ";");
+  push("const AC_BAY_ARMS = " + stringifyPretty(EDITOR.draft.bayArms || AC.bayArms) + ";");
   push("");
   push("// SECTION 4 — RAMP LIMITS");
   push("const AC_RAMP = " + stringifyPretty(AC.ramp) + ";");
@@ -1070,17 +974,7 @@ function editorExportConfig() {
   push("const AC_MISSION_EQUIP = " + stringifyPretty(EDITOR.draft.missionEquip) + ";");
   push("");
   push("// SECTION 10 — MISSION PRESETS");
-  // Rebuild full presets from live AC (for seats, roleFit, notes, image)
-  // but apply the editor's missionOn/missionOff overrides.
-  const exportPresets = JSON.parse(JSON.stringify(AC.presets));
-  for (const pk of Object.keys(EDITOR.draft.presets)) {
-    if (exportPresets[pk]) {
-      exportPresets[pk].missionOn  = EDITOR.draft.presets[pk].missionOn  || [];
-      exportPresets[pk].missionOff = EDITOR.draft.presets[pk].missionOff || [];
-      exportPresets[pk].roleFitOn  = EDITOR.draft.presets[pk].roleFitOn  || [];
-      exportPresets[pk].roleFitOff = EDITOR.draft.presets[pk].roleFitOff || [];
-    }
-  }
+  const exportPresets = JSON.parse(JSON.stringify(EDITOR.draft.presets));
   push("const AC_PRESETS = " + stringifyPretty(exportPresets) + ";");
   push("");
   push("// EXPORT");
@@ -1102,30 +996,7 @@ function editorExportConfig() {
   push("  presets:       AC_PRESETS");
   push("};");
   push("");
-  push("// Apply localStorage overrides");
-  push("try {");
-  push("  const saved = localStorage.getItem('ac_config_overrides');");
-  push("  if (saved) {");
-  push("    const ov = JSON.parse(saved);");
-  push("    if (ov.missionEquip) AC.missionEquip = ov.missionEquip;");
-  push("    if (ov.stowage)      AC.stowage      = ov.stowage;");
-  push("    if (ov.roleFit)      AC.roleFit      = ov.roleFit;");
-  push("    if (ov.crewSeats)    AC.crewSeats    = ov.crewSeats;");
-  push("    if (ov.paxSeats)     AC.paxSeats     = ov.paxSeats;");
-  push("    if (ov.referenceDocuments) AC.meta.referenceDocuments = ov.referenceDocuments;");
-  push("    // Restore preset missionOn/missionOff and roleFitOn/Off overrides");
-  push("    if (ov.presets) {");
-  push("      for (const pk of Object.keys(ov.presets)) {");
-  push("        if (AC.presets[pk]) {");
-  push("          if (ov.presets[pk].missionOn)  AC.presets[pk].missionOn  = ov.presets[pk].missionOn;");
-  push("          if (ov.presets[pk].missionOff) AC.presets[pk].missionOff = ov.presets[pk].missionOff;");
-  push("          if (ov.presets[pk].roleFitOn)  AC.presets[pk].roleFitOn  = ov.presets[pk].roleFitOn;");
-  push("          if (ov.presets[pk].roleFitOff) AC.presets[pk].roleFitOff = ov.presets[pk].roleFitOff;");
-  push("        }");
-  push("      }");
-  push("    }");
-  push("  }");
-  push("} catch (e) { console.warn('Could not load config overrides:', e); }");
+  push("// Device overrides are validated and loaded by mission.js.");
 
   const content = lines.join("\n");
   const blob    = new Blob([content], { type: "text/plain" });

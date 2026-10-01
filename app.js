@@ -27,7 +27,7 @@ function initTails(){
   STORE.tails = [...active, ...placeholders];
 
   // Expand CASEVAC "ALL" shorthand now that AC.missionEquip is available
-  if (AC.presets.CASEVAC.missionOff === "ALL"){
+  if (AC.presets.CASEVAC?.missionOff === "ALL"){
     AC.presets.CASEVAC.missionOff = Object.keys(AC.missionEquip);
   }
 
@@ -51,7 +51,7 @@ function makeNewSession(tail, isPlaceholder){
   // enters the calculation only after a configuration preset is applied (and
   // may then be adjusted manually by the FE).
   const missionState = {};
-  for (const k of Object.keys(AC.missionEquip)) missionState[k] = false;
+  for (const [k,it] of Object.entries(AC.missionEquip)) missionState[k] = missionAutomaticDefault(null,k,it);
 
   // Seats installed/occupants
   const seatState = {};
@@ -67,8 +67,7 @@ function makeNewSession(tail, isPlaceholder){
     total: 0,
     landing: 300,
     manualTanks: false,
-    tanks: {T1:0,T2:0,T3:0,T4:0,T5:0},
-    burnSession: [] // {t:ms, fuel:kg, gs:kt}
+    tanks: {T1:0,T2:0,T3:0,T4:0,T5:0}
   };
 
   // Cargo entries (Cargo 1-4 like MCDU)
@@ -108,6 +107,8 @@ function makeNewSession(tail, isPlaceholder){
     roleFitDeclarationOrigins: {},
     accountingReviewRequired: false,
     mission: missionState,
+    missionLoads: {},
+    missionReviewRequired: false,
     seats: seatState,
     occupants: occupant,
 
@@ -725,7 +726,7 @@ function setStatusPill(){
   pillBadge.textContent = st.text;
   pillBadge.className = "badge " + st.cls;
 
-  pillPreset.textContent = s.preset ? AC.presets[s.preset].name : "No preset";
+  pillPreset.textContent = s.preset ? (AC.presets[s.preset]?.name || "Unavailable configuration") : "No preset";
 }
 
 /* =========================
@@ -787,7 +788,7 @@ function renderHome(){
   if (btnEnd){
     btnEnd.onclick = ()=>{
       if (!confirm("End session and clear ALL tails back to defaults? This cannot be undone.")) return;
-      if (typeof endPersistedSession === "function") endPersistedSession();
+      if (typeof endPersistedSession === "function" && endPersistedSession() === false) return;
       setTab("HOME");
       if (typeof maybeShowSplash === "function") maybeShowSplash();
     };
@@ -1127,10 +1128,10 @@ function applyPreset(tail, presetKey){
   applyRoleFitPreset(s,p);
   invalidateAccountingCertification(s);
 
-  // Mission baseline: destructive apply (clear then apply)
-  for (const k of Object.keys(s.mission)) s.mission[k] = false;
-  for (const k of (p.missionOn  || [])) s.mission[k] = true;
-  for (const k of (p.missionOff || [])) s.mission[k] = false;
+  const extraIds=new Set(Object.values(s.occupants||{}).filter(Boolean).map(o=>o.crewId).filter(Boolean));
+  const extraLoads=Object.entries(s.missionLoads||{}).flatMap(([key,rows])=>rows.filter(r=>extraIds.has(r.crewId)).map(row=>({key,row:{...row}})));
+  applyMissionPreset(s,p);
+  for(const {key,row} of extraLoads){if(!s.mission[key])s.missionLoads[key]=[];editMissionAllocations(s,key).push(row);s.mission[key]=true;}
 
   // Stowage markers describe physical locations available for use, not preset load.
   // Permanent locations default available; SAR Cabinet locations follow cabinet installation.
@@ -1149,11 +1150,7 @@ function renderConfig(){
   const tail = STORE.selectedTail;
   const s = STORE.sessions[tail];
 
-  // preset buttons
-  document.getElementById("btnPresetSAR3").onclick = ()=>{ applyPreset(tail,"SAR3"); render(); };
-  document.getElementById("btnPresetSAR10").onclick = ()=>{ applyPreset(tail,"SAR10"); render(); };
-  document.getElementById("btnPresetCASEVAC").onclick = ()=>{ applyPreset(tail,"CASEVAC"); render(); };
-  document.getElementById("btnPresetTRANSPORT").onclick = ()=>{ applyPreset(tail,"TRANSPORT"); render(); };
+  renderConfigurationButtons(s);
 
   // Preset image — shown when a preset is applied, blank otherwise. Collapsible.
   const imgHost = document.getElementById("presetImageHost");
@@ -1230,12 +1227,21 @@ function updateConfigSummary(s){
   const tail=s.tail;
   // KPIs
   const wb = computeWB(tail);
-  const presetName = s.preset ? AC.presets[s.preset].name : "None";
+  const presetName = s.preset ? (AC.presets[s.preset]?.name || "Unavailable configuration") : "None";
   const rf = computeRoleFitTotals(s);
   const me = computeMissionTotals(s);
   const st = computeSeatTotals(s);
-  const crewOccupants = Object.keys(AC.crewSeats).filter(k => s.seats[k] && s.occupants[k]).length;
-  const paxOccupants = Object.keys(AC.paxSeats).filter(k => s.seats[k] && s.occupants[k]).length;
+  const crewOccupants = Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='crew').length;
+  const paxOccupants = Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='pax').length;
+  const quick=document.getElementById('configurationQuickSummary');
+  if(quick){
+    const manual=Object.values(s.roleFitDeclarationOrigins||{}).includes('manual') || (s.customExceptions||[]).length>0;
+    const issues=[...accountingIssues(s),...missionIssues(s)];
+    quick.replaceChildren();const title=document.createElement('strong');title.textContent=s.preset?presetName+' applied':'Aircraft defaults · No configuration selected';
+    const load=document.createElement('div');load.textContent='Crew: '+crewOccupants+' · Passengers: '+paxOccupants+' · Mission equipment: '+fmtDecimal(me.w)+' kg · Fuel: '+fmtKg(wb.fuelTotal);
+    const hint=document.createElement('div');hint.textContent='Review the load below. Open a section to make changes.'+(manual?' Manual changes retained.':'');quick.append(title,load,hint);
+    for(const issue of issues){const line=document.createElement('div');line.textContent=issue;quick.append(line);}
+  }
   const signedKg = value => `${value >= 0 ? "+" : ""}${fmtDecimal(value)} kg`;
 
     const tacticalPayload = (wb.cargoTotal || 0) + (wb.bayTotal || 0);
@@ -1250,7 +1256,7 @@ function updateConfigSummary(s){
     <div class="box"><div class="t">Preset</div><div class="v">${presetName}</div><div class="s">Current configuration</div></div>
     <div class="box"><div class="t">Accepted Basic Weight & CG</div><div class="v">${fmtKg(wb.basicW)} @ ${fmtMm(wb.basicCG)}</div></div>
     <div class="box"><div class="t">Role-Fit Change from Accepted Basic Weight</div><div class="v">${signedKg(roleChangeTotal)}</div><div class="s">Role-Fit Equipment: ${signedKg(wb.roleFitAdjustmentW)} · Seat Structures: ${signedKg(wb.seatStructureAdjustmentW)}<br>All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.</div></div>
-    <div class="box"><div class="t">Custom Exceptions</div><div class="v">${signedKg(wb.customExceptionW)}</div><div class="s">${s.customExceptions.length} entr${s.customExceptions.length===1?"y":"ies"} · ${s.customExceptionsReviewed?"Aircraft documentation reviewed":"Review confirmation required"}</div></div>
+    <div class="box"><div class="t">Custom Exceptions</div><div class="v">${signedKg(wb.customExceptionW)}</div><div class="s">${s.customExceptions.length} entr${s.customExceptions.length===1?"y":"ies"} · ${!s.customExceptions.length?"No confirmation required":s.customExceptionsReviewed?"Aircraft documentation reviewed":"Review confirmation required"}</div></div>
     <div class="box"><div class="t">Mission Equipment</div><div class="v">${signedKg(me.w)} @ ${fmtMm(me.w ? Math.round(me.m/me.w) : null)}</div></div>
     <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"}</div></div>
     ${wb.zonesTotal ? `<div class="box"><div class="t">Additional Stowage Load</div><div class="v">${signedKg(wb.zonesTotal)}</div><div class="s">Additional shelf/zone load entered in Load Planning</div></div>` : ""}
@@ -1264,283 +1270,14 @@ function updateConfigSummary(s){
    MISSION EQUIPMENT RENDER
    ========================= */
 
-function renderMission(){
-  const tail = STORE.selectedTail;
-  const s = STORE.sessions[tail];
+function renderMission(){ renderMissionEquipment(); }
 
-  // Build grouped list by group heading
-  const grouped = {};
-  for (const k of Object.keys(AC.missionEquip)){
-    const it = getMissionItem(k);
-    if (!it) continue;
-    const g = it.group || "Mission Equipment";
-    if (!grouped[g]) grouped[g] = [];
-    grouped[g].push({k, it});
-  }
-  // stable group order
-  const groupOrder = ["ALSE","SAR Equipment","Medical Equipment","Misc / Mission Kits","Personal Equipment","Stowage","Mission Equipment"];
-  const groups = Object.keys(grouped).sort((a,b)=>{
-    const ia = groupOrder.indexOf(a); const ib = groupOrder.indexOf(b);
-    if (ia !== -1 || ib !== -1){
-      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-    }
-    return a.localeCompare(b);
-  });
-
-  const list = document.getElementById("missionEquipList");
-  list.innerHTML = "";
-
-  const wbBefore = computeWB(tail);
-
-  // Occupied weight per stowage location: sum of ON mission items that
-  // reference each stow ID. Lets the Stowage card show how much of a
-  // shelf/bin is already taken by loaded equipment (same source as the
-  // Load Planning base), so an FE or custodian adding kit sees it everywhere.
-  const occupiedByStow = {};
-  for (const mk of Object.keys(AC.missionEquip)){
-    if (!s.mission[mk]) continue;                 // only items currently ON
-    const mit = AC.missionEquip[mk];
-    const sid = mit.stow;
-    if (!sid || sid === "CUSTOM") continue;
-    const w = +mit.w || 0;
-    if (w <= 0) continue;                          // skip zero-weight presence markers
-    occupiedByStow[sid] = (occupiedByStow[sid] || 0) + w;
-  }
-
-    // Collapsible group cards (persist open/closed per tail)
-  s.ui = s.ui || {};
-  s.ui.meGroups = s.ui.meGroups || {};
-
-    const defaultOpen = (g)=>false;
-
-
-  // Role display order for crew-keyed items (Personal Equipment)
-  const ROLE_ORDER = { AC:0, FO:1, FE:2, STTL:3, STTM:4 };
-  const parsePE = (key)=>{
-    // ME_<ROLE>_<TYPE>  e.g. ME_STTL_RON_BAG -> role STTL, type RON_BAG
-    const m = /^ME_(AC|FO|FE|STTL|STTM)_(.+)$/.exec(key);
-    return m ? { role: m[1], type: m[2] } : null;
-  };
-
-  for (const g of groups){
-
-    let items;
-    if (g === "Personal Equipment"){
-      // Group like items together (all B25s, all RON bags, ...), then by crew role
-      items = grouped[g].slice().sort((a,b)=>{
-        const pa = parsePE(a.k), pb = parsePE(b.k);
-        if (pa && pb){
-          if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
-          return (ROLE_ORDER[pa.role] ?? 99) - (ROLE_ORDER[pb.role] ?? 99);
-        }
-        // fall back to name for any non-conforming key
-        return String(a.it.name||"").localeCompare(String(b.it.name||""));
-      });
-    } else {
-      items = grouped[g].sort((a,b)=> String(a.it.stow||"").localeCompare(String(b.it.stow||"")));
-    }
-
-    // selected count for badge
-    let sel = 0;
-    for (const {k} of items) if (!!s.mission[k]) sel++;
-
-    // card
-    const card = document.createElement("div");
-    card.style.border = "1px solid rgba(255,255,255,.12)";
-    card.style.borderRadius = "12px";
-    card.style.padding = "10px";
-    card.style.margin = "10px 0";
-    card.style.background = "rgba(0,0,0,.10)";
-
-    // header (click to collapse)
-    const head = document.createElement("div");
-    head.style.display = "flex";
-    head.style.alignItems = "center";
-    head.style.justifyContent = "space-between";
-    head.style.gap = "10px";
-    head.style.cursor = "pointer";
-    head.style.userSelect = "none";
-
-    const leftHead = document.createElement("div");
-    leftHead.innerHTML = `
-      <div style="font-weight:900; letter-spacing:.2px;">${g === "Stowage" ? "Available Stowage Locations" : (g === "Misc / Mission Kits" ? "Miscellaneous Mission Kits" : g)}</div>${g === "Stowage" ? `<div class="small">Available locations for stowing mission and personal equipment. Equipment assigned to a location is included in its load, with remaining capacity shown in Load Planning.</div>` : ""}
-    `;
-
-    const rightHead = document.createElement("div");
-    rightHead.className = "mono";
-    rightHead.style.display = "flex";
-    rightHead.style.alignItems = "center";
-    rightHead.style.gap = "8px";
-
-    const countBadge = document.createElement("span");
-    countBadge.className = sel ? "badge good" : "badge";
-    countBadge.textContent = sel ? `${sel} ON` : "0 ON";
-
-    const chev = document.createElement("span");
-    chev.className = "mono";
-    chev.textContent = "▼";
-
-    rightHead.appendChild(countBadge);
-    rightHead.appendChild(chev);
-
-    head.appendChild(leftHead);
-    head.appendChild(rightHead);
-
-    // body
-    const body = document.createElement("div");
-    body.style.marginTop = "10px";
-
-    const open = (s.ui.meGroups[g] !== undefined) ? !!s.ui.meGroups[g] : defaultOpen(g);
-    body.style.display = open ? "" : "none";
-    chev.textContent = open ? "▼" : "▶";
-
-    head.onclick = ()=>{
-      const willOpen = (body.style.display === "none");
-      body.style.display = willOpen ? "" : "none";
-      chev.textContent = willOpen ? "▼" : "▶";
-      s.ui.meGroups[g] = willOpen;
-    };
-
-    // rows go into body
-    for (const {k, it} of items){
-      const on = !!s.mission[k];
-
-      const row = document.createElement("div");
-      row.className = "toggle";
-
-      // effect on operating/AUW if toggled
-      const deltaW = it.w;
-      const deltaM = it.w * it.arm;
-      const opW = wbBefore.opW;
-      const opCG = wbBefore.opCG;
-
-      // approximate effect (toggle only this item):
-      const newOpW = on ? (opW - deltaW) : (opW + deltaW);
-      const oldOpM = opW * opCG;
-      const newOpM = on ? (oldOpM - deltaM) : (oldOpM + deltaM);
-      const newOpCG = roundMm(cgFromMoment(newOpW, newOpM) || opCG);
-
-      const left = document.createElement("div");
-      left.className = "left";
-
-      // For stowage presence markers (zero-weight items that ARE a location),
-      // show how much weight is already loaded into that location.
-      const isStowageMarker = (it.w === 0) && (g === "Stowage");
-      const stowLoc = isStowageMarker ? AC.stowage?.[it.stow] : null;
-      const physicalStowAvailable = !isStowageMarker || stowLoc?.group !== "SAR Cabinet" || roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET");
-      if (!physicalStowAvailable){ row.style.opacity="0.45"; row.style.filter="grayscale(1)"; }
-      const loadedHere = occupiedByStow[it.stow] || 0;
-      const occupiedLine = isStowageMarker
-        ? `<div class="meta small">${loadedHere > 0
-              ? `Loaded here: <strong>${roundKg(loadedHere)} kg</strong> from mission equipment`
-              : `Empty — no mission equipment loaded here`}</div>`
-        : "";
-
-      left.innerHTML = `
-        <div class="name">${it.name}</div>
-        <div class="meta mono">${roundKg(it.w)} kg @ ${roundMm(it.arm)} mm · ${it.stow}</div>
-        <div class="meta">${on ? "<span class='badge good'>ON</span>" : "<span class='badge'>OFF</span>"} &nbsp;
-          <span class="small">If toggled → Operating CG ${fmtMm(newOpCG)} (from ${fmtMm(opCG)})</span>
-        </div>
-        ${occupiedLine}
-        ${isStowageMarker && !physicalStowAvailable ? `<div class="meta"><span class="badge warn">Unavailable in current aircraft configuration</span></div>` : ""}
-      `;
-
-      const sw = document.createElement("div");
-      sw.className = "switch" + (on ? " on" : "");
-      sw.addEventListener("click", ()=>{
-        if (isStowageMarker){
-          const loc = AC.stowage?.[it.stow];
-          if (loc?.group === "SAR Cabinet" && !roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET")) return;
-          if (on && loadedHere > 0){ alert("Remove or relocate equipment assigned to this stowage location before making it unavailable."); return; }
-        }
-        s.mission[k] = !s.mission[k];
-        render();
-      });
-
-      row.appendChild(left);
-      row.appendChild(sw);
-      body.appendChild(row);
-    }
-
-    card.appendChild(head);
-    card.appendChild(body);
-    list.appendChild(card);
-  }
-
-
-  // Totals by stowage
-  const stow = {};
-  for (const k of Object.keys(AC.missionEquip)){
-    if (!s.mission[k]) continue;
-    const it = getMissionItem(k);
-    if (!it) continue;
-    const key = it.stow || "Unknown";
-    if (!stow[key]) stow[key] = {w:0, m:0};
-    stow[key].w += it.w;
-    stow[key].m += it.w * it.arm;
-  }
-  const stowKeys = Object.keys(stow).sort();
-
-  const totals = document.getElementById("stowageTotals");
-  if (!stowKeys.length){
-    totals.innerHTML = `<div class="small muted">No mission equipment selected.</div>`;
-  } else {
-    let html = `<table class="table">
-      <thead><tr><th>Location</th><th class="right">Weight</th><th class="right">Avg Arm</th></tr></thead><tbody>`;
-    for (const k of stowKeys){
-      const ww = stow[k].w;
-      const avg = ww>0 ? (stow[k].m/ww) : 0;
-      html += `<tr><td>${k}</td><td class="right">${roundKg(ww)}</td><td class="right mono">${roundMm(avg)}</td></tr>`;
-    }
-    html += `</tbody></table>`;
-    totals.innerHTML = html;
-  }
-
-  // KPIs
-  const wb = computeWB(tail);
-  const me = computeMissionTotals(s);
-
-  document.getElementById("missionKpi").innerHTML = ` 
-    <div class="box"><div class="t">Mission Equip Total</div><div class="v">${fmtKg(me.w)}</div><div class="s mono">${fmtMm(Math.round(me.m/(me.w||1)))}</div></div>
-    <div class="box"><div class="t">Operating</div><div class="v">${fmtKg(wb.opW)}</div><div class="s mono">${fmtMm(wb.opCG)}</div></div>
-    <div class="box"><div class="t">AUW</div><div class="v">${fmtKg(wb.auw)}</div><div class="s mono">${fmtMm(wb.auwCG)} · ${wb.cgBand}</div></div>
-  `;
-
-  // Envelope header (MISSION)
-  const wrap = document.getElementById("envWrapMission");
-  const envC = document.getElementById("envCanvasMission");
-  const envN = document.getElementById("envNotesMission");
-
-  // Draw only when visible (canvas is 0x0 when hidden)
-  if (envC && (!wrap || wrap.style.display !== "none")){
-    drawEnvelope(envC, envN || null);
-  }
-
-  // Collapse/expand (visual only) — redraw on expand
-  const btn = document.getElementById("envToggleMission");
-  if (btn && wrap && !btn.dataset.bound){
-    btn.dataset.bound = "1";
-    btn.onclick = ()=>{
-      const willExpand = (wrap.style.display === "none");
-      wrap.style.display = willExpand ? "" : "none";
-      btn.textContent = willExpand ? "Collapse" : "Expand";
-      if (willExpand && envC){
-        drawEnvelope(envC, envN || null);
-      }
-    };
-  }
-}
-
-
-/* =========================
-   SEATS RENDER
-   ========================= */
 
 function renderSeats(){
   const tail = STORE.selectedTail;
   const s = STORE.sessions[tail];
 
+  renderExtraCrew(s);
     const listCrew = document.getElementById("seatListCrew");
   const listPax  = document.getElementById("seatListPax");
   if (listCrew) listCrew.innerHTML = "";
@@ -1560,7 +1297,7 @@ function renderSeats(){
     const left = document.createElement("div");
     left.className = "left";
 
-    const occW = isCrew ? CREW_W : PAX_W;
+    const occW = (occ?occ.type==='crew':isCrew) ? CREW_W : PAX_W;
     const occText = occ ? `${occ.label} (${occ.type.toUpperCase()} · ${occW}kg)` : "Empty";
     const occBadge = occ ? "badge good" : "badge";
 
@@ -1591,6 +1328,7 @@ function renderSeats(){
     if (fixed){ btnInstall.disabled=true; btnInstall.textContent="Always installed"; btnInstall.style.opacity="0.55"; }
     btnInstall.onclick = ()=>{
       if (fixed) return;
+      if(s.seats[key]&&s.occupants[key])clearSeatOccupant(s,key);
       s.seats[key] = !s.seats[key];
             render();
     };
@@ -1608,7 +1346,7 @@ function renderSeats(){
       if (!s.seats[key]) return; // seat not installed => cannot assign/clear
 
       if (occ){
-        s.occupants[key] = null;
+        clearSeatOccupant(s,key);
       } else {
         const label = "OCCUPIED";
         s.occupants[key] = {type: isCrew ? "crew" : "pax", label: label.trim()};
@@ -1714,66 +1452,6 @@ function bindFuelInputsOnce(){
     });
   }
 
-  // burn controls
-  const btnAdd = document.getElementById("btnAddBurnObs");
-  const btnClear = document.getElementById("btnClearBurn");
-  if (!btnAdd.dataset.bound){
-    btnAdd.dataset.bound="1";
-    btnAdd.onclick = () => {
-  const fuelKg = document.getElementById("burnFuelObs").value;
-  const gsKt = document.getElementById("burnGSObs").value;
-  if (!fuelKg) return;
-
-  // Get session object for the selected tail
-  const tail = STORE.selectedTail;
-  const s = STORE.sessions[tail];
-
-  // Parse numbers (fuel required, GS optional)
-  const fuelNum = Number(fuelKg);
-  const gsNum = gsKt ? Number(gsKt) : null;
-  if (!Number.isFinite(fuelNum) || fuelNum <= 0) { alert("Enter observed fuel total."); return; }
-
-  // Update authoritative fuel total field (drives fuel remaining math)
-  const fuelEl = document.getElementById("fuelTotalInput");
-  fuelEl.value = fuelKg;
-  fuelEl.dispatchEvent(new Event("change", { bubbles: true }));
-
-  // Ensure burnSession exists
-  if (!s.fuel.burnSession) s.fuel.burnSession = [];
-
-  // Auto-reset session if fuel increases vs last point (refuel / correction)
-  const sess = s.fuel.burnSession;
-  const last = sess.length ? sess[sess.length - 1] : null;
-  if (last && fuelNum > last.fuel) sess.length = 0;
-
-  // Store observation (GS optional)
-  sess.push({
-    t: Date.now(),
-    fuel: roundKg(fuelNum),
-    gs: (Number.isFinite(gsNum) && gsNum > 0) ? gsNum : null
-  });
-
-  // Log line (GS optional display)
-  const gsText = (Number.isFinite(gsNum) && gsNum > 0) ? `${Math.round(gsNum)} kt` : "—";
-  const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  document.getElementById("burnLog").innerHTML += `<div>${timeStr} — Fuel ${roundKg(fuelNum)} kg, GS ${gsText}</div>`;
-
-  // Refresh fuel/burn UI
-  renderFuel(); // if your app uses a master render() instead, swap this line to render()
-};
-  }
-  if (!btnClear.dataset.bound){
-    btnClear.dataset.bound="1";
-    btnClear.onclick = ()=>{document.getElementById("burnLog").innerHTML = "";
-document.getElementById("burnKpi").textContent = "";
-document.getElementById("burnSmall").textContent = "";
-document.getElementById("burnFuelObs").value = "";
-document.getElementById("burnGSObs").value = "";
-      const tail = STORE.selectedTail;
-      STORE.sessions[tail].fuel.burnSession = [];
-      render();
-    };
-  }
 }
 
 function renderFuel(){
@@ -1847,6 +1525,7 @@ const wb = computeWB(tail);
   // tank table
   const tbl = document.getElementById("tankTable");
   const tanks = s.fuel.tanks;
+  const tankBays = {T1:6, T2:3, T3:2, T4:1, T5:4};
 
   let html = `<table class="table">
     <thead><tr><th>Tank</th><th class="right">kg</th><th class="right">Arm</th></tr></thead><tbody>`;
@@ -1854,7 +1533,7 @@ const wb = computeWB(tail);
     const arm = AC.fuelTankArms[k];
     const v = tanks[k] ?? 0;
     html += `<tr>
-      <td class="mono">${k}</td>
+      <td class="mono">${k} · Bay ${tankBays[k]}</td>
       <td class="right"><input data-tank="${k}" class="mono tankEdit" style="text-align:right;" value="${roundKg(v)}"/></td>
       <td class="right mono">${roundMm(arm)}</td>
     </tr>`;
@@ -1880,62 +1559,6 @@ const wb = computeWB(tail);
   document.getElementById("tankModeText").innerHTML = s.fuel.manualTanks
     ? `<span class="badge warn">Manual Tank Distribution</span> Total fuel calculated from individual tank quantities.`
     : `<span class="badge good">RFM Fuel Distribution</span> Tank quantities calculated from total fuel.`;
-
-  // burn KPIs
-  const burnKpi = document.getElementById("burnKpi");
-  const burnSmall = document.getElementById("burnSmall");
-  const sess = s.fuel.burnSession;
-
-  let burnRate = null; // kg/hr
-  let enduranceHr = null;
-  let rangeNm = null;
-  let rollingRate = null;
-
-  if (sess.length >= 2){
-    const first = sess[0];
-    const last = sess[sess.length-1];
-    const dtHr = (last.t - first.t) / (1000*60*60);
-    const df = first.fuel - last.fuel; // consumed
-    if (dtHr > 0.01 && df > 0){
-      burnRate = df / dtHr;
-    }
-    // rolling average using last 3 intervals
-    if (sess.length >= 3){
-      const n = Math.min(4, sess.length); // up to 4 points => 3 intervals
-      const recent = sess.slice(-n);
-      let sumRate = 0;
-      let count = 0;
-      for (let i=1;i<recent.length;i++){
-        const a=recent[i-1], b=recent[i];
-        const dth = (b.t-a.t)/(1000*60*60);
-        const dff = (a.fuel - b.fuel);
-        if (dth>0.005 && dff>0){
-          sumRate += (dff/dth);
-          count++;
-        }
-      }
-      if (count>0) rollingRate = sumRate/count;
-    }
-  }
-
-  const effectiveRate = rollingRate || burnRate;
-  const currentFuel = roundKg(s.fuel.total || 0);
-  const landFuel = roundKg(s.fuel.landing || 0);
-  const usable = Math.max(0, currentFuel - landFuel);
-  const lastGS = sess.length ? (sess.slice().reverse().find(p => p.gs)?.gs ?? null) : null;
-
-  if (effectiveRate && effectiveRate>0){
-    enduranceHr = usable / effectiveRate;
-    rangeNm = enduranceHr * lastGS;
-  }
-
-  burnKpi.innerHTML = `
-    <div class="box"><div class="t">Fuel Remaining</div><div class="v">${fmtKg(currentFuel)}</div><div class="s">Landing reserve ${fmtKg(landFuel)}</div></div>
-    <div class="box"><div class="t">Burn Rate</div><div class="v">${effectiveRate ? roundKg(effectiveRate)+" kg/hr" : "—"}</div><div class="s">Rolling avg preferred</div></div>
-    <div class="box"><div class="t">Endurance / Range</div><div class="v">${enduranceHr ? enduranceHr.toFixed(2)+" hr" : "—"}</div><div class="s">${rangeNm ? Math.round(rangeNm)+" nm @ "+lastGS+" kt" : "—"}</div></div>
-  `;
-
-  burnSmall.textContent = sess.length ? `Burn session points: ${sess.length} (auto-resets if fuel increases).` : "No burn session data.";
 
     // envelope canvas (delegated so it can be reused in other tabs later)
   renderEnvelopeHeader();
@@ -2025,10 +1648,8 @@ function shelfLoadState(assignedKg, additionalKg, maximumKg){
 
 function assignedShelfLoads(s){
   const loads = Object.fromEntries(Object.keys(STOW_MAX).map(id => [id, 0]));
-  for (const [key, item] of Object.entries(AC.missionEquip || {})){
-    if (s.mission?.[key] && item.stow in loads){
-      loads[item.stow] += Math.max(0, +item.w || 0);
-    }
+  for (const item of missionRows(s)){
+    if(item.stowId in loads) loads[item.stowId] += Math.max(0,item.w);
   }
   return loads;
 }
@@ -3050,10 +2671,11 @@ if (certMsgEl){
     if (!s.accepted.isAccepted){
       msg.push("Not accepted (verify log set first).");
     }
-    if (!s.customExceptionsReviewed){
+    if (s.customExceptions.length && !s.customExceptionsReviewed){
       msg.push("Custom Exceptions review has not been confirmed on Mission Configuration.");
     }
-    msg.push(...accountingIssues(s));
+    msg.push(...accountingIssues(s),...missionIssues(s));
+    if(s.fuel.landing>s.fuel.total)msg.push("Landing fuel exceeds departure fuel.");
     const invalidCustom=(s.customExceptions||[]).filter(x => !String(x.description||"").trim() || !Number.isFinite(Number(x.w)) || Number(x.w)===0 || !Number.isFinite(Number(x.arm)) || Number(x.arm)<=0);
     if (invalidCustom.length){
       msg.push("Complete each Custom Exception description, non-zero signed weight, and arm.");
@@ -3256,31 +2878,15 @@ function drawEnvelope(canvasEl, notesEl){
   });
   ctx.stroke();
 
-  // predicted CG path: step fuel down to landing fuel and re-solve distribution at each step
-  const steps = 24;
-  const startFuel = roundKg(s.fuel.total || 0);
-  const landFuel = Math.max(0, roundKg(s.fuel.landing || 0));
-  const pathPts = [];
-
-  const baseSnapshot = JSON.parse(JSON.stringify(s.fuel)); // safe-ish
-  const stepFuel = (startFuel - landFuel) / steps;
-
-  // We simulate by setting total fuel (stage mapping) each step (manual mode gets ignored for path)
-  const prevManual = s.fuel.manualTanks;
-  for (let i=0;i<=steps;i++){
-    const f = roundKg(startFuel - i*stepFuel);
-    const temp = Math.max(landFuel, f);
-    // temporarily enforce mapping
-    s.fuel.total = temp;
-    s.fuel.manualTanks = false;
-    computeFuelTotals(s); // updates tanks
-    const wbStep = computeWB(tail);
-    pathPts.push({cg: wbStep.auwCG, w: wbStep.auw});
+  if(!Number.isFinite(wb.auwCG)){
+    if(notesTarget)notesTarget.textContent='Select valid locations for all carried equipment to calculate CG.';
+    return;
   }
-  // restore fuel state
-  s.fuel = baseSnapshot;
-  s.fuel.manualTanks = prevManual;
-
+  // Shared fuel model supplies the mapped landing dot and optional burn trace.
+  const plot=fuelPlotState(tail);
+  const pathPts=plot.track;
+  const prevManual=plot.manual;
+  document.querySelectorAll('[data-fuel-plot-title]').forEach(el=>el.textContent=plot.manual?'Envelope & Departure / Landing CG':'Envelope & Predicted CG Path');
 
     // draw path (turn RED when outside envelope) — self-contained
   const pointInPolyLocal = (pt, poly) => {
@@ -3340,7 +2946,7 @@ function drawEnvelope(canvasEl, notesEl){
     return inside;
   };
 
-  const landPt = pathPts.length ? pathPts[pathPts.length-1] : null;
+  const landPt = plot.landing;
   const landOk = landPt
     ? (pointInPoly(landPt, AC.envelope.envMain) || pointInPoly(landPt, AC.envelope.envAlt))
     : false;
@@ -3376,6 +2982,7 @@ function drawEnvelope(canvasEl, notesEl){
     notesTarget.innerHTML = warn.length
       ? `<span class="badge bad">${warn.join(" · ")}</span>`
       : `<span class="badge good">TAKEOFF CG Within limits</span>`;
+    if(plot.manual) notesTarget.innerHTML += `<div class="small" style="margin-top:8px">${MANUAL_FUEL_ADVISORY}</div>`;
   }
 }
 
@@ -3425,6 +3032,11 @@ initTails();
 // Restore any saved session (survives swipe-closed). Must run after initTails()
 // has built the default sessions, so a valid snapshot overwrites the defaults.
 if (typeof restoreSession === "function") restoreSession();
+if(missionConfigNotice){
+  const existingNotice=document.getElementById('sessionMigrationWarning')?.textContent;
+  showSessionMigrationWarning([existingNotice,missionConfigNotice].filter(Boolean).join(' '));
+  for(const s of Object.values(STORE.sessions)){s.missionReviewRequired=true;invalidateAccountingCertification(s);}
+}
 buildTabs();
 initThemeToggle();
 

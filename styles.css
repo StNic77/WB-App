@@ -1199,3 +1199,28 @@ body.theme-light .xcheck-input-card {
 .role-declaration-row[data-fit-status="fitted"] { background:rgba(50,153,100,.12); border-left-color:#329964; }
 .role-declaration-row[data-fit-status="adjusted"] { background:rgba(225,174,40,.15); border-left-color:#bc8b16; }
 .role-fit-group { margin:20px 0 10px; }
+
+/* Configuration editor: stable columns and distinct equipment sections. */
+.config-fit-section { margin-top: 16px; padding: 14px; border: 1px solid var(--border, #64748b); border-radius: 10px; }
+.config-fit-section h3 { margin: 0 0 12px; }
+.config-seat-row { display: grid; grid-template-columns: minmax(0, 1fr) 80px 80px; gap: 8px; align-items: center; min-height: 44px; }
+.config-seat-row > input { justify-self: center; margin: 0; }
+[data-config-seats] > .config-seat-row:nth-child(odd) { background: rgba(128,140,160,.10); border-radius: 4px; }
+.config-fit-heading { font-weight: 600; }
+.config-fit-heading > span:not(:first-child) { text-align: center; }
+.config-rolefit-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(130px, 290px); gap: 16px; align-items: center; padding: 6px 0; }
+.config-rolefit-row select { width: 100%; min-width: 0; }
+
+.role-declaration-row[data-fit-status="default"] { background:rgba(128,140,160,.09); }
+#customExceptionsCard summary { cursor:pointer; padding:4px 0; }
+#documentationReviewStatus { display:block; margin-top:6px; }
+#customExceptionsCard[data-empty="true"] { border:1px solid var(--line); background:transparent; }
+[data-subtract-confirm] { flex-basis:100%; }
+[data-subtract-confirm] button { margin-right:8px; }
+
+.editor-mission-options { display:grid; gap:12px; margin:12px 0; }
+.editor-mission-options label { display:block; }
+.editor-mission-options small { display:block; margin:4px 0 0 24px; opacity:.8; font-weight:normal; }
+.seat-baseline-row { display:grid; grid-template-columns:minmax(0,1fr) 140px 190px; gap:12px; }
+.seat-baseline-row label { display:flex; align-items:center; gap:8px; }
+@media(max-width:600px){.seat-baseline-row { grid-template-columns:minmax(0,1fr) 90px 120px;gap:6px; }}

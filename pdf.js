@@ -44,7 +44,8 @@ function generateWBReport() {
     return;
   }
 
-  const accountingErrors=accountingIssues(s);
+  const accountingErrors=[...accountingIssues(s),...missionIssues(s)];
+  if(s.fuel.landing>s.fuel.total)accountingErrors.push("Landing fuel exceeds departure fuel.");
   if(accountingErrors.length){alert("Resolve equipment accounting before generating a clearance: "+accountingErrors.join(" "));return;}
 
   // Load jsPDF — it must be available on window
@@ -229,7 +230,7 @@ class PDFContext {
 
   // Table: headers + rows with word-wrapping cells
   // Row height grows to fit the tallest wrapped cell in that row.
-  table(headers, rows, colWidths) {
+  table(headers, rows, colWidths, highlightedRows = new Set()) {
     const hdrH      = 7;
     const lineH     = 3.4;    // line height within a wrapped cell
     const cellPadY  = 1.6;    // top/bottom padding inside a cell
@@ -268,8 +269,8 @@ class PDFContext {
       this.checkPageBreak(rowH + 2);
 
       // Zebra background
-      if (ri % 2 === 0) {
-        this.doc.setFillColor(235, 238, 248);
+      if (highlightedRows.has(ri) || ri % 2 === 0) {
+        this.doc.setFillColor(...(highlightedRows.has(ri) ? [255, 244, 204] : [235, 238, 248]));
         this.doc.rect(x0, this.y, this.contentW, rowH, "F");
       }
 
@@ -444,10 +445,10 @@ class PDFContext {
     this.kvRow("Custom-exception adjustment",signedAccounting(wb.customExceptionW)+" kg");
     this.note("Full role-fit declarations: Appendix A. Custom exception details: Appendix B.");
     if(wb.seatStructureChanges.length) this.table(["Seat structure","Change","Delta kg","Arm mm"],wb.seatStructureChanges.map(x=>[x.name,x.current?"Installed":"Removed",signedAccounting(x.w),String(x.arm)]),[91,32,30,35]);
-    this.note(s.customExceptionsReviewed?"Aircraft documentation review was confirmed for custom exceptions.":"Aircraft documentation review was not confirmed.");
+    this.note(!s.customExceptions.length?"No custom exceptions; confirmation not required.":s.customExceptionsReviewed?"Aircraft documentation review was confirmed for custom exceptions.":"Aircraft documentation review was not confirmed.");
     const seatTotals=computeSeatTotals(s);
-    const crewOccupants=Object.keys(AC.crewSeats).filter(k=>s.seats[k]&&s.occupants[k]).length;
-    const paxOccupants=Object.keys(AC.paxSeats).filter(k=>s.seats[k]&&s.occupants[k]).length;
+    const crewOccupants=Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='crew').length;
+    const paxOccupants=Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='pax').length;
     this.kvRow("Current occupants", `${Math.round(seatTotals.occupantW)} kg (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);
     this.note(`Role-fit physical-fit view: ${rfOnCount} items fitted or retained from the accepted record. Declaration details are in Appendix A.`);
     this.spacer();
@@ -458,30 +459,21 @@ class PDFContext {
     const s = this.s;
     this.sectionHeader("6 · Mission Equipment");
 
-    const items = Object.keys(AC.missionEquip)
-      .filter(k => s.mission[k])
-      .map(k => getMissionItem(k))
-      .filter(it => it)
-      // Exclude zero-weight stowage presence markers (group "Stowage"):
-      // they are LOCATIONS, not loadable equipment. Their contents are
-      // reported in the Stowage Summary below.
-      .filter(it => !((it.group || "") === "Stowage" && (+it.w || 0) === 0));
+    const totals = computeMissionTotals(s);
+    const equipmentCG=totals.w && Number.isFinite(totals.m)?Math.round(totals.m/totals.w):null;
+    this.kvRow("Selected configuration",AC.presets[s.preset]?.name || "Aircraft defaults / custom load");
+    this.kvRow("Mission equipment total",fmtDecimal(totals.w)+" kg");
+    this.kvRow("Combined equipment CG",equipmentCG==null?"Not applicable — no net equipment weight":equipmentCG+" mm");
+    this.note("Actual mission load, including changes made for this flight.");
+    this.spacer(2);
+    const items = missionRows(s);
 
     const hasItems = items.length > 0;
     if (!hasItems) {
       this.note("No loadable mission equipment.");
     }
     // Group order — items whose group doesn't match any bucket go into Other
-    const GROUP_ORDER = [
-      { label: "SAR Equipment",       match: (g) => /sar/i.test(g) },
-      { label: "ALSE Equipment",      match: (g) => /alse/i.test(g) },
-      { label: "Medical Equipment",   match: (g) => /med/i.test(g) },
-      { label: "Personal Equipment",  match: (g) => /personal/i.test(g) },
-      { label: "Mission Equipment",   match: (g) => /mission/i.test(g) },
-      { label: "Port Forward Shelves",match: (g) => /port.*fwd|port.*forward|fwd.*port|forward.*port/i.test(g) },
-      { label: "Ramp Shelves",        match: (g) => /ramp/i.test(g) },
-      { label: "Other",               match: () => true },  // catch-all
-    ];
+    const GROUP_ORDER = MISSION_GROUPS.map(label=>({label,match:g=>g===label})).concat([{label:'Other',match:()=>true}]);
 
     // Assign each item to the first matching bucket
     const buckets = GROUP_ORDER.map(b => ({ label: b.label, rows: [] }));
@@ -510,7 +502,7 @@ class PDFContext {
       this.y += 5;
       this.table(
         headers,
-        bucket.rows.map(it => [it.name, `${it.w} kg`, `${it.arm} mm`, it.stow]),
+        bucket.rows.map(it => [it.name+` (${it.quantity} x ${it.unitWeight} kg)`, `${fmtDecimal(it.w)} kg`, `${it.arm??"?"} mm`, it.stow]),
         colWidths
       );
     }
@@ -519,14 +511,8 @@ class PDFContext {
     // Sum the weight of ON mission items by their stow ID, then report
     // each load-planning location with its loaded weight, max, and status.
     const occupied = {};
-    for (const k of Object.keys(AC.missionEquip)){
-      if (!s.mission[k]) continue;
-      const it = AC.missionEquip[k];
-      const sid = it.stow;
-      if (!sid || sid === "CUSTOM") continue;
-      const w = +it.w || 0;
-      if (w <= 0) continue;
-      occupied[sid] = (occupied[sid] || 0) + w;
+    for (const it of items){
+      if(it.stowId && it.w>0) occupied[it.stowId]=(occupied[it.stowId]||0)+it.w;
     }
     // Add any manual Load-Planning weight entered against a stow location
     for (const z of (s.zones || [])){
@@ -608,8 +594,8 @@ class PDFContext {
           it.name,
           `${it.arm} mm`,
           kg(seatApplied(k,it)),
-          occupied ? kg(paxW) : "vacant",
-          kg(seatApplied(k,it)+(occupied?paxW:0))
+          occupied ? kg(s.occupants[k].type==='crew'?crewW:paxW)+(s.occupants[k].type==='crew'?' (crew)':'') : "vacant",
+          kg(seatApplied(k,it)+(occupied?(s.occupants[k].type==='crew'?crewW:paxW):0))
         ];
       });
 
@@ -651,8 +637,13 @@ class PDFContext {
 
     // Tank breakdown
     const tanks = wb.fuelTanks || {};
+    const fuelWeight=Object.values(tanks).reduce((sum,w)=>sum+w,0);
+    const fuelMoment=Object.entries(tanks).reduce((sum,[key,w])=>sum+w*AC.fuelTankArms[key],0);
+    this.kvRow("Fuel distribution",s.fuel.manualTanks?"Manual tank entries":"RFM mapped distribution");
+    this.kvRow("Combined fuel CG",fuelWeight>0?fmtDecimal(Math.round(fuelMoment/fuelWeight))+" mm":"Not applicable — no fuel");
+    const tankBays={T1:6,T2:3,T3:2,T4:1,T5:4};
     const tankRows = Object.entries(AC.fuelTankArms).map(([k, arm]) => [
-      k,
+      `${k} · Bay ${tankBays[k]}`,
       `${arm} mm`,
       `${tanks[k] ?? 0} kg`
     ]);
@@ -727,6 +718,7 @@ class PDFContext {
   drawWBSummary() {
     const wb  = this.wb;
     const s   = this.s;
+    this.checkPageBreak(65);
     this.sectionHeader("3 · Weight & Balance Summary");
 
     // ── Calculated vs MCDU discrepancy check ────────────────────
@@ -785,21 +777,21 @@ class PDFContext {
 
     const missionTotals = computeMissionTotals(s);
     const seatTotals = computeSeatTotals(s);
-    const crewOccupants = Object.keys(AC.crewSeats).filter(k => s.seats[k] && s.occupants[k]).length;
-    const paxOccupants = Object.keys(AC.paxSeats).filter(k => s.seats[k] && s.occupants[k]).length;
+    const crewOccupants = Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='crew').length;
+    const paxOccupants = Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='pax').length;
     const missionCG = missionTotals.w ? Math.round(missionTotals.m / missionTotals.w) : null;
     const occupantCG = seatTotals.occupantW ? Math.round(seatTotals.occupantM / seatTotals.occupantW) : null;
     const signed = v => signedAccounting(v)+" kg";
 
-    this.kvRow("Accepted Basic Weight & CG", `${s.accepted.basicW ?? "—"} kg @ ${s.accepted.basicCG ?? "—"} mm`);
-    this.kvRow("Basic Weight Source", wb.basicWeightBasis === "MAINTENANCE" ? "Recorded Aircraft Basic Weight" : "RFM Basic Weight (Beta Testing)");
-    this.kvRow("Role-Fit Change from Accepted Basic Weight", signed(wb.roleEquipmentAdjustmentW), null, 82);
+    this.kvRow("Basic Weight & CG", `${s.accepted.basicW ?? "—"} kg @ ${s.accepted.basicCG ?? "—"} mm · ${wb.basicWeightBasis === "MAINTENANCE" ? "Recorded Aircraft Basic Weight" : "RFM Basic Weight (Beta Testing)"}`);
+    this.kvRow("Role-Fit Adjustment to Basic Weight", signed(wb.roleEquipmentAdjustmentW), null, 82);
     this.note(`Role-Fit Equipment: ${signed(wb.roleFitAdjustmentW)} · Seat Structures: ${signed(wb.seatStructureAdjustmentW)}.`);
     this.kvRow("Custom Exceptions", signed(wb.customExceptionW));
     this.note("All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.");
-    this.kvRow("Mission Equipment", `${signed(Math.round(missionTotals.w))}${missionCG == null ? "" : ` @ ${missionCG} mm`}`);
-    this.kvRow("Occupants", `${signed(Math.round(seatTotals.occupantW))}${occupantCG == null ? "" : ` @ ${occupantCG} mm`} (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);
+    this.kvRow("Mission Equipment", `${signed(missionTotals.w)}${missionCG == null ? "" : ` @ ${missionCG} mm`}`);
+    this.kvRow("Occupants", `${signed(seatTotals.occupantW)}${occupantCG == null ? "" : ` @ ${occupantCG} mm`} (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);
     this.spacer(1);
+    if(wb.zonesTotal)this.kvRow("Additional Stowage Load",signed(wb.zonesTotal));
     this.kvRow("Operating Weight & CG", `${wb.opW} kg @ ${wb.opCG} mm`);
     this.spacer(1);
     // Tactical payload — layered on top of OW (not part of Operating Weight).
@@ -824,8 +816,8 @@ class PDFContext {
     // ── Landing condition + burn track check ──
     if (typeof computeBurnTrack === "function") {
       const track = computeBurnTrack(this.tail);
-      if (track.length) {
-        const land = track[track.length - 1];
+      if (this.s.fuel) {
+        const land = computeLandingPoint(this.tail);
 
         const inPoly = (pt, poly) => {
           let inside = false;
@@ -854,7 +846,7 @@ class PDFContext {
         this.kvRow("Landing Envelope",
                    landOk ? "WITHIN" : "OUT",
                    landOk ? "good" : "bad");
-        this.kvRow("Burn Track",
+        if(!this.s.fuel.manualTanks) this.kvRow("Burn Track",
                    trackOk ? "ALL IN ENVELOPE" : "EXCEEDS ENVELOPE",
                    trackOk ? "good" : "bad");
       }
@@ -1072,7 +1064,7 @@ class PDFContext {
     const ptInEnvelope = (pt) =>
       inPoly(pt, AC.envelope.envMain) || inPoly(pt, AC.envelope.envAlt);
 
-    if (track.length > 1) {
+    if (!this.s.fuel.manualTanks && track.length > 1) {
       doc.setLineWidth(0.8);
       for (let i = 1; i < track.length; i++) {
         const a = track[i - 1];
@@ -1085,7 +1077,7 @@ class PDFContext {
     }
 
     // ── Landing point ──
-    const landPt = track.length ? track[track.length - 1] : null;
+    const landPt = computeLandingPoint(this.tail);
     if (landPt) {
       const lx = toX(landPt.cg);
       const ly = toY(landPt.w);
@@ -1098,8 +1090,10 @@ class PDFContext {
 
       this.setFont("bold", 6.5);
       this.setColor(...landColor);
-      doc.text("LANDING", lx + 3, ly - 1);
-      doc.text(`${landPt.w} kg / ${landPt.cg} mm`, lx + 3, ly + 3);
+      // Opposite sides keep departure and landing labels apart at similar CGs.
+      const landingLabelX = Math.max(plotX + pad.l + 35, lx - 3);
+      doc.text("LANDING", landingLabelX, ly - 4, {align:"right"});
+      doc.text(`${landPt.w} kg / ${landPt.cg} mm`, landingLabelX, ly, {align:"right"});
     }
 
     // Plot the aircraft point (DEPARTURE)
@@ -1129,10 +1123,11 @@ class PDFContext {
     const legY = plotY + plotH - 6;
     this.setFont("normal", 6);
     this.setColor(...this.C_MED);
-    doc.setDrawColor(...this.C_GOOD);
-    doc.setLineWidth(0.8);
-    doc.line(legX, legY, legX + 6, legY);
-    doc.text("Burn track (green = in envelope, red = out)", legX + 8, legY + 1.5);
+    if(!this.s.fuel.manualTanks){
+      doc.setDrawColor(...this.C_GOOD);doc.setLineWidth(0.8);doc.line(legX,legY,legX+6,legY);
+      doc.text('Burn track (green = in envelope, red = out)',legX+8,legY+1.5);
+    }else doc.text('Manual fuel: departure entered; landing mapped. No predicted path.',legX,legY+1.5);
+
 
     // Axis labels
     this.setFont("bold", 7);
@@ -1150,35 +1145,29 @@ class PDFContext {
     doc.text(badgeText, plotX + plotW - 28, plotY + 9.5, { align: "center" });
 
     this.y = plotY + plotH + 6;
+    if(this.s.fuel.manualTanks)this.note(MANUAL_FUEL_ADVISORY);
     this.spacer();
   }
 
 
   drawRoleFitAppendix() {
     const s=this.s;this.newPage();this.sectionHeader("Appendix A · Role-Fit Declarations");
-    this.note("No change makes no fit declaration. Add/remove equipment adjusts accepted weight. Already included — fitted and already excluded — removed both apply zero adjustment. Custom items use their linked accounting entry.");
+
     const rows=roleFitAccountingRows(s).sort((a,b)=>a.name.localeCompare(b.name));
-    this.table(["Item","Declaration","Item kg","Arm mm","Delta kg"],rows.map(x=>[x.name,x.locked?ROLE_FIT_LABELS.EXCLUDED:ROLE_FIT_LABELS[x.declaration],fmtDecimal(x.itemW),fmtDecimal(x.arm),signedAccounting(x.w)]),[70,46,24,24,24]);
+    this.note("Highlighted rows add or subtract weight. Other declarations apply no adjustment; custom entries are in Appendix B.");
+    this.table(["Item","Declaration","Item kg","Arm mm","Delta kg"],rows.map(x=>[x.name,x.locked?ROLE_FIT_LABELS.EXCLUDED:ROLE_FIT_LABELS[x.declaration],fmtDecimal(x.itemW),fmtDecimal(x.arm),signedAccounting(x.w)]),[70,46,24,24,24],new Set(rows.flatMap((x,i)=>(x.w!==0||x.m!==0)?[i]:[])));
     this.spacer();
   }
 
   drawAccountingTrail() {
-    const rf=roleFitAccountingRows(this.s).filter(x=>!x.custom&&(x.w!==0||x.m!==0));
-    const custom=customExceptionAccountingRows(this.s).filter(x=>x.w!==0||x.m!==0);
-    const rows=rf.map(x=>[x.name,signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
-    for(const x of custom) rows.push(["Custom: "+(x.description||"Unnamed"),signedAccounting(x.w),fmtDecimal(x.arm),signedAccounting(x.m)]);
-    this.spacer(2);this.kvRow("Changes from accepted weight",rows.length?"Applied equipment adjustments":"None");
-    if(rows.length){
-      this.table(["Item","Delta kg","Arm mm","Delta kg·mm"],rows,[100,26,26,36]);
-      const w=[...rf,...custom].reduce((sum,x)=>sum+x.w,0),m=[...rf,...custom].reduce((sum,x)=>sum+x.m,0);
-      this.kvRow("Net equipment adjustment",signedAccounting(w)+" kg / "+signedAccounting(m)+" kg·mm");
-    } else this.note("No equipment weight adjustments.");
-    this.note("Full role-fit declarations: Appendix A. Custom exception details: Appendix B. Seat changes are listed in Mission Configuration.");
+    this.spacer(2);
+    this.note("Configuration equipment additions and removals are applied to the accepted basic weight. See Mission Configuration for adjustment totals and Appendix A for highlighted role-fit changes. Custom exceptions are detailed in Appendix B.");
   }
+
 
   drawCustomExceptionsAppendix() {
     this.newPage();this.sectionHeader("Appendix B · Custom Exceptions");
-    this.note(this.s.customExceptionsReviewed?"Current aircraft documentation review confirmed.":"Aircraft documentation review not confirmed.");
+    this.note(!this.s.customExceptions.length?"No custom exceptions; confirmation not required.":this.s.customExceptionsReviewed?"Current aircraft documentation review confirmed.":"Aircraft documentation review not confirmed.");
     const rows=customExceptionAccountingRows(this.s);
     if(!rows.length){this.note("No custom exceptions recorded.");return;}
     for(const x of rows){

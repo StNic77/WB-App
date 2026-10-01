@@ -21,37 +21,10 @@ function cgFromMoment(totalW, totalM){
    ========================= */
 
 function getMissionItem(key){
-  const it = AC.missionEquip[key];
-  if (!it) return null;
-
-  // Custom CG arm — item placed at a manually specified arm, no named stowage location
-  if (it.stow === "CUSTOM") {
-    const arm = it.customArm || 0;
-    return {
-      key,
-      name:      it.name,
-      w:         it.w,
-      arm,
-      stow:      `Custom (${arm} mm)`,
-      stowId:    "CUSTOM",
-      stowGroup: "Custom",
-      group:     it.group,
-      on:        it.on
-    };
-  }
-
-  const loc = AC.stowage[it.stow];
-  return {
-    key,
-    name:  it.name,
-    w:     it.w,
-    arm:   loc ? loc.arm  : 0,
-    stow:  loc ? loc.name : (it.stow || "Unknown"),
-    stowId: it.stow,
-    stowGroup: loc ? loc.group : "",
-    group: it.group,
-    on:    it.on
-  };
+  const it=AC.missionEquip[key];if(!it)return null;
+  const loc=missionLocations()[it.stow];
+  return {...it,key,w:it.unitWeight!==undefined?it.unitWeight*(it.defaultQuantity??1):it.w,
+    arm:it.stow==='CUSTOM'?it.customArm:loc?.arm??0,stowId:it.stow,stow:loc?.name||(it.stow==='CUSTOM'?'Custom ('+it.customArm+' mm)':it.stow),stowGroup:loc?.group||''};
 }
 
 function normalizeRoleFitState(state){
@@ -77,15 +50,8 @@ function computeRoleFitAdjustment(s){
 }
 
 function computeMissionTotals(s){
-  let w=0, m=0;
-  for (const k of Object.keys(AC.missionEquip)){
-    if (!s.mission[k]) continue;
-    const it = getMissionItem(k);
-    if (!it) continue;
-    w += it.w;
-    m += it.w * it.arm;
-  }
-  return {w, m};
+  const rows=missionRows(s);
+  return {w:rows.reduce((n,r)=>n+r.w,0),m:rows.reduce((n,r)=>n+r.m,0)};
 }
 
 function computeSeatTotals(s){
@@ -125,8 +91,9 @@ function computeSeatTotals(s){
     const seat = AC.paxSeats[k];
     addSeatStructure(k, seat);
     if (s.seats[k] && s.occupants[k]){
-      occupantW += paxW;
-      occupantM += paxW * seat.arm;
+      const weight=s.occupants[k].type==='crew'?crewW:paxW;
+      occupantW += weight;
+      occupantM += weight * (seat.occupantArm??seat.arm);
     }
   }
   w = structureW + occupantW; m = structureM + occupantM;
@@ -238,7 +205,7 @@ function computeFuelTotals(s){
 
 function computeBurnTrack(tail){
   const s = STORE.sessions[tail];
-  if (!s) return [];
+  if (!s || s.fuel.manualTanks) return [];
 
   // Non-fuel state doesn't change during burn — capture once.
   // Use full non-fuel weight (OW + cargo + bay) and the TRUE moment,
@@ -248,7 +215,7 @@ function computeBurnTrack(tail){
   const baseM   = wb0.nonFuelM;
 
   const fuelDep  = roundKg(s.fuel?.total ?? 0);
-  const fuelLdg  = roundKg(Math.max(0, Math.min(s.fuel?.landing ?? 300, fuelDep)));
+  const fuelLdg  = roundKg(Math.max(0, s.fuel?.landing ?? 300));
 
   // Helper: compute {w, cg} for a given total fuel amount
   const pointAtFuel = (fuelKg) => {
@@ -283,6 +250,18 @@ function computeBurnTrack(tail){
   return track;
 }
 
+
+function computeLandingPoint(tail){
+  const s=STORE.sessions[tail],wb=computeWB(tail);
+  const fuel=Math.max(0,roundKg(s.fuel.landing??300));
+  const tanks=solveFuelTanksFromTotal(fuel);
+  const fm=Object.entries(tanks).reduce((n,[key,w])=>n+w*AC.fuelTankArms[key],0);
+  return {w:roundKg(wb.nonFuelWExact+fuel),cg:roundMm(cgFromMoment(wb.nonFuelWExact+fuel,wb.nonFuelM+fm)),fuel,label:'Landing'};
+}
+function fuelPlotState(tail){
+  const wb=computeWB(tail),s=STORE.sessions[tail];
+  return {departure:{w:wb.auw,cg:wb.auwCG,fuel:wb.fuelTotal},landing:computeLandingPoint(tail),track:computeBurnTrack(tail),manual:!!s.fuel.manualTanks};
+}
 
 function cgBand(cg){
   if (cg == null) return "—";
@@ -392,14 +371,14 @@ function computeWB(tail){
   const opWExact = basicW + rf.w + me.w + st.w + zones.w + custom.w;
   const opW = roundKg(opWExact);
   const opM = basicM + rf.m + me.m + st.m + zones.m + custom.m;
-  const opCG = roundMm(cgFromMoment(opWExact, opM) || 0);
+  const opCG = Number.isFinite(opM) ? roundMm(cgFromMoment(opWExact, opM) || 0) : null;
 
 
   // ✅ AUW = Operating Weight + Payload (Cargo + Bays) + Fuel
   const auwExact = opWExact + bay.w + cargo.w + fuel.w;
   const auw = roundKg(auwExact);
   const auwM = opM + bay.m + cargo.m + fuel.m;
-  const auwCG = roundMm(cgFromMoment(auwExact, auwM) || 0);
+  const auwCG = Number.isFinite(auwM) ? roundMm(cgFromMoment(auwExact, auwM) || 0) : null;
 
   // Envelope checks
   const hardCgOk = (auwCG >= AC.envelope.hardCg.min && auwCG <= AC.envelope.hardCg.max);

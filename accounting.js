@@ -61,13 +61,23 @@ function pruneStaleRoleFitReferences(s){
   // Keep accepted snapshots and custom links as evidence; unresolved custom links block certification.
   if(changed){s.accountingReviewRequired=true;invalidateAccountingCertification(s);}
 }
+function roleFitAccountingSignature(){ return JSON.stringify([2,AC.roleFit,AC.presets]); }
 function roleFitDeclaration(s,key){ return s.roleFitDeclarations?.[key] || 'NEUTRAL'; }
 function resolvedRoleFitDeclaration(s,key){
   const action=roleFitDeclaration(s,key);
   if(action!=='NEUTRAL') return action;
   if(roleFitRemovedInAcceptedRecord(s,key)) return 'EXCLUDED';
   const baseline=s.accepted?.maintenanceBaseline?.roleFit;
-  if(s.accepted?.isAccepted && basicWeightBasis(s)==='MAINTENANCE' && Object.prototype.hasOwnProperty.call(baseline||{},key)) return baseline[key]?'ACCOUNTED':'EXCLUDED';
+  if(s.accepted?.isAccepted){
+    const included=basicWeightBasis(s)==='MAINTENANCE' && !!baseline?.[key];
+    // An explicit manual neutral choice retains accepted accounting. Automatic
+    // defaults separately describe physical fit and inclusion in accepted weight.
+    if(s.roleFitDeclarationOrigins?.[key]==='manual') return included?'ACCOUNTED':'EXCLUDED';
+    const preset=AC.presets[s.preset];
+    if(preset?.roleFitOff?.includes(key)) return included?'REMOVE':'EXCLUDED';
+    const fitted=preset?.roleFitOn?.includes(key) || !!AC.roleFit[key]?.normally || included;
+    return fitted?(included?'ACCOUNTED':'ADD'):'EXCLUDED';
+  }
   return 'NEUTRAL'; // unanswered: do not infer inclusion from expected fit
 }
 function roleFitRemovedInAcceptedRecord(s,key){
@@ -85,7 +95,7 @@ function roleFitIsInstalled(s,key){
   if (roleFitRemovedInAcceptedRecord(s,key)) return false;
   const custom=customForRoleFit(s,key);
   if (custom.length) return custom.length===1 && Number(custom[0].w)>0;
-  const action=roleFitDeclaration(s,key);
+  const action=resolvedRoleFitDeclaration(s,key);
   if (action==='ADD' || action==='ACCOUNTED') return true;
   if (action==='REMOVE' || action==='EXCLUDED') return false;
   // Neutral makes no physical claim: retain a known accepted fit, if available.

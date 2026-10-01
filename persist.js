@@ -104,11 +104,12 @@ function restoreSession(){
         if (!("maintenanceBaseline" in a)) a.maintenanceBaseline = null;
 
         const restored = STORE.sessions[tail];
+        restored.ui??={};restored.ui.meGroups={};restored.ui.locationGroups={};restored.ui.missionView='equipment';
         normalizeRackSessionKey(restored);
         if(needsMigration || !restored.roleFitDeclarations) migrateRoleFitDeclarations(restored);
         if(snap.roleFitSignature!==roleFitAccountingSignature() && restored.accepted?.isAccepted){
           if(!localStorage.getItem('wb615_session_before_fit_defaults_v2'))localStorage.setItem('wb615_session_before_fit_defaults_v2',raw);
-          restored.accountingReviewRequired=true;
+          if(snap.schema===STATE_SCHEMA&&restored.accountingReviewReason!=='migration')restored.accountingReviewRequired=false;
           invalidateAccountingCertification(restored);
         }
         syncRoleFitPhysicalState(restored);
@@ -117,9 +118,14 @@ function restoreSession(){
           restored.mission={};restored.missionLoads={};
           for(const [key,it] of Object.entries(AC.missionEquip))restored.mission[key]=missionAutomaticDefault(restored,key,it);
           restored.missionReviewRequired=true;
+          restored.missionReviewReason='migration';
           invalidateAccountingCertification(restored);
         } else if(snap.missionSignature!==missionCatalogueSignature()){
-          restored.missionReviewRequired=true;invalidateAccountingCertification(restored);
+          if(restored.missionReviewReason!=='migration')restored.missionReviewRequired=false;invalidateAccountingCertification(restored);
+        }
+        if(snap.schema===STATE_SCHEMA){
+          if(restored.missionReviewReason!=='migration')restored.missionReviewRequired=false;
+          if(restored.accountingReviewReason!=='migration')restored.accountingReviewRequired=false;
         }
 
       }
@@ -165,6 +171,7 @@ function endPersistedSession(){
     alert("The session could not be backed up or cleared because browser storage is unavailable or full. Your original save has been kept. Free some browser storage and try again.");
     return false;
   }
+  if(typeof EDITOR!=='undefined'){EDITOR.authed=false;EDITOR.draft=null;}
   sessionSaveBlocked = false;
   document.getElementById("sessionMigrationWarning")?.remove();
   if (typeof missionConfigNotice !== "undefined" && missionConfigNotice) showSessionMigrationWarning(missionConfigNotice);

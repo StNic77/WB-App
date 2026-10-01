@@ -4,6 +4,8 @@ Status: planning outline only. Prepare for delivery with the application; do not
 
 ## Purpose and writing requirements
 
+Development reference: [Development handover — 1 October 2026](DEVELOPMENT_HANDOVER_2026-10-01.md). It records the conversation decisions, implementation state, verification evidence and unresolved work. This outline was updated on the same date; confirm behaviour against the eventual release before writing procedures or taking screenshots.
+
 Provide aircrew and custodians with concise, formal instructions for operating the application and understanding its calculation basis. Use numbered chapters, paragraphs, procedures, tables and figures. Use consistent aviation terminology, direct procedural language, and defined responsibilities. Avoid conversational wording, promotional claims and unnecessary explanation. Distinguish operational instructions from custodian administration and technical reference material. Provide sufficient technical explanation and traceable evidence to support review for Technical Airworthiness Clearance (TAC) and Operational Airworthiness Clearance (OAC), without asserting that this outline defines their formal requirements or that clearance has been granted.
 
 ## Proposed document structure
@@ -11,9 +13,9 @@ Provide aircrew and custodians with concise, formal instructions for operating t
 1. Introduction: purpose, scope, intended users, responsibilities, applicability, definitions and abbreviations, referenced documents, application/data versions and revision control.
 2. General description: system functions, equipment requirements, offline operation, data flow from aircraft records through calculation to MCDU entry and PDF record; operational limitations and supported workflows.
 3. Standard operating procedure: aircraft selection; acceptance of recorded weight, CG and fuel; configuration selection; load review; certification and MCDU cross-check; generation and transmission of the weight and balance record; return/end-session procedures.
-4. Detailed operating instructions by tab: Home, Accept, Mission Config, Mission Equipment, Crew and PAX Seats, Fuel, Load Planning, Certify W&B. Explain controls, status indications, input units, validation messages and expected results. Include extra crew, linked equipment stowage, unavailable locations and stowage limits.
+4. Detailed operating instructions by tab: Home, Accept, Role Config, Mission Equipment, Crew and PAX Seats, Fuel, Load Planning, Certify W&B. Explain controls, status indications, input units, validation messages and expected results. Include extra crew, linked equipment stowage, unavailable locations and stowage limits.
 5. Non-standard aircraft and mission conditions: maintenance exceptions, custom exceptions, manual fit declarations, additional equipment, relocations, quantity changes, configuration changes and manual fuel entry. Clearly distinguish recorded-weight inclusion from physical fit.
-6. Custodian Editor: access, mission equipment, role-fit equipment, seat baseline, stowage locations, reference documents and configurations. Explain keys, defaults, limits, retirement/deletion, export, local overrides, published config replacement and verification after changes.
+6. Custodian Editor: access; Role Fit Equipment; Mission Equipment; Crew and Pax Seats; Stowage Locations; Reference Documents; Aircraft Roles, in that order. Explain keys, defaults, limits, retirement/deletion, export, local overrides, published config replacement and verification after changes.
 7. Technical calculation basis: source-controlled weights and arms; coordinate datum and units; signed weights and moments; weight summation; CG from total moment/weight; recorded versus RFM basic weight; seat structures and occupants; mission quantities and carrier locations; custom exceptions; fuel mapping and manual fuel; landing fuel distribution; CG-envelope evaluation; rounding and precision; capacity checks and MCDU tolerances.
 8. Data retention and recovery: device storage, accepted snapshots, reset behaviour, configuration updates, review/invalidation rules, offline update/recovery and archived records.
 9. Verification and examples: independently checked standard and non-standard worked examples, expected totals and moments, reference citations, operator acceptance checks and release verification.
@@ -77,7 +79,7 @@ Purpose: preserve the ability to understand, verify, maintain and recover the ap
 
 These are design/maintenance actions to evaluate, not capabilities guaranteed by this outline:
 
-- Inventory equipment-specific identifiers embedded in code, including POL/cabinet behaviour and extra-crew equipment selection. Move suitable relationships into validated, documented configuration data so deletion or replacement cannot silently break a special rule.
+- Inventory equipment-specific identifiers embedded in code, including cabinet-location availability and extra-crew equipment selection. POL carriage now follows role membership rather than a special cabinet-fitted carry rule. Move suitable remaining relationships into validated, documented configuration data so deletion or replacement cannot silently break a special rule.
 - Review deletion coverage beyond preset lists, including linked locations and inactive saved allocations. Identify and report dependencies before a change is applied.
 - Consolidate shared constants and eliminate confirmed dead code through separate, tested changes. Retain required migration/compatibility support until its removal criteria are established.
 - Establish sufficient provenance to identify the exact application, distributed configuration and local modifications used for each calculation and generated record. Distinguish current version labels from any additional integrity identifiers still needed.
@@ -107,3 +109,63 @@ These are design/maintenance actions to evaluate, not capabilities guaranteed by
 7. Named responsibility assignments and a completed successor familiarisation/acceptance checklist.
 
 The manual must distinguish documented current behaviour from future safeguards. A documentation entry alone does not implement a software control or establish airworthiness approval.
+
+## Release capture checklist — agreed development through 1 October 2026
+
+These are subjects to capture when the full manual is commissioned, not completed manual sections. Use the handover and release source files for implementation detail. Check each subject against the frozen release and record its verification evidence.
+
+### Operator procedures and terminology
+
+- [ ] Describe the standard rapid workflow: select aircraft, accept recorded Basic Weight/CG and fuel, select the aircraft role, review load, certify and generate the record. Use **Role Config** for the operational tab and **data revision** for distributed application data.
+- [ ] Define recorded aircraft Basic Weight, RFM Basic Weight, role-fit adjustments, seat structure, mission equipment and occupants. Separate physical fit from whether weight is already in the baseline; explain prevention of double counting.
+- [ ] Explain all four role-fit declarations and the additional confirmation required for subtraction. Identify subtraction policy as unresolved until settled; do not imply that a UI option grants operational authority to remove equipment.
+- [ ] Explain aircraft-default fit, selected-role fit, manual overrides, colours and the displayed signed weight adjustment. Describe maintenance exceptions already reflected in the accepted record and sortie-only custom exceptions. No custom entries means no custom-exception certification requirement.
+- [ ] Describe collapsed sections, with the envelope/predicted CG-path chart visible; distinguish normal collapsed defaults from sections deliberately opened for editing or corrective action.
+
+### Mission equipment and stowage reference
+
+- [ ] Explain unit weight, default quantity, fixed versus mission-editable quantities, routine plus/minus controls and Adjust Mission Quantity. Mission changes do not change custodian defaults.
+- [ ] Describe Equipment Group and Stowage Location views. The latter supports preparing the selected role: collapsed headings show location and total physical item count; expansion shows item details. Empty fitted locations show zero items.
+- [ ] Explain unavailable locations shown grey and unavailable for selection, with the instruction to fit the supporting item in Role Config. Explain how actual fit overrides affect location availability.
+- [ ] Describe role-fit-to-stowage links, including basket, Stokes litter and internal life-raft fittings. Explain that fitting mass and equipment carried there are separate contributions. Use the handover mapping and verified RFM locators for the final tables.
+- [ ] Distinguish the dedicated rear-ramp Stokes litter stowage from the existing Rear Area (Ramp Area) bay. Preserve their separate arms and purposes; do not create a duplicate general ramp location.
+- [ ] Explain carrier-linked equipment moving with its carrier, individually located quantities, custom arms, and relocation when a default location is unavailable. Describe Stowage Required and the corrective action before certification.
+- [ ] Explain capacity warnings and their scope: known location limits can be checked; an entered custom arm alone does not establish an approved location or a load limit.
+- [ ] Explain that crew personal equipment is separate from role-preparation stowage reference contents and that zero-weight availability markers are not carried equipment counts.
+- [ ] Record POL default membership in SAR 3 and SAR 10, optional carriage in CASEVAC/Transport, and normal relocation handling if its cabinet location is unavailable. Do not describe a universal cabinet-fitted carry rule.
+
+### Additional crew
+
+- [ ] Document Add Crew and Equipment, passenger-seat selection, the displayed added-person summary, equipment locations, and removal from that summary.
+- [ ] Explain suggested personal equipment by crew position, optional selection including RON bags, individual stowage/custom arms, and known-capacity warnings. Confirm the final position-to-equipment mappings against the release.
+- [ ] Explain what happens to associated equipment when removing a crew member or changing a role; demonstrate retained versus removed allocations without changing catalogue defaults.
+
+### Fuel and printed record
+
+- [ ] Explain mapped and Manual Fuel modes. Manual departure CG uses actual tank entries; landing uses the mapped distribution for selected landing fuel. Manual mode has no predicted burn trace in either the app or PDF.
+- [ ] Include tank bay labels: T1 Bay 6, T2 Bay 3, T3 Bay 2, T4 Bay 1, T5 Bay 4, with source verification. Explain total fuel CG from tank moments and the displayed fuel mode/distribution. Do not document the removed burn/endurance calculator.
+- [ ] Annotate the PDF: accepted baseline/source, fuel and combined fuel CG, separate role-fit/seat-structure adjustments, custom exceptions, mission equipment weight/arm, occupants, stowage checks and Appendix A role-fit declarations.
+- [ ] Explain why the acceptance section refers to the detailed declarations rather than repeating the whole adjustment list. Identify application/data versions, release date and source reference in the footer; release notes belong in the app.
+- [ ] Verify and document timestamps precisely: UTC comes from the stored timestamp; displayed local time uses the device timezone at rendering. Do not claim the original acceptance timezone is separately preserved unless implemented and verified before release.
+
+### Custodian procedures
+
+- [ ] Match the Editor order and labels: **Role Fit Equipment; Mission Equipment; Crew and Pax Seats; Stowage Locations; Reference Documents; Aircraft Roles**. Include seat-column alignment and the distinction between seat installation and occupancy.
+- [ ] Explain grouped, collapsible item editing and the role-fit groups: Aircraft Systems, Ice Protection, SAR Equipment, Sensor Systems, Servicing Equipment and Stowage Fittings. Stowage uses its saved groups, including Cabin for the agreed cabin/ramp-stowage items; do not invent separate groups from location names.
+- [ ] Explain key-only creation for role-fit, mission equipment and stowage. Creation produces **New Role Fit Item**, **New Mission Equipment Item** or **New Stowage Location**, then opens the editable details. Show existing-group quick entry, capital/underscore conversion and the preview.
+- [ ] Explain explicit new-group syntax: **RF_NEW_GROUP__NEW_ITEM**, **ME_NEW_GROUP__NEW_ITEM** or **NEW_GROUP__NEW_LOCATION**. The double underscore separates the group from the item; a new group requires the explicit format rather than quick entry. Validate examples against the released parser.
+- [ ] Explain that keys are stable references rather than display names. Existing keys are not edited in place. Describe replacement/retirement/deletion, dependency checks, backups and validation of affected roles, locations, extra-crew mappings and saved data.
+- [ ] Explain each equipment field and checkbox in operational language: routine quantity controls, default carriage, active status and use as a carrier/stowage location. Include supporting-role-fit availability links for named stowage.
+- [ ] Document role creation, duplication, naming, editing and retirement; references to catalogue IDs; default physical fit versus baseline inclusion; and how new roles appear in relevant Editor controls.
+- [ ] Explain local saves, exported config.js, distribution, revision changes and validation. A hard refresh does not clear browser-local edits; private browsing is a separate temporary test environment, not a release or backup method.
+
+### Updates, recovery and release evidence
+
+- [ ] Distinguish an ordinary custodian data update from recovery of an older session format. Ordinary revision updates do not require a second generic equipment-acceptance checkbox; real recovered-load review and unresolved-load checks remain.
+- [ ] Explain stale override backup handling, accepted-session preservation, certification invalidation, End Session/Clear All behaviour and restoration limits. Verify the exact messages against the release rather than reproducing obsolete protected-session or generic-update wording.
+- [ ] Capture offline update/cache behaviour and distinguish direct-file use from a hosted installation. Include supported-device checks and a recovery/rollback exercise.
+- [ ] Carry forward automated regression evidence, independent worked examples and operator trials as separate evidence types. The handover records 57 passing automated tests before the final Editor-label reorder, followed by syntax verification; this is not independent aircraft validation or iPad acceptance.
+- [ ] Resolve provisional arms, delivered-aircraft baseline assumptions, subtraction policy and remaining supportability tasks before describing them as settled release behaviour. Keep the CH-149-615 source register authoritative; label 511 comparisons explicitly.
+
+Verification update — 1 October 2026: the full three-file automated regression suite was subsequently rerun after the final Editor tab reorder, with all 57 tests passing. This supersedes the timing qualification in the checklist above; independent source validation and operator acceptance remain separate activities.
+

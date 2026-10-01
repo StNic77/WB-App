@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-09-30T14:59:53.451Z
- * Config data version: 16
+ * Updated from Custodian Editor data on 2026-10-01T22:56:20.000Z
+ * Config data version: 18
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,19 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 16,
-  "configReleasedAt": "2026-09-30T14:59:53.451Z",
+  "configVersion": 18,
+  "configReleasedAt": "2026-10-01T22:56:20.000Z",
   "changelog": [
+    {
+      "version": 18,
+      "at": "2026-10-01T22:56:20.000Z",
+      "note": "In development."
+    },
+    {
+      "version": 17,
+      "at": "2026-10-01T16:55:18.163Z",
+      "note": "added internal liferaft and its associated stowage"
+    },
     {
       "version": 16,
       "at": "2026-09-30T14:59:53.451Z",
@@ -566,17 +576,20 @@ const AC_STOWAGE = {
     "group": "SAR Cabinet"
   },
   "CABIN_PORT_STOW": {
-    "name": "Cabin Port Stowage",
+    "name": "Stowage - Rescue Basket (B6 Port)",
+    "roleFitKey": "RF_STOW_BASKET_PORT",
     "arm": 10937,
     "group": "Cabin"
   },
   "CABIN_STBD_STOW": {
-    "name": "Cabin Stbd Stowage",
+    "name": "Stowage - Rescue Basket (B6 Stbd)",
+    "roleFitKey": "RF_STOW_BASKET_STBD",
     "arm": 10934,
     "group": "Cabin"
   },
   "CABIN_DEPLOYED": {
-    "name": "Cabin Deployed",
+    "name": "Stowage - Stokes Litter (Cabin B3/4 Centre)",
+    "roleFitKey": "RF_STOW_STOKES_CABIN",
     "arm": 7863,
     "group": "Cabin"
   },
@@ -611,9 +624,10 @@ const AC_STOWAGE = {
     "group": "Port Fwd Shelves"
   },
   "RAMP_STOW": {
-    "name": "Ramp Stowage (general)",
+    "name": "Stowage - Stokes Litter (Rear Ramp)",
+    "roleFitKey": "RF_STOW_STOKES_RAMP",
     "arm": 13132,
-    "group": "Ramp"
+    "group": "Cabin"
   },
   "RAMP_PORT_FWD": {
     "name": "Ramp Shelf Port Fwd",
@@ -639,6 +653,18 @@ const AC_STOWAGE = {
     "name": "On top of SAR cabinet",
     "arm": 5875,
     "group": "SAR Cabinet"
+  },
+  "INT_LIFE_RAFT_B3_STBD_F": {
+    "roleFitKey": "RF_STOW_LIFERAFT_STBD_B3_F",
+    "name": "Stowage - Internal Life Raft (Stbd B3 F)",
+    "arm": 7100,
+    "group": "Cabin"
+  },
+  "INT_LIFE_RAFT_B4_STBD_A": {
+    "roleFitKey": "RF_STOW_LIFERAFT_STBD_B4_A",
+    "name": "Stowage - Internal Life Raft (Stbd B4 A)",
+    "arm": 8600,
+    "group": "Cabin"
   }
 };
 
@@ -652,28 +678,28 @@ const AC_ROLE_FIT = {
     "maintenanceIncluded": false
   },
   "RF_STOW_STOKES_RAMP": {
-    "name": "Stowage: Stokes (Ramp) fittings",
+    "name": "Stowage - Stokes Litter (Rear Ramp)",
     "w": 2.11,
     "arm": 13132,
     "normally": false,
     "maintenanceIncluded": false
   },
   "RF_STOW_STOKES_CABIN": {
-    "name": "Stowage: Stokes (Cabin) fittings",
+    "name": "Stowage - Stokes Litter (Cabin B3/4 Centre)",
     "w": 2.11,
     "arm": 7863,
     "normally": false,
     "maintenanceIncluded": false
   },
   "RF_STOW_BASKET_PORT": {
-    "name": "Stowage: Basket (Port) fittings",
+    "name": "Stowage - Rescue Basket (B6 Port)",
     "w": 2.61,
     "arm": 10937,
     "normally": false,
     "maintenanceIncluded": false
   },
   "RF_STOW_BASKET_STBD": {
-    "name": "Stowage: Basket (Stbd) fittings",
+    "name": "Stowage - Rescue Basket (B6 Stbd)",
     "w": 2.61,
     "arm": 10934,
     "normally": false,
@@ -1521,6 +1547,18 @@ const AC_MISSION_EQUIP = {
     "w": 0,
     "stow": "OVERHEAD_STBD",
     "group": "Stowage"
+  },
+  "ME_AIRCRAFT_ALSE_EQUIP_INTERNAL_LIFE_RAFT": {
+    "name": "Internal 10 Pers Life Raft",
+    "unitWeight": 50,
+    "defaultQuantity": 1,
+    "minQuantity": 0,
+    "missionQuantityEditable": false,
+    "active": true,
+    "stow": "INT_LIFE_RAFT_B3_STBD_F",
+    "group": "AIRCRAFT ALSE EQUIP",
+    "followBasket": false,
+    "description": "Fitted only when personnel carried on board is expected to exceed the capacity of the external life rafts"
   }
 };
 

@@ -1,3 +1,41 @@
+/* Loading view derives from the same allocations used in equipment view and W&B. */
+function renderMissionLocationGroups(s,host){
+  const rows=missionRows(s).filter(r=>r.group!=='CREW PERSONAL EQUIP'&&r.quantity>0);
+  const locations=missionLocations(),groups=new Map();
+  for(const [id,loc] of Object.entries(locations)){
+    // Linked carrying items appear through the location of their own allocation.
+    if(loc.missionKey)continue;
+    groups.set(id,{name:loc.name,unavailable:!!resolveMissionLocation(s,{stow:id}).error,rows:[]});
+  }
+  for(const row of rows){
+    const id=row.error?'REQUIRES_STOWAGE':row.stowId==='CUSTOM'?'CUSTOM:'+row.arm:row.stowId;
+    if(!groups.has(id))groups.set(id,{name:row.error?'Stowage required':row.stow,rows:[],unavailable:false});
+    groups.get(id).rows.push(row);
+  }
+  const sorted=[...groups.entries()].sort(([a],[b])=>a==='REQUIRES_STOWAGE'?-1:b==='REQUIRES_STOWAGE'?1:0);
+  for(const [id,group] of sorted){
+    const count=group.rows.reduce((n,r)=>n+r.quantity,0);
+    if(group.unavailable){
+      const card=document.createElement('div');card.className='card stowage-unavailable';card.setAttribute('aria-disabled','true');
+      const title=document.createElement('b');title.textContent=group.name+' — Not fitted';card.append(title);
+      const help=document.createElement('div');help.className='small';help.textContent='To use this stowage location, fit it in Role Config.';card.append(help);host.append(card);continue;
+    }
+    const card=document.createElement('details');card.className='card';card.dataset.stowageGroup=id;
+    card.open=!!s.ui.locationGroups?.[id];card.ontoggle=()=>{s.ui.locationGroups??={};s.ui.locationGroups[id]=card.open;};
+    const title=document.createElement('summary');title.textContent=group.name+' — '+count+' '+(count===1?'item':'items');card.append(title);
+    for(const row of group.rows){
+      const item=document.createElement('div');item.className='card';
+      const name=document.createElement('b');name.textContent=row.name+' · Qty '+row.quantity;item.append(name);
+      const info=document.createElement('div');info.className='small';info.textContent=fmtDecimal(row.unitWeight)+' kg each · '+fmtDecimal(row.w)+' kg total · '+(Number.isFinite(row.arm)?row.arm+' mm':'Stowage required');item.append(info);
+      const stow=document.createElement('div');stow.className='small';stow.textContent=row.error?'Fit the required stowage in Role Config, or select another available location.':row.stow;item.append(stow);
+      if(row.description){const description=document.createElement('div');description.className='small muted';description.textContent=row.description;item.append(description);}
+      if(row.error){const edit=document.createElement('button');edit.className='btn small';edit.textContent='Choose stowage';edit.onclick=()=>{s.ui.missionView='equipment';s.ui.meGroups[row.group]=true;renderMissionEquipment();};item.append(edit);}
+      card.append(item);
+    }
+    if(!count){const empty=document.createElement('p');empty.className='small muted';empty.textContent='No equipment assigned.';card.append(empty);}
+    host.append(card);
+  }
+}
 /* Uses the existing cards, toggles, fields and buttons. */
 function renderConfigurationButtons(s){
   const first=document.getElementById('btnPresetSAR3')||document.querySelector('[data-configuration-buttons]');
@@ -33,15 +71,25 @@ function renderMissionEquipment(){
   if(issues.length||missionConfigNotice){
     const box=document.createElement('div');box.className='callout';box.setAttribute('role','alert');
     box.innerHTML=[missionConfigNotice,...issues].filter(Boolean).map(escapeHtml).join('<br>');
-    if(s.missionReviewRequired){const btn=document.createElement('button');btn.className='btn';btn.textContent='Confirm equipment reviewed';btn.onclick=()=>{s.missionReviewRequired=false;invalidateAccountingCertification(s);render();};box.append(btn);}
+    if(s.missionReviewRequired){const button=document.createElement('button');button.className='btn';button.textContent='Confirm recovered load checked';button.onclick=()=>{s.missionReviewRequired=false;invalidateAccountingCertification(s);render();};box.append(button);}
     host.append(box);
   }
-  for(const group of [...MISSION_GROUPS,'Stowage']){
+  const view=document.createElement('div');view.className='card';
+  view.innerHTML='<div class="row"><b>Group By:</b><button class="btn" data-mission-view="equipment">Equipment Group</button><button class="btn" data-mission-view="location">Stowage Location</button></div><p class="small muted">Select the configuration you are preparing in Role Config. In Mission Equipment, switch Group By to Stowage Location, then open a location to see the equipment and quantities assigned there for the selected configuration.</p>';
+  host.append(view);
+  const byLocation=s.ui.missionView==='location';
+  for(const button of view.querySelectorAll('[data-mission-view]')){
+    const selected=(button.dataset.missionView==='location')===byLocation;button.classList.toggle('good',selected);button.setAttribute('aria-pressed',selected);
+    button.onclick=()=>{s.ui.missionView=button.dataset.missionView;renderMissionEquipment();};
+  }
+  if(byLocation)renderMissionLocationGroups(s,host);
+  for(const group of [...missionGroupNames(),'Stowage']){
+    if(byLocation&&group!=='CREW PERSONAL EQUIP'&&group!=='Stowage')continue;
     const keys=Object.keys(AC.missionEquip).filter(k=>AC.missionEquip[k].group===group&&(AC.missionEquip[k].active!==false||s.mission[k]));if(!keys.length)continue;
-    const card=document.createElement('details');card.className='card';card.open=!!s.ui.meGroups[group]||keys.some(k=>s.mission[k]&&missionAllocations(s,k).some(r=>r.quantity>0&&resolveMissionLocation(s,r).error));
+    const card=document.createElement('details');card.className='card';card.open=!!s.ui.meGroups[group];
     const selected=keys.filter(k=>s.mission[k]).length;
     card.innerHTML=`<summary><b>${escapeHtml(group==='Stowage'?'Available Stowage Locations':group)}</b> · ${selected} ON</summary>`;
-    card.ontoggle=()=>{s.ui.meGroups[group]=card.open;persistSession();};
+    card.ontoggle=()=>{s.ui.meGroups[group]=card.open;};
     for(const key of keys){
       const item=AC.missionEquip[key],on=!!s.mission[key],marker=group==='Stowage';
       const row=document.createElement('div');row.className='card';row.style.cssText='padding:12px;margin-top:8px;box-shadow:none';row.dataset.missionKey=key;

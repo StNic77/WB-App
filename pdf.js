@@ -428,7 +428,7 @@ class PDFContext {
 
   drawMissionConfig() {
     const s = this.s;
-    this.sectionHeader("5 · Mission Configuration");
+    this.sectionHeader("5 · Role Configuration");
 
     const presetName = s.preset ? (AC.presets[s.preset]?.name ?? s.preset) : "Custom (no preset)";
     const notes      = s.preset ? (AC.presets[s.preset]?.notes ?? "") : "";
@@ -473,7 +473,7 @@ class PDFContext {
       this.note("No loadable mission equipment.");
     }
     // Group order — items whose group doesn't match any bucket go into Other
-    const GROUP_ORDER = MISSION_GROUPS.map(label=>({label,match:g=>g===label})).concat([{label:'Other',match:()=>true}]);
+    const GROUP_ORDER = missionGroupNames().map(label=>({label,match:g=>g===label})).concat([{label:'Other',match:()=>true}]);
 
     // Assign each item to the first matching bucket
     const buckets = GROUP_ORDER.map(b => ({ label: b.label, rows: [] }));
@@ -665,7 +665,7 @@ class PDFContext {
     const bays    = s.bays || {};
     const bayRows = Object.entries(AC.bayArms)
       .filter(([k]) => (bays[k] ?? 0) > 0)
-      .map(([k, arm]) => [k, `${arm} mm`, `${bays[k]} kg`]);
+      .map(([k, arm]) => [k==='REAR'?'Rear Area (Ramp Area)':k, `${arm} mm`, `${bays[k]} kg`]);
 
     // MCDU Cargo entries
     const cargoRows = (s.cargo || [])
@@ -1161,7 +1161,7 @@ class PDFContext {
 
   drawAccountingTrail() {
     this.spacer(2);
-    this.note("Configuration equipment additions and removals are applied to the accepted basic weight. See Mission Configuration for adjustment totals and Appendix A for highlighted role-fit changes. Custom exceptions are detailed in Appendix B.");
+    this.note("Configuration equipment additions and removals are applied to the accepted basic weight. See Role Configuration for adjustment totals and Appendix A for highlighted role-fit changes. Custom exceptions are detailed in Appendix B.");
   }
 
 

@@ -1,10 +1,13 @@
 /* Mission catalogue and sortie allocations. No aircraft-baseline accounting here. */
 const MISSION_SCHEMA = 2;
 const MISSION_GROUPS = ['AIRCRAFT ALSE EQUIP','SAR MEDICAL EQUIP','SAR MISSION EQUIP','CREW PERSONAL EQUIP','CREW COMFORT EQUIP','SERVICING EQUIP'];
+function missionGroupNames(data=AC){
+  return [...new Set([...MISSION_GROUPS,...Object.values(data.missionEquip||{}).map(it=>it.group).filter(g=>typeof g==='string'&&g.trim()&&g!=='Stowage')])];
+}
 const MANUAL_FUEL_ADVISORY = 'Predicted burn trace unavailable in Manual Fuel mode. Departure CG reflects entered tank quantities; landing CG uses the normal mapped fuel distribution at the selected landing fuel.';
 let missionConfigNotice = '';
 function missionLocations(data=AC){
-  const bays=Object.fromEntries(Object.entries(data.bayArms||{}).map(([id,arm])=>[id,{name:id==='BAY55'?'Bay 5.5':id==='REAR'?'Rear area':id.replace('BAY','Bay '),arm,group:'Cabin Bays'}]));
+  const bays=Object.fromEntries(Object.entries(data.bayArms||{}).map(([id,arm])=>[id,{name:id==='BAY55'?'Bay 5.5':id==='REAR'?'Rear Area (Ramp Area)':id.replace('BAY','Bay '),arm,group:'Cabin Bays'}]));
   const carriers={};
   for(const [key,it] of Object.entries(data.roleFit||{}))if(it.isStowage)carriers['ROLEFIT:'+key]={name:'In '+it.name,arm:it.arm,group:'Equipment',roleFitKey:key};
   for(const [key,it] of Object.entries(data.missionEquip||{}))if(it.isBasket)carriers['CARRIER:'+key]={name:'In '+it.name,arm:null,group:'Equipment',missionKey:key};
@@ -13,10 +16,11 @@ function missionLocations(data=AC){
 
 function missionConfigurationIssues(data){
   const issues=[];
+  for(const [id,loc] of Object.entries(data.stowage||{}))if(loc.roleFitKey&&!data.roleFit?.[loc.roleFitKey])issues.push(id+': linked Role Fit item is missing.');
   for(const [key,it] of Object.entries(data.missionEquip||{})){
     if(it.group==='Stowage') continue;
     if(!/^ME_[A-Z0-9_]+$/.test(key)) issues.push(key+': key must start with ME_ and contain uppercase letters, numbers and underscores.');
-    if(!MISSION_GROUPS.includes(it.group)) issues.push(key+': choose an equipment group.');
+    if(typeof it.group!=='string'||!it.group.trim()) issues.push(key+': choose an equipment group.');
     if(!Number.isFinite(it.unitWeight)) issues.push(key+': unit weight must be a number (negative values are permitted).');
     if(!Number.isInteger(it.defaultQuantity)||it.defaultQuantity<0) issues.push(key+': default quantity must be a whole number of zero or more.');
     for(const f of ['minQuantity','maxQuantity']) if(it[f]!=null&&(!Number.isInteger(it[f])||it[f]<0))issues.push(key+': '+f+' must be a nonnegative whole number.');
@@ -53,7 +57,7 @@ function loadEquipmentOverrides(){
     // Bind overrides to the shipped data revision. An old complete catalogue must not mask updates.
     if(ov.baseConfigVersion!==AC.meta.configVersion){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
-      missionConfigNotice='Device configuration was created against a different data revision and has been backed up. Review the current catalogue before use.';return;
+      return;
     }
     const candidate={...AC,...ov};
     const issues=missionConfigurationIssues(candidate);
@@ -123,7 +127,7 @@ function missionRows(s){
 }
 function missionIssues(s){
   const issues=[];
-  if(s.missionReviewRequired)issues.push('Review mission equipment after the catalogue/session update, then confirm the load.');
+  if(s.missionReviewRequired)issues.push('This saved load used an older file format and could not be restored in full. Check the load before continuing.');
   if(s.preset&&(!AC.presets[s.preset]||AC.presets[s.preset].active===false))issues.push('Selected configuration is missing or retired. Select an active configuration.');
   for(const [key,on] of Object.entries(s.mission||{})){
     if(!on)continue;const it=AC.missionEquip[key];

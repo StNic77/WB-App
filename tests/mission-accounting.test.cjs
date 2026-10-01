@@ -21,7 +21,7 @@ test('Mission Config accounting built on restored baseline',async t=>{
   }
   await t.test('ordinary opening, baseline worker and corrected equipment identifiers',async()=>{
     assert.equal(await page.evaluate(()=>location.pathname),'/');assert.equal(await page.evaluate(()=>typeof window.WBStorage),'undefined');
-    assert.equal(await page.evaluate(()=>APP_VERSION),'0.2.13-dev');assert.equal(await page.evaluate(()=>AC.meta.configVersion),16);
+    assert.equal(await page.evaluate(()=>APP_VERSION),'0.2.13-dev');assert.equal(await page.evaluate(()=>AC.meta.configVersion),18);
     assert.deepEqual(await page.evaluate(()=>Object.values(AC.presets).flatMap(p=>[...p.roleFitOn,...p.roleFitOff]).filter(key=>!AC.roleFit[key])),[]);
   });
   async function isolateDefaults(){await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];for(const key of Object.keys(AC.roleFit))s.roleFitDeclarationOrigins[key]='manual';});}
@@ -62,6 +62,7 @@ test('Mission Config accounting built on restored baseline',async t=>{
   });
   await t.test('already excluded removes physical fit without subtracting accepted weight and survives presets/reload',async()=>{
     await fresh();await isolateDefaults();const key='RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK';
+    await page.locator('#roleFitDetails').evaluate(el=>el.open=true);
     await page.locator(`[data-role-key="${key}"] [data-declaration="EXCLUDED"]`).click();assert.match(await page.locator(`[data-role-key="${key}"] .role-fit-helper`).textContent(),/Weight adjustment: 0 kg/);
     const result=await page.evaluate(key=>{const s=STORE.sessions[STORE.selectedTail];const before=computeWB(s.tail);for(const p of Object.keys(AC.presets))applyPreset(s.tail,p);const row=roleFitAccountingRows(s).find(x=>x.key===key);persistSession();return {before:before.roleFitAdjustmentW,row,issues:accountingIssues(s)};},key);near(result.before,0);near(result.row.w,0);near(result.row.m,0);assert.equal(result.row.current,false);assert.equal(result.row.declaration,'EXCLUDED');assert.deepEqual(result.issues,[]);
     await page.reload();await page.waitForFunction(()=>STORE.selectedTail);assert.equal(await page.evaluate(key=>roleFitDeclaration(STORE.sessions[STORE.selectedTail],key),key),'EXCLUDED');
@@ -94,7 +95,7 @@ test('Mission Config accounting built on restored baseline',async t=>{
     await fresh();const r=await page.evaluate(key=>{const s=STORE.sessions[STORE.selectedTail];s.customExceptions=[{description:AC.roleFit[key].name,w:46.69,arm:5830,accounting:'APPLY'}];applyPreset(s.tail,'SAR3');const declarations=computeRoleFitAdjustment(s);const custom=computeCustomExceptionTotals(s);const actionError=setRoleFitDeclaration(s,key,'ADD');s.roleFitDeclarations[key]='ADD';const conflict=accountingIssues(s);const standard=roleFitAccountingRows(s).find(x=>x.key===key);s.customExceptions.push({...s.customExceptions[0]});return {row:standard,custom:custom.w,error:actionError,conflict,duplicates:computeCustomExceptionTotals(s).w,issues:accountingIssues(s)};},WS);near(r.row.w,0);near(r.custom,46.69);assert.match(r.error,/Custom Exception/);assert.ok(r.conflict.length);near(r.duplicates,0);assert.ok(r.issues.some(x=>x.includes('more than one')));
   });
   await t.test('UI buttons, custom accounting and invalidation are wired',async()=>{
-    await fresh();await page.locator(`[data-role-key="${WS}"] [data-declaration="ACCOUNTED"]`).click();assert.equal(await page.evaluate(key=>roleFitDeclaration(STORE.sessions[STORE.selectedTail],key),WS),'ACCOUNTED');
+    await fresh();await page.locator('#roleFitDetails').evaluate(el=>el.open=true);await page.locator(`[data-role-key="${WS}"] [data-declaration="ACCOUNTED"]`).click();assert.equal(await page.evaluate(key=>roleFitDeclaration(STORE.sessions[STORE.selectedTail],key),WS),'ACCOUNTED');
     await page.locator('#customExceptionsCard > summary').click();await page.click('#btnAddCustomException');await page.locator('[data-ce="description"]').fill('Duct packaging');await page.locator('[data-ce="w"]').fill('-3.6');await page.locator('[data-ce="arm"]').fill('9500');await page.locator('[data-ce="arm"]').press('Tab');
     await page.locator('[data-ce="w"]').fill('3.6');await page.locator('[data-ce-sign]').click();assert.equal(await page.locator('[data-ce="w"]').inputValue(),'-3.6');near(await page.evaluate(()=>computeCustomExceptionTotals(STORE.sessions[STORE.selectedTail]).m),-34200);
     await page.locator('[data-ce-sign]').click();assert.equal(await page.locator('[data-ce="w"]').inputValue(),'3.6');await page.locator('[data-ce-sign]').click();

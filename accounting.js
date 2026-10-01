@@ -156,7 +156,7 @@ function customExceptionAccountingRows(s){
 }
 function accountingIssues(s){
   const issues=[];
-  if (s.accountingReviewRequired) issues.push('Review the migrated Mission Config declarations before certifying.');
+  if (s.accountingReviewRequired) issues.push('Review the migrated Role Config declarations before certifying.');
   for (const [key,item] of Object.entries(AC.roleFit)){
     const action=roleFitDeclaration(s,key), linked=customForRoleFit(s,key);
     if (!ROLE_FIT_DECLARATIONS.includes(action)) issues.push(item.name+': invalid declaration.');
@@ -181,6 +181,7 @@ function migrateRoleFitDeclarations(s){
   }
   for (const item of (s.customExceptions||[])) { item.accounting=item.accounting||'APPLY'; item.roleFitKey=item.roleFitKey||''; }
   s.accountingReviewRequired=!!(s.accepted?.isAccepted || s.preset || (s.customExceptions||[]).length);
+  s.accountingReviewReason='migration';
   s.customExceptionsReviewed=false;
   invalidateAccountingCertification(s); syncRoleFitPhysicalState(s);
 }

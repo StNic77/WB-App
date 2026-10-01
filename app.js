@@ -174,7 +174,7 @@ function initThemeToggle() {
 const TABS = [
   {id:"HOME", label:"Home"},
   {id:"ACCEPT", label:"Accept"},
-  {id:"CONFIG", label:"Mission Config"},
+  {id:"CONFIG", label:"Role Config"},
   {id:"MISSION", label:"Mission Equip"},
   {id:"SEATS", label:"Crew and Pax Seats"},
   {id:"FUEL", label:"Fuel"},
@@ -204,6 +204,13 @@ function setTab(id){
   if (id !== "HOME" && id !== "EDITOR" && !STORE.selectedTail){
     alert("Select a tail first (Home).");
     return;
+  }
+  if(activeTab!==id){
+    document.querySelectorAll('details[open]').forEach(panel=>{panel.open=false;});
+    const s=STORE.sessions[STORE.selectedTail];if(s?.ui){s.ui.meGroups={};s.ui.locationGroups={};}
+    if(typeof EDITOR!=='undefined')EDITOR.openPanels={};
+    for(const wrap of document.querySelectorAll('[id^="envWrap"]'))wrap.style.display='';
+    for(const button of document.querySelectorAll('[id^="envToggle"]'))button.textContent='Collapse';
   }
   activeTab = id;
   render();
@@ -1041,7 +1048,7 @@ function renderMaintenanceExceptions(s){
   }
   const exceptionCount=items.filter(x=>s.maintenanceDraft.roleFit[x.k]===false).length;
   const locked=!!s.accepted.isAccepted;
-  host.innerHTML=`<details class="card" style="padding:12px;"><summary><b>Maintenance Exceptions</b> · ${exceptionCount ? `${exceptionCount} removed` : "none"}</summary><div class="small muted" style="margin:8px 0;">Select role-fit equipment identified as removed in the aircraft’s current weighing record. These removals are already reflected in the recorded Basic Weight and CG and will remain unavailable when selecting a mission configuration.${locked ? " Accepted aircraft data is locked for this session." : ""}</div><div id="maintenanceExceptionList"></div></details>`;
+  host.innerHTML=`<details class="card" style="padding:12px;"><summary><b>Maintenance Exceptions</b> · ${exceptionCount ? `${exceptionCount} removed` : "none"}</summary><div class="small muted" style="margin:8px 0;">Select role-fit equipment identified as removed in the aircraft’s current weighing record. These removals are already reflected in the recorded Basic Weight and CG and will remain unavailable when selecting a role configuration.${locked ? " Accepted aircraft data is locked for this session." : ""}</div><div id="maintenanceExceptionList"></div></details>`;
   host.querySelector("details").open=wasOpen;
   const list=host.querySelector("#maintenanceExceptionList");
   for (const x of items){
@@ -2172,7 +2179,7 @@ function renderCabinMirror(s){
   const page2 = [
     { label: "BAY 5.5", token: "bay55" },
     { label: "BAY 6",   token: "bay6"  },
-    { label: "REAR",    token: "rear"  } // will still match "ramp" via contains in many cases
+    { label: "REAR", token: "rear" } // MCDU label must fit its fixed-width display.
   ];
 
   const spec = (page === 1) ? page1 : page2;
@@ -2335,7 +2342,7 @@ function renderCabinBayEditFields(s){
     { label: "BAY 5",   key: findKey("bay5"),  max: 3000, deltaMax: 6000 },
     { label: "BAY 5.5", key: findKey("bay55"), max: 1500, deltaMax: 3000 },
     { label: "BAY 6",   key: findKey("bay6"),  max: 3000, deltaMax: 6000 },
-    { label: "RAMP",    key: findKey("rear") || findKey("ramp"), max: 450, deltaMax: 900 }
+    { label: "Rear Area (Ramp Area)", key: findKey("rear") || findKey("ramp"), max: 450, deltaMax: 900 }
   ];
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -2672,7 +2679,7 @@ if (certMsgEl){
       msg.push("Not accepted (verify log set first).");
     }
     if (s.customExceptions.length && !s.customExceptionsReviewed){
-      msg.push("Custom Exceptions review has not been confirmed on Mission Configuration.");
+      msg.push("Custom Exceptions review has not been confirmed on Role Configuration.");
     }
     msg.push(...accountingIssues(s),...missionIssues(s));
     if(s.fuel.landing>s.fuel.total)msg.push("Landing fuel exceeds departure fuel.");

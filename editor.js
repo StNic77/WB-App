@@ -27,6 +27,62 @@ const EDITOR = {
   draft: null
 };
 
+function editorItemKey(name,prefix=''){
+  const key=name.trim().toUpperCase().replace(/[^A-Z0-9_]+/g,'_').replace(/^_+|_+$/g,'');
+  return key?(prefix&&!key.startsWith(prefix)?prefix+key:key):'';
+}
+const ROLE_EDITOR_GROUPS=[['RF_AIRCRAFT_SYSTEMS_','Aircraft Systems'],['RF_ICE_PROTECTION_','Ice Protection'],['RF_SAR_EQUIPMENT_','SAR Equipment'],['RF_SENSOR_SYSTEMS_','Sensor Systems'],['RF_SERVICING_EQUIPMENT_','Servicing Equipment'],['RF_STOW_','Stowage Fittings']];
+function editorRoleGroupNames(){return [...new Set([...ROLE_EDITOR_GROUPS.map(([,name])=>name),...Object.values(EDITOR.draft.roleFit).map(it=>it.group).filter(Boolean)])];}
+function editorStowageGroupNames(){return [...new Set(['SAR Cabinet','Cabin','Port Fwd Shelves','Ramp','Cabin Bays',...Object.values(EDITOR.draft.stowage).map(loc=>loc.group).filter(Boolean)])];}
+function editorKeyDefinition(value,kind){
+  const key=editorItemKey(value),prefix=kind==='role'?'RF_':kind==='mission'?'ME_':'';
+  if(!key||prefix&&!key.startsWith(prefix))return {error:'Start the key with '+(prefix?prefix.slice(0,-1).toLowerCase()+', then enter ':'')+'the group and item description.'};
+  const names=kind==='role'?editorRoleGroupNames():kind==='mission'?missionGroupNames(EDITOR.draft):editorStowageGroupNames();
+  if(key.includes('__')){
+    // New groups require an explicit separator; never guess from free text.
+    if(!/^[A-Z0-9]+(?:_[A-Z0-9]+)*__[A-Z0-9]+(?:_[A-Z0-9]+)*$/.test(value.trim()))return {error:'For a new group, type '+prefix+'NEW_GROUP__NEW_ITEM exactly, using capitals and a double underscore before the item.'};
+    const groupPart=key.split('__')[0].slice(prefix.length);if(!groupPart)return {error:'Enter a group before the double underscore.'};
+    const group=names.find(g=>editorItemKey(g)===groupPart)||(kind==='mission'?groupPart.replaceAll('_',' '):groupPart.toLowerCase().replace(/(^|_)([a-z])/g,(_,space,c)=>(space?' ':'')+c.toUpperCase()));
+    if(group.toLowerCase()==='stowage'&&kind==='mission')return {error:'Stowage is reserved for location entries. Use a different equipment group.'};
+    return {key,group};
+  }
+  const aliases=names.map(group=>[prefix+editorItemKey(group)+'_',group]);
+  if(kind==='role')aliases.push(...ROLE_EDITOR_GROUPS);
+  const match=aliases.sort((a,b)=>b[0].length-a[0].length).find(([start])=>key.startsWith(start)&&key.length>start.length);
+  return match?{key,group:match[1]}:{error:'Group not recognized. For a new group, use '+prefix+'NEW_GROUP__NEW_ITEM (double underscore before the item).'};
+}
+function editorOrganizePanels(host){
+  const mission=host.querySelector('#missionItemList'),role=host.querySelector('#roleFitItemList'),seats=host.querySelector('#seatBaselineList');
+  const list=mission||role||seats;if(!list)return;
+  const groups=new Map();
+  const roleGroups=ROLE_EDITOR_GROUPS;
+  for(const row of [...list.children]){
+    const input=row.querySelector('[data-k], [data-seat]');if(!input)continue;
+    const key=input.dataset.k||input.dataset.seat;
+    const item=mission?EDITOR.draft.missionEquip[key]:role?EDITOR.draft.roleFit[key]:null;
+    const group=mission?item.group:role?(item.group||roleGroups.find(([prefix])=>key.startsWith(prefix))?.[1]||'Aircraft Systems'):input.dataset.group==='crew'?'Crew Seats':'Passenger Seats';
+    if(!groups.has(group)){
+      const panel=document.createElement('details');panel.className='card';panel.dataset.editorPanel='group:'+group;
+      const title=document.createElement('summary');title.textContent=group;panel.append(title);list.append(panel);groups.set(group,panel);
+    }
+    if(seats){groups.get(group).append(row);continue;}
+    const panel=document.createElement('details');panel.className='card';panel.dataset.editorPanel='item:'+key;
+    const title=document.createElement('summary');title.textContent=item.name;panel.append(title,row);groups.get(group).append(panel);
+    row.querySelector('[data-f="name"]')?.addEventListener('change',()=>{title.textContent=item.name;});
+    if(role){
+      const label=document.createElement('label');label.className='small';label.textContent='Equipment group';
+      const select=document.createElement('select');select.dataset.roleEditorGroup=key;
+      for(const name of editorRoleGroupNames()){const option=document.createElement('option');option.value=name;option.textContent=name;select.append(option);}select.value=group;
+      select.onchange=()=>{item.group=select.value;EDITOR.openPanels??={};EDITOR.openPanels['group:'+item.group]=true;EDITOR.openPanels['item:'+key]=true;editorSaveDraft();renderEditor();};label.append(select);row.prepend(label);
+    }
+  }
+  if(role)for(const name of editorRoleGroupNames())if(groups.has(name))list.append(groups.get(name));
+  for(const panel of list.querySelectorAll('[data-editor-panel]')){
+    panel.open=!!EDITOR.openPanels?.[panel.dataset.editorPanel];
+    panel.ontoggle=()=>{EDITOR.openPanels??={};EDITOR.openPanels[panel.dataset.editorPanel]=panel.open;};
+  }
+}
+
 
 /* =========================
    SAVE / LOAD / RESET
@@ -212,12 +268,12 @@ function renderEditorLogin(host) {
 
 function renderEditorMain(host) {
   const tabs = [
-    { id: "MISSION",  label: "Mission Equipment" },
     { id: "ROLEFIT",  label: "Role Fit Equipment" },
-    { id: "SEATBASE", label: "Seat Baseline" },
+    { id: "MISSION",  label: "Mission Equipment" },
+    { id: "SEATBASE", label: "Crew and Pax Seats" },
     { id: "STOWAGE",  label: "Stowage Locations" },
     { id: "REFERENCE", label: "Reference Documents" },
-    { id: "CONFIGURATIONS", label: "Configurations" }
+    { id: "CONFIGURATIONS", label: "Aircraft Roles" }
   ];
 
   host.innerHTML = `
@@ -253,6 +309,7 @@ function renderEditorMain(host) {
   host.querySelectorAll("[data-edsec]").forEach(b => {
     b.onclick = () => {
       EDITOR.activeSection = b.dataset.edsec;
+      EDITOR.openPanels={};
       renderEditor();
     };
   });
@@ -274,17 +331,19 @@ function renderEditorMain(host) {
   if (EDITOR.activeSection === "ROLEFIT")  renderEditorRoleFit(secHost);
   if (EDITOR.activeSection === "SEATBASE") renderEditorSeatBaseline(secHost);
   if (EDITOR.activeSection === "REFERENCE") renderEditorReference(secHost);
+  editorOrganizePanels(secHost);
 }
 
 function renderEditorConfigurations(host){
   const presets=EDITOR.draft.presets;
   host.innerHTML='<div class="small muted">Configurations reference catalogue items. Weights and arms stay in the equipment catalogue. Changes save locally.</div><div id="configurationCards"></div><div class="card"><div class="row"><label>New configuration name<input id="configurationNewName"></label><button class="btn good" id="configurationCreate">Create configuration</button></div></div>';
   const list=host.querySelector('#configurationCards');
-  const newKey=()=> 'CONFIG_'+Date.now().toString(36).toUpperCase()+'_'+Math.random().toString(36).slice(2,6).toUpperCase();
+  const newKey=name=>editorItemKey(name,'CONFIG_');
   const refresh=()=>{editorSaveDraft();renderEditor();};
   host.querySelector('#configurationCreate').onclick=()=>{
     const name=host.querySelector('#configurationNewName').value.trim();if(!name){alert('Enter a configuration name.');return;}
-    presets[newKey()]={name,notes:'',active:true,seats:{crew:[],pax:[]},occupants:[],roleFitOn:[],roleFitOff:[],missionOn:[],missionOff:[]};refresh();
+    const key=newKey(name);if(!key||presets[key]){alert('Enter a unique configuration name.');return;}
+    presets[key]={name,notes:'',active:true,seats:{crew:[],pax:[]},occupants:[],roleFitOn:[],roleFitOff:[],missionOn:[],missionOff:[]};refresh();
   };
   for(const [key,p] of Object.entries(presets)){
     const card=document.createElement('details');card.className='card';card.dataset.configurationKey=key;
@@ -298,14 +357,14 @@ function renderEditorConfigurations(host){
       p[field]=input.value.trim();editorSaveDraft();card.querySelector('summary b').textContent=p.name;
     });
     card.querySelector('[data-config-active]').onchange=e=>{p.active=e.target.checked;editorSaveDraft();};
-    card.querySelector('[data-config-duplicate]').onclick=()=>{presets[newKey()]={...JSON.parse(JSON.stringify(p)),name:p.name+' Copy',active:true};refresh();};
+    card.querySelector('[data-config-duplicate]').onclick=()=>{let name=p.name+' Copy',n=2;while(presets[newKey(name)])name=p.name+' Copy '+n++;presets[newKey(name)]={...JSON.parse(JSON.stringify(p)),name,active:true};refresh();};
     card.querySelector('[data-config-delete]').onclick=()=>{
       if(Object.values(STORE.sessions).some(s=>s.preset===key)){alert('This configuration is used by a session. Retire it or select another configuration first.');return;}
       if(!confirm('Delete configuration "'+p.name+'"?'))return;delete presets[key];refresh();
     };
     const equipment=card.querySelector('[data-config-equipment]');
-    for(const group of MISSION_GROUPS){
-      const section=document.createElement('details');section.innerHTML='<summary>'+group+'</summary>';
+    for(const group of missionGroupNames(EDITOR.draft)){
+      const section=document.createElement('details');section.innerHTML='<summary>'+escHtml(group)+'</summary>';
       for(const [id,it] of Object.entries(EDITOR.draft.missionEquip)){
         if(it.group!==group)continue;
         const label=document.createElement('label');label.className='small';label.style.cssText='display:block;margin:8px 0';
@@ -429,7 +488,7 @@ function renderEditorMission(host) {
     return out;
   };
 
-  const groups = MISSION_GROUPS;
+  const groups = missionGroupNames(EDITOR.draft);
 
   host.innerHTML = `
     <div class="small muted" style="margin-bottom:10px;">
@@ -493,7 +552,7 @@ function renderEditorMission(host) {
         </div>
         <div style="flex: 1 1 160px;">
           <div class="lbl">Group</div>
-          <select data-k="${k}" data-f="group">${groups.map(g=>`<option ${g===it.group?"selected":""}>${g}</option>`).join("")}</select>
+          <select data-k="${k}" data-f="group">${groups.map(g=>`<option ${g===it.group?"selected":""}>${escHtml(g)}</option>`).join("")}</select>
         </div>
       </div>
       <div class="row" style="margin-top:10px;gap:10px;">
@@ -549,7 +608,7 @@ function renderEditorMission(host) {
         item[f] = el.value;
       }
       if(!editorSaveDraft()){EDITOR.draft.missionEquip[k]=before;renderEditor();}
-      else if(['isBasket','alwaysInclude'].includes(f)){renderEditor();}
+      else if(['isBasket','alwaysInclude','group'].includes(f)){if(f==='group'){EDITOR.openPanels??={};EDITOR.openPanels['group:'+item.group]=true;EDITOR.openPanels['item:'+k]=true;}renderEditor();}
       else {const total=list.querySelector(`[data-default-total="${k}"]`);if(total)total.textContent=`Default load: ${item.defaultQuantity} × ${item.unitWeight} = ${fmtDecimal(item.defaultQuantity*item.unitWeight)} kg`;}
     });
   });
@@ -602,10 +661,10 @@ function renderEditorMission(host) {
     addForm.dataset.open = "1";
     addForm.innerHTML = `
       <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
-        <div class="lbl">New item key (UPPERCASE, numbers, underscores only)</div>
+        <div class="lbl">New equipment key</div>
+        <p class="small">Existing group: type me, the equipment group, and the item description. Capitals and underscores are added automatically. New group: type ME_NEW_GROUP__NEW_ITEM exactly, with a double underscore before the item. Quick entry cannot create a new group. After adding the key, name the item and enter its details. The key cannot be renamed.</p>
         <div class="row" style="gap:8px; align-items:center;">
-          <p class="small">A unique identifier connecting this item to configurations and saved selections. Separate from its displayed name; cannot be changed after creation.</p><input type="text" id="missionNewKeyInput" placeholder="e.g. ME_NEW_RADIO"
-                 style="flex:1; text-transform:uppercase; font-family:monospace;">
+          <input type="text" id="missionNewKeyInput" aria-label="New Mission Equipment key" placeholder="e.g. me sar mission equip spare radio" style="flex:1 1 100%;min-width:0;">
           <button class="btn good" id="missionNewKeyConfirm">Add</button>
           <button class="btn" id="missionNewKeyCancel">Cancel</button>
         </div>
@@ -617,22 +676,25 @@ function renderEditorMission(host) {
     const confirm_ = document.getElementById("missionNewKeyConfirm");
     const cancel_  = document.getElementById("missionNewKeyCancel");
     inp.focus();
+    const preview=document.createElement('div');preview.className='small mono';preview.id='missionKeyPreview';preview.style.cssText='flex-basis:100%;overflow-wrap:anywhere';inp.after(preview);inp.oninput=()=>{preview.textContent=editorItemKey(inp.value);err.textContent='';};
 
     const tryAdd = () => {
-      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-      if (!key.startsWith("ME_")) { err.textContent = "Key must start with ME_."; return; }
+      const {key,group,error}=editorKeyDefinition(inp.value,'mission');
+      if(error){err.textContent=error;return;}
       if (Object.keys(EDITOR.draft.missionEquip).includes(key)) {
         err.textContent = `Key "${key}" is already in use. Choose another.`; return;
       }
       const firstStow = Object.keys(EDITOR.draft.stowage)[0] || "";
       EDITOR.draft.missionEquip[key] = {
-        name:  "New Equipment Item",
+        name:'New Mission Equipment Item',
         unitWeight: 0, defaultQuantity:1, minQuantity:0, missionQuantityEditable:false, active:true,
-        stow: firstStow, group: MISSION_GROUPS[0]
+        stow: firstStow, group
       };
+      EDITOR.openPanels??={};EDITOR.openPanels['group:'+group]=true;EDITOR.openPanels['item:'+key]=true;
       editorSaveDraft();
       renderEditor();
       if (typeof render === "function") render();
+      const nameInput=document.querySelector(`[data-k="${key}"][data-f="name"]`);nameInput?.focus();nameInput?.select();
     };
 
     confirm_.onclick = tryAdd;
@@ -644,7 +706,7 @@ function renderEditorMission(host) {
     // Normalise to uppercase as user types
     inp.addEventListener("input", () => {
       const pos = inp.selectionStart;
-      inp.value = inp.value.toUpperCase();
+      // Preserve the entered display name; only the generated key is capitalized.
       inp.setSelectionRange(pos, pos);
     });
   };
@@ -661,24 +723,41 @@ function renderEditorMission(host) {
    ========================= */
 
 function renderEditorStowage(host){
-  host.innerHTML='<div class="small muted">Location reference arms are shared by equipment and mission allocations. Cabinet mass and shelf arms remain distinct.</div><div id="locationCards"></div><div class="card row"><input id="locationNewKey" placeholder="New location key"><button class="btn good" id="locationAdd">Add Stowage Location</button></div>';
+  host.innerHTML='<div class="small muted">Location reference arms are shared by equipment and mission allocations. Cabinet mass and shelf arms remain distinct.</div><div id="locationCards"></div><div class="card"><label>New stowage location key<input id="locationNewKey" placeholder="e.g. cabin spare radio position"></label><p class="small">Type the location group and description. Capitals and underscores are added automatically. After adding the key, name the location and enter its details. The key cannot be renamed.</p><div id="locationKeyPreview" class="small mono" style="overflow-wrap:anywhere"></div><button class="btn good" id="locationAdd">Add Stowage Location</button></div>';
   const list=host.querySelector('#locationCards');
+  const panels=new Map();
+  const groupPanel=group=>{
+    if(!panels.has(group)){
+      const panel=document.createElement('details');panel.className='card';panel.dataset.stowageEditorGroup=group;
+      const summary=document.createElement('summary');summary.textContent=group;panel.append(summary);
+      panel.open=!!EDITOR.openPanels?.['stowage:'+group];panel.ontoggle=()=>{EDITOR.openPanels??={};EDITOR.openPanels['stowage:'+group]=panel.open;};list.append(panel);panels.set(group,panel);
+    }return panels.get(group);
+  };
   for(const [id,arm] of Object.entries(EDITOR.draft.bayArms||{})){
     const row=document.createElement('div');row.className='card';row.style.padding='12px';
     row.innerHTML=`<div class="row"><b>${escHtml(missionLocations(EDITOR.draft)[id].name)}</b><label>Shared bay arm (mm)<input type="number" step="any" value="${arm}" data-bay-arm="${id}"></label></div><div class="small muted">Used by both mission equipment and bay loads.</div>`;
-    row.querySelector('input').onchange=e=>{if(!Number.isFinite(e.target.valueAsNumber)){e.target.value=EDITOR.draft.bayArms[id];return;}EDITOR.draft.bayArms[id]=e.target.valueAsNumber;editorSaveDraft();};list.append(row);
+    row.querySelector('input').onchange=e=>{if(!Number.isFinite(e.target.valueAsNumber)){e.target.value=EDITOR.draft.bayArms[id];return;}EDITOR.draft.bayArms[id]=e.target.valueAsNumber;editorSaveDraft();};groupPanel('BAYS').append(row);
   }
   for(const [id,loc] of Object.entries(EDITOR.draft.stowage)){
     const row=document.createElement('div');row.className='card';row.style.padding='12px';
-    row.innerHTML=`<div class="small mono muted">${escHtml(id)}</div><div class="row"><label style="flex:2">Name<input data-location="name" value="${escHtml(loc.name)}"></label><label>Arm (mm)<input type="number" step="any" data-location="arm" value="${loc.arm}"></label><label>Location group<select data-location="group">${['SAR Cabinet','Cabin','Port Fwd Shelves','Ramp','Cabin Bays'].map(g=>`<option ${loc.group===g?'selected':''}>${g}</option>`).join('')}</select></label><button class="btn bad" data-location-delete>Delete</button></div>`;
-    row.querySelectorAll('[data-location]').forEach(el=>el.onchange=()=>{const field=el.dataset.location;if(field==='arm'&&!Number.isFinite(el.valueAsNumber)){el.value=loc.arm;return;}loc[field]=field==='arm'?el.valueAsNumber:el.value;editorSaveDraft();});
+    row.dataset.locationKey=id;
+    row.innerHTML=`<div class="small mono muted">${escHtml(id)}</div><div class="row"><label style="flex:2">Name<input data-location="name" value="${escHtml(loc.name)}"></label><label>Arm (mm)<input type="number" step="any" data-location="arm" value="${loc.arm}"></label><label>Location group<select data-location="group">${editorStowageGroupNames().map(g=>`<option ${loc.group===g?'selected':''}>${escHtml(g)}</option>`).join('')}</select></label><button class="btn bad" data-location-delete>Delete</button></div>`;
+    row.querySelectorAll('[data-location]').forEach(el=>el.onchange=()=>{const field=el.dataset.location;if(field==='arm'&&!Number.isFinite(el.valueAsNumber)){el.value=loc.arm;return;}loc[field]=field==='arm'?el.valueAsNumber:el.value;editorSaveDraft();if(field==='group'){EDITOR.openPanels??={};EDITOR.openPanels['stowage:'+loc.group]=true;renderEditor();}});
+    const requirement=document.createElement('label');requirement.className='small';requirement.textContent='Available when this Role Fit item is fitted';
+    const select=document.createElement('select');select.dataset.locationRequirement=id;
+    select.innerHTML='<option value="">No removable fitting required</option>'+Object.entries(EDITOR.draft.roleFit).map(([key,it])=>`<option value="${escHtml(key)}">${escHtml(it.name)}</option>`).join('');
+    select.value=loc.roleFitKey|| (loc.group==='SAR Cabinet'?'RF_SAR_EQUIPMENT_FWD_SAR_CABINET':'');
+    select.disabled=loc.group==='SAR Cabinet';
+    select.onchange=()=>{if(select.value)loc.roleFitKey=select.value;else delete loc.roleFitKey;editorSaveDraft();};requirement.append(select);row.append(requirement);
     row.querySelector('[data-location-delete]').onclick=()=>{
       const referenced=Object.values(EDITOR.draft.missionEquip).some(it=>it.stow===id)||Object.values(STORE.sessions).some(s=>Object.values(s.missionLoads||{}).flat().some(r=>r.stow===id)||(s.zones||[]).some(z=>z.id===id&&z.w));
       if(referenced){alert('This location is referenced by equipment or a mission. Relocate those entries first.');return;}
       if(!confirm('Delete '+loc.name+'?'))return;delete EDITOR.draft.stowage[id];editorSaveDraft();renderEditor();
-    };list.append(row);
+    };groupPanel(loc.group||'Cabin').append(row);
   }
-  host.querySelector('#locationAdd').onclick=()=>{const id=host.querySelector('#locationNewKey').value.trim().toUpperCase();if(!/^[A-Z0-9_]+$/.test(id)||missionLocations(EDITOR.draft)[id]){alert('Enter a unique uppercase location key.');return;}EDITOR.draft.stowage[id]={name:'New location',arm:0,group:'Cabin'};editorSaveDraft();renderEditor();};
+  host.querySelector('#locationNewKey').oninput=e=>{host.querySelector('#locationKeyPreview').textContent=editorItemKey(e.target.value);};
+  const newGroupHelp=document.createElement('p');newGroupHelp.className='small';newGroupHelp.textContent='New group: type NEW_GROUP__NEW_LOCATION exactly, with a double underscore before the location. Quick entry only works with existing groups.';host.querySelector('#locationKeyPreview').before(newGroupHelp);
+  host.querySelector('#locationAdd').onclick=()=>{const {key:id,group,error}=editorKeyDefinition(host.querySelector('#locationNewKey').value,'stowage');if(error){alert(error);return;}if(missionLocations(EDITOR.draft)[id]){alert('Enter a unique location key.');return;}EDITOR.draft.stowage[id]={name:'New Stowage Location',arm:0,group};EDITOR.openPanels??={};EDITOR.openPanels['stowage:'+group]=true;editorSaveDraft();renderEditor();const nameInput=document.querySelector(`[data-location-key="${id}"] [data-location="name"]`);nameInput?.focus();nameInput?.select();};
 }
 
 function renderEditorRoleFit(host) {
@@ -817,6 +896,7 @@ function renderEditorRoleFit(host) {
       const k = btn.dataset.delk;
       const it = EDITOR.draft.roleFit[k];
       if (!confirm(`Delete "${it?.name || k}"?`)) return;
+      if(Object.values(EDITOR.draft.stowage).some(loc=>loc.roleFitKey===k)){alert('This fitting is linked to a stowage location. Update that location before deleting it.');return;}
       delete EDITOR.draft.roleFit[k];
       editorRemovePresetItem(k, ["roleFitOn", "roleFitOff"]);
       editorSaveDraft();
@@ -837,10 +917,10 @@ function renderEditorRoleFit(host) {
     addForm.dataset.open = "1";
     addForm.innerHTML = `
       <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
-        <div class="lbl">New item key (UPPERCASE, numbers, underscores only)</div>
+        <div class="lbl">New equipment key</div>
+        <p class="small">Existing group: type rf, the major system, and the item description. Capitals and underscores are added automatically. New group: type RF_NEW_GROUP__NEW_ITEM exactly, with a double underscore before the item. Quick entry cannot create a new group. After adding the key, name the item and enter its details. The key cannot be renamed.</p>
         <div class="row" style="gap:8px; align-items:center;">
-          <p class="small">A unique identifier connecting this item to configurations and saved selections. Separate from its displayed name; cannot be changed after creation.</p><input type="text" id="rfNewKeyInput" placeholder="e.g. RF_NEW_ITEM"
-                 style="flex:1; text-transform:uppercase; font-family:monospace;">
+          <input type="text" id="rfNewKeyInput" aria-label="New Role Fit key" placeholder="e.g. rf aircraft systems air cooling pack" style="flex:1 1 100%;min-width:0;">
           <button class="btn good" id="rfNewKeyConfirm">Add</button>
           <button class="btn" id="rfNewKeyCancel">Cancel</button>
         </div>
@@ -850,17 +930,20 @@ function renderEditorRoleFit(host) {
     const inp = document.getElementById("rfNewKeyInput");
     const err = document.getElementById("rfNewKeyErr");
     inp.focus();
+    const preview=document.createElement('div');preview.className='small mono';preview.id='rfKeyPreview';preview.style.cssText='flex-basis:100%;overflow-wrap:anywhere';inp.after(preview);inp.oninput=()=>{preview.textContent=editorItemKey(inp.value);err.textContent='';};
 
     const tryAdd = () => {
-      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-      if (!key) { err.textContent = "Key cannot be empty."; return; }
+      const {key,group,error}=editorKeyDefinition(inp.value,'role');
+      if(error){err.textContent=error;return;}
       if (Object.keys(EDITOR.draft.roleFit).includes(key)) {
         err.textContent = `Key "${key}" is already in use.`; return;
       }
-      EDITOR.draft.roleFit[key] = { name: "New Role-Fit Item", w: 0, arm: 0, normally: false, maintenanceIncluded: false };
+      EDITOR.draft.roleFit[key] = { name:'New Role Fit Item', group, w: 0, arm: 0, normally: false, maintenanceIncluded: false };
+      EDITOR.openPanels??={};EDITOR.openPanels['group:'+group]=true;EDITOR.openPanels['item:'+key]=true;
       editorSaveDraft();
       renderEditor();
       if (typeof render === "function") render();
+      const nameInput=document.querySelector(`[data-k="${key}"][data-f="name"]`);nameInput?.focus();nameInput?.select();
     };
 
     document.getElementById("rfNewKeyConfirm").onclick = tryAdd;
@@ -871,7 +954,7 @@ function renderEditorRoleFit(host) {
     });
     inp.addEventListener("input", () => {
       const pos = inp.selectionStart;
-      inp.value = inp.value.toUpperCase();
+      // Preserve the entered display name; only the generated key is capitalized.
       inp.setSelectionRange(pos, pos);
     });
   };

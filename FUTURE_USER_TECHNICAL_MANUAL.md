@@ -18,8 +18,9 @@ Provide aircrew and custodians with concise, formal instructions for operating t
 8. Data retention and recovery: device storage, accepted snapshots, reset behaviour, configuration updates, review/invalidation rules, offline update/recovery and archived records.
 9. Verification and examples: independently checked standard and non-standard worked examples, expected totals and moments, reference citations, operator acceptance checks and release verification.
 10. Troubleshooting: symptom, probable cause and corrective action tables.
+11. Through-life support and succession: ownership, equipment-data lifecycle, dependency management, release control, technology changes, recovery exercises, and custodian/developer handover. See the scope below.
 
-Appendices: terminology and control labels; source-to-data traceability; equipment/location reference tables; formulas and independently worked examples; sample annotated PDF; custodian change checklist; revision record.
+Appendices: terminology and control labels; source-to-data traceability; equipment/location reference tables; formulas and independently worked examples; sample annotated PDF; custodian change checklist; revision record; equipment-dependency register; software/dependency inventory; release and recovery checklists; succession acceptance checklist.
 
 ## Design decisions to settle before drafting
 
@@ -51,3 +52,58 @@ The manual should let a reviewer follow each important result from its source th
 - Review status: identify unresolved source questions, known limitations and work still required. Record actual review outcomes when available; do not present assumptions, tests or this manual itself as clearance or approval.
 
 Use operationally readable chapters for aircrew and custodians, with deeper derivations, traceability tables and verification records in technical chapters/appendices. The exact evidence package and acceptance criteria remain to be agreed with the relevant reviewers.
+
+
+## Through-life support and succession
+
+Purpose: preserve the ability to understand, verify, maintain and recover the application throughout aircraft service, including transfer to personnel who did not participate in its development. Treat source code, configuration data, verification evidence and documentation as maintained deliverables. Do not rely on developer memory or conversation history as the operational reference.
+
+### Responsibilities and handover
+
+- Define application custodian, software maintainer, technical reviewer and release/distribution responsibilities. Identify the responsible appointments and succession process without inventing official authorities.
+- Explain which changes can be made through the Editor and which require software maintenance. Document when source verification, independent calculation checks, regression testing and operational review are required.
+- Maintain a decision register: rule or assumption, rationale, source, affected data/code, review status and unresolved questions.
+- Require a successor to demonstrate restoring the release, tracing a worked calculation, making and validating a sample data change, exporting/distributing the configuration and recovering the previous version.
+
+### Equipment-data lifecycle and dependency control
+
+- Distinguish equipment data from executable code. Explain that Editor changes generally alter local data, not JavaScript files on disk, and that export/replacement is required for distribution.
+- Document keys and all references to them: configuration membership, linked stowage, extra-crew equipment, special fit/carry rules and saved-session records.
+- Define addition, amendment, retirement, replacement and deletion procedures. Prefer retirement before deletion; identify active dependants before replacing or deleting an item. Explain why a historical backup containing an old key is different from a broken active reference.
+- Specify validation coverage for save and export: missing/duplicate references, unavailable carriers, cycles, invalid weights/arms/quantities and special dependencies. Record which checks are implemented and which remain proposed; do not imply complete coverage.
+- Document handling of accepted-aircraft snapshots, historical records and old sessions after catalogue changes. Preserve the ability to interpret earlier records without silently applying current data to them.
+
+### Known supportability work to track
+
+These are design/maintenance actions to evaluate, not capabilities guaranteed by this outline:
+
+- Inventory equipment-specific identifiers embedded in code, including POL/cabinet behaviour and extra-crew equipment selection. Move suitable relationships into validated, documented configuration data so deletion or replacement cannot silently break a special rule.
+- Review deletion coverage beyond preset lists, including linked locations and inactive saved allocations. Identify and report dependencies before a change is applied.
+- Consolidate shared constants and eliminate confirmed dead code through separate, tested changes. Retain required migration/compatibility support until its removal criteria are established.
+- Establish sufficient provenance to identify the exact application, distributed configuration and local modifications used for each calculation and generated record. Distinguish current version labels from any additional integrity identifiers still needed.
+
+### Device configuration and controlled release
+
+- Explain the precedence and scope of distributed config.js, local Editor overrides, mission adjustments and accepted snapshots. Describe how to detect and resolve differences between devices without losing needed data.
+- Establish a reviewed release procedure: change description and source evidence; dependency validation; regression and independently checked examples; assigned software/data revision; archived previous release; distribution; device verification; rollback.
+- Preserve each release's source revision, configuration, documentation, dependency versions, test results, known limitations and installation/recovery instructions as one identifiable package.
+- Define backup retention, migration and recovery procedures. Test restoration; do not assume that browser-local storage or a service-worker cache is a durable archive.
+
+### Technology sustainment
+
+- Maintain an inventory of browsers/operating systems, third-party libraries and licences, development/test tools, and supported installation methods.
+- Document environment setup and test execution with transferable paths and instructions. Identify machine-specific paths or assumptions requiring replacement during handover.
+- Agree review intervals and triggers, including aircraft-document changes, browser/OS updates, library changes, data-schema changes, defects and personnel turnover. Verify compatibility rather than assuming unchanged operation through the 2040s or 2050s.
+- Document repository access/ownership transfer, release storage and recovery contacts. Keep credentials out of the manual and source code.
+
+### Minimum handover package
+
+1. Source repository and relevant history, with a known working release and recovery copy.
+2. Matching configuration, source register, equipment/location dictionary and dependency register.
+3. User/custodian procedures and technical calculation rationale.
+4. Independent worked examples, automated tests, test instructions and recorded results.
+5. Installation, update, device reconciliation, backup and recovery procedures.
+6. Decision/assumption register, limitations, outstanding defects and planned supportability improvements.
+7. Named responsibility assignments and a completed successor familiarisation/acceptance checklist.
+
+The manual must distinguish documented current behaviour from future safeguards. A documentation entry alone does not implement a software control or establish airworthiness approval.

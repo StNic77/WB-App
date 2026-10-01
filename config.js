@@ -1466,7 +1466,7 @@ const AC_MISSION_EQUIP = {
     "stow": "SAR_CABINET_FWD_BTM",
     "group": "SERVICING EQUIP",
     "active": true,
-    "alwaysInclude": true
+    "alwaysInclude": false
   },
   "ME_PORT_FWD_SHELF_TOP": {
     "name": "Port Fwd Shelf Top",
@@ -1637,7 +1637,8 @@ const AC_PRESETS = {
       "ME_SAR_MISSION_EQUIP_HUMAN_REMAINS_BAG",
       "ME_SAR_MISSION_EQUIP_TALON_STRETCHER",
       "ME_CREW_COMFORT_EQUIP_BMS_BOX",
-      "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG"
+      "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG",
+      "ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL"
     ],
     "missionOff": [],
     "active": true
@@ -1761,7 +1762,8 @@ const AC_PRESETS = {
       "ME_SAR_MISSION_EQUIP_HUMAN_REMAINS_BAG",
       "ME_SAR_MISSION_EQUIP_TALON_STRETCHER",
       "ME_CREW_COMFORT_EQUIP_BMS_BOX",
-      "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG"
+      "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG",
+      "ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL"
     ],
     "missionOff": [],
     "active": true

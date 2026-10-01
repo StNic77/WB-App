@@ -137,9 +137,7 @@ function missionIssues(s){
   return [...new Set(issues)];
 }
 function missionAutomaticDefault(s,key,it){
-  return it.active!==false && !!it.alwaysInclude &&
-    (key!=='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL' ||
-      (!!s && roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_FWD_SAR_CABINET')));
+  return it.active!==false && !!it.alwaysInclude;
 }
 function applyMissionPreset(s,p){
   s.mission={};s.missionLoads={};

@@ -311,7 +311,7 @@ function renderEditorConfigurations(host){
         const label=document.createElement('label');label.className='small';label.style.cssText='display:block;margin:8px 0';
         const check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.checked=(p.missionOn||[]).includes(id)||!!it.alwaysInclude;check.disabled=!!it.alwaysInclude||(it.active===false&&!check.checked);
         check.onchange=()=>{p.missionOn=(p.missionOn||[]).filter(k=>k!==id);p.missionOff=(p.missionOff||[]).filter(k=>k!==id);if(check.checked)p.missionOn.push(id);editorSaveDraft();};
-        label.append(check,document.createTextNode(' '+it.name+(it.active===false?' (retired)':'')+(it.alwaysInclude?(id==='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL'?' · With SAR cabinet':' · Every configuration'):'')));section.append(label);
+        label.append(check,document.createTextNode(' '+it.name+(it.active===false?' (retired)':'')+(it.alwaysInclude?' · Every configuration':'')));section.append(label);
       }
       equipment.append(section);
     }
@@ -506,7 +506,7 @@ function renderEditorMission(host) {
         <span class="small mono" data-default-total="${k}">Default load: ${it.defaultQuantity} × ${it.unitWeight} = ${fmtDecimal(it.defaultQuantity*it.unitWeight)} kg</span>
       <h3>Mission Options</h3><div class="editor-mission-options">
         <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="missionQuantityEditable" ${it.missionQuantityEditable?'checked':''}> Show quantity buttons in Mission Equipment<small>Show quick −/+ buttons during a mission. Extras can still be added through the item’s adjustment controls when unchecked.</small></label>
-        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="alwaysInclude" ${it.alwaysInclude?'checked':''}> ${k==='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL'?'Carry by default when the SAR cabinet is fitted':'Carry by default in all configurations'}<small>${k==='ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL'?'Otherwise, the crew can add this item manually and select its stowage location.':'Select this item whenever a configuration is applied. The crew can deselect it for an individual mission.'}</small></label>
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="alwaysInclude" ${it.alwaysInclude?'checked':''}> Carry by default in all configurations<small>Select this item whenever a configuration is applied. The crew can deselect it for an individual mission.</small></label>
         <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="active" ${it.active!==false?'checked':''}> Available for use<small>Uncheck to retire this item. Its definition is retained; existing configurations and mission loads may need review.</small></label>
         <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="isBasket" ${it.isBasket?'checked':''}> Allow this item to be a stowage location<small>Other equipment can be assigned to this item and follows its location when moved. If this item is not carried, its contents must be relocated or removed.</small></label>
 

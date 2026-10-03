@@ -1,3 +1,9 @@
+function formatConfigurationReleaseTime(value){
+  const date=new Date(value);
+  if(!Number.isFinite(date.getTime()))return 'Release time unavailable';
+  return date.toISOString().slice(0,19).replace('T',' ')+' UTC';
+}
+
 /* persist.js — CH-149-615 W&B App
  * Session persistence + app versioning.
  *
@@ -266,7 +272,7 @@ function maybeShowSplash(){
     let txt = "";
     if (AC.meta.configReleasedAt){
       txt += "Configuration released " +
-        new Date(AC.meta.configReleasedAt).toLocaleString() + ". ";
+        formatConfigurationReleaseTime(AC.meta.configReleasedAt) + ". ";
     }
     if (latest && latest.note && latest.note !== "(no note provided)"){
       txt += "Latest change: " + latest.note;

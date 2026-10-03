@@ -811,7 +811,7 @@ function renderHome(){
     const latest = log[0];
     let txt = "Config data version: v" + v;
     if (AC.meta.configReleasedAt){
-      txt += " (released " + new Date(AC.meta.configReleasedAt).toLocaleString() + ")";
+      txt += " (released " + formatConfigurationReleaseTime(AC.meta.configReleasedAt) + ")";
     }
     if (latest && latest.note){
       txt += " — " + latest.note;

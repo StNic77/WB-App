@@ -1,5 +1,11 @@
 # CH-149-615 W&B Release History
 
+## v0.2.14-dev / Config v19 — 2026-10-03 06:16:33 UTC
+- Release metadata synchronized across the app, configuration and offline package.
+- Includes crew in passenger seats, role occupant resets, responsive tabs and scrolling, UTC release display, CASEVAC patients and four independently installed stretcher racks.
+- Compatible v18 Editor overrides are backed up and migrated, preserving custom roles and edits.
+- For future releases: increment the software version for code changes and the configuration version for aircraft data changes; update the UTC configuration release timestamp and newest changelog entry, then synchronize the offline release manifest.
+
 ## v0.2.10 / Config v12
 - Added offline preparation, update activation, reversionary operation, and return-to-latest instructions to the opening version screen.
 - The opening version screen now reappears when either the app version or configuration version changes.

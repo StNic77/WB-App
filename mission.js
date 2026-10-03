@@ -54,14 +54,21 @@ function loadEquipmentOverrides(){
       missionConfigNotice='Previous equipment settings were backed up. The revised mission catalogue and configurations are loaded; review them before use.';
       return;
     }
-    // Bind overrides to the shipped data revision. An old complete catalogue must not mask updates.
-    if(ov.baseConfigVersion!==AC.meta.configVersion){
+    // v19 formalizes the compatible v18 development data; preserve saved Editor edits.
+    const migrateV18 = ov.baseConfigVersion===18 && AC.meta.configVersion===19;
+    // Other old complete catalogues must not mask incompatible shipped updates.
+    if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateV18){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
       return;
     }
     const candidate={...AC,...ov};
     const issues=missionConfigurationIssues(candidate);
     if(issues.length){missionConfigNotice='Device configuration could not be loaded: '+issues.join(' ');return;}
+    if(migrateV18){
+      localStorage.setItem('ac_config_overrides_before_config_update',raw);
+      ov.baseConfigVersion=AC.meta.configVersion;
+      localStorage.setItem('ac_config_overrides',JSON.stringify(ov));
+    }
     for(const field of ['missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets'])if(ov[field])AC[field]=ov[field];
     if(ov.referenceDocuments)AC.meta.referenceDocuments=ov.referenceDocuments;
   }catch(e){missionConfigNotice='Device configuration could not be restored. Original settings are preserved. '+e.message;}

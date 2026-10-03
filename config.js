@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Updated from Custodian Editor data on 2026-10-01T22:56:20.000Z
- * Config data version: 18
+ * Updated from Custodian Editor data on 2026-10-03T06:16:33.000Z
+ * Config data version: 19
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 18,
-  "configReleasedAt": "2026-10-01T22:56:20.000Z",
+  "configVersion": 19,
+  "configReleasedAt": "2026-10-03T06:16:33.000Z",
   "changelog": [
+    {
+      "version": 19,
+      "at": "2026-10-03T06:16:33.000Z",
+      "note": "In development."
+    },
     {
       "version": 18,
       "at": "2026-10-01T22:56:20.000Z",

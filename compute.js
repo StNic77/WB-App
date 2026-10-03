@@ -55,6 +55,10 @@ function computeMissionTotals(s){
 }
 
 function patientPositionAvailable(s,position){
+  if(position.missionKey){
+    if(!s.mission?.[position.missionKey])return false;
+    return missionAllocations(s,position.missionKey).some(row=>row.quantity>0&&row.stow===position.requiredStow&&!resolveMissionLocation(s,row).error);
+  }
   return position.kind==='pta'
     ? roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM')
     : roleFitIsInstalled(s,position.roleFitKey);
@@ -67,7 +71,7 @@ function computePatientTotals(s){
   return {count:rows.length,w:rows.reduce((n,row)=>n+row.weight,0),m:rows.reduce((n,row)=>n+row.weight*row.arm,0)};
 }
 function patientIssues(s){
-  const issues=patientRows(s).filter(row=>row.occupied&&!row.available).map(row=>row.name+': patient position unavailable. Fit the required equipment or clear the patient.');
+  const issues=patientRows(s).filter(row=>row.occupied&&!row.available).map(row=>row.name+': patient position unavailable. '+(row.requiredStow?'Stow the litter in the required location or clear the patient.':'Fit the required equipment or clear the patient.'));
   for(const [key,occupied] of Object.entries(s.patientOccupants||{}))if(occupied&&!AC.patientPositions?.[key])issues.push('Unknown patient position: '+key+'. Clear the patient or restore its definition.');
   return issues;
 }

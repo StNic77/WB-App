@@ -2023,6 +2023,14 @@ const AC_PRESETS = {
 
 // Patient masses and arms supplied from the RFM. Litter structures are included in the CASEVAC rack system.
 const AC_PATIENT_POSITIONS = {
+  "STOKES_CABIN": {
+    "name": "Stokes Litter (Cabin)",
+    "arm": 7863,
+    "weight": 90,
+    "kind": "litter",
+    "missionKey": "ME_SAR_MISSION_EQUIP_STOKES_LITTER_CABIN",
+    "requiredStow": "CABIN_DEPLOYED"
+  },
   "FWD_STBD_TOP": {
     "name": "FWD STBD top",
     "arm": 6120,

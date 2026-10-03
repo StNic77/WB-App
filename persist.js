@@ -86,6 +86,7 @@ function restoreSession(){
     // Validate before replacing live sessions, so malformed saves cannot partly load.
     for(const s of Object.values(snap.sessions)){
       if(!s || typeof s!=="object" || !s.accepted || !s.fuel || !s.seats || !s.bays || !Array.isArray(s.cargo))throw new Error('Incomplete saved session');
+      if(s.patientOccupants && (typeof s.patientOccupants!=='object'||Array.isArray(s.patientOccupants)||Object.values(s.patientOccupants).some(value=>typeof value!=='boolean')))throw new Error('Invalid patient occupancy');
       if(s.missionLoads){
         for(const rows of Object.values(s.missionLoads)){
           if(!Array.isArray(rows)||rows.some(r=>!r||typeof r.id!=='string'||!Number.isInteger(r.quantity)||r.quantity<0||typeof r.stow!=='string'))throw new Error('Invalid equipment allocation');

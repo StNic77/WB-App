@@ -111,6 +111,7 @@ function makeNewSession(tail, isPlaceholder){
     missionReviewRequired: false,
     seats: seatState,
     occupants: occupant,
+    patientOccupants: {},
 
     fuel,
     cargo,
@@ -346,6 +347,7 @@ function returnToAvailable(tail, reason){
   s.signedOutAt = null;
   s.returnedAt = new Date().toISOString();
   s.returnReason = reason || "Return to available";
+  s.patientOccupants = {};
 
   // -----------------------------
   // 2) ACCEPT stamp (clear Accepted By + time + flag)
@@ -431,7 +433,7 @@ function clamp(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); }
 
 function fmtKg(x){ return (x==null ? "—" : `${roundKg(x)} kg`); }
 function fmtMm(x){ return (x==null ? "—" : `${roundMm(x)} mm`); }
-function fmtDecimal(x, places=2){
+function fmtDecimal(x, places=4){
   const n=Number(x);
   if (!Number.isFinite(n)) return "0";
   return n.toFixed(places).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
@@ -1106,6 +1108,7 @@ function applyPreset(tail, presetKey){
   if (!s.mission) s.mission = {};
 
   s.preset = presetKey;
+  s.patientOccupants = {};
 
   // Seats: set installed (destructive)
   for (const k of Object.keys(s.seats)) s.seats[k] = false;
@@ -1242,9 +1245,9 @@ function updateConfigSummary(s){
   const quick=document.getElementById('configurationQuickSummary');
   if(quick){
     const manual=Object.values(s.roleFitDeclarationOrigins||{}).includes('manual') || (s.customExceptions||[]).length>0;
-    const issues=[...accountingIssues(s),...missionIssues(s)];
+    const issues=[...accountingIssues(s),...missionIssues(s),...patientIssues(s)];
     quick.replaceChildren();const title=document.createElement('strong');title.textContent=s.preset?presetName+' applied':'Aircraft defaults · No configuration selected';
-    const load=document.createElement('div');load.textContent='Crew: '+crewOccupants+' · Passengers: '+paxOccupants+' · Mission equipment: '+fmtDecimal(me.w)+' kg · Fuel: '+fmtKg(wb.fuelTotal);
+    const load=document.createElement('div');load.textContent='Crew: '+crewOccupants+' · Passengers: '+paxOccupants+' · Patients: '+computePatientTotals(s).count+' · Mission equipment: '+fmtDecimal(me.w)+' kg · Fuel: '+fmtKg(wb.fuelTotal);
     const hint=document.createElement('div');hint.textContent='Review the load below. Open a section to make changes.'+(manual?' Manual changes retained.':'');quick.append(title,load,hint);
     for(const issue of issues){const line=document.createElement('div');line.textContent=issue;quick.append(line);}
   }
@@ -1264,7 +1267,7 @@ function updateConfigSummary(s){
     <div class="box"><div class="t">Role-Fit Change from Accepted Basic Weight</div><div class="v">${signedKg(roleChangeTotal)}</div><div class="s">Role-Fit Equipment: ${signedKg(wb.roleFitAdjustmentW)} · Seat Structures: ${signedKg(wb.seatStructureAdjustmentW)}<br>All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.</div></div>
     <div class="box"><div class="t">Custom Exceptions</div><div class="v">${signedKg(wb.customExceptionW)}</div><div class="s">${s.customExceptions.length} entr${s.customExceptions.length===1?"y":"ies"} · ${!s.customExceptions.length?"No confirmation required":s.customExceptionsReviewed?"Aircraft documentation reviewed":"Review confirmation required"}</div></div>
     <div class="box"><div class="t">Mission Equipment</div><div class="v">${signedKg(me.w)} @ ${fmtMm(me.w ? Math.round(me.m/me.w) : null)}</div></div>
-    <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"}</div></div>
+    <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"} · ${computePatientTotals(s).count} patients</div></div>
     ${wb.zonesTotal ? `<div class="box"><div class="t">Additional Stowage Load</div><div class="v">${signedKg(wb.zonesTotal)}</div><div class="s">Additional shelf/zone load entered in Load Planning</div></div>` : ""}
     <div class="box"><div class="t">Operating Weight & CG</div><div class="v">${fmtKg(wb.opW)} @ ${fmtMm(wb.opCG)}</div></div>
     <div class="box"><div class="t">All-Up Weight & CG</div><div class="v">${fmtKg(wb.auw)} @ ${fmtMm(wb.auwCG)}</div><div class="s">${auwBuild}<br><span class="mono">${wb.cgBand}</span></div></div>
@@ -1279,11 +1282,31 @@ function updateConfigSummary(s){
 function renderMission(){ renderMissionEquipment(); }
 
 
+function renderPatients(s){
+  let host=document.getElementById('patientPositionsHost');
+  if(!host){host=document.createElement('div');host.id='patientPositionsHost';host.className='card';document.getElementById('extraCrewHost').after(host);}
+  const rows=patientRows(s).filter(row=>row.available||row.occupied);
+  host.hidden=!rows.length;host.replaceChildren();if(!rows.length)return;
+  const heading=document.createElement('h2');heading.textContent='Litter & PTA Patients';host.append(heading);
+  const summary=document.createElement('div');summary.className='small';const totals=computePatientTotals(s);summary.textContent=totals.count+' patient'+(totals.count===1?'':'s')+' · '+fmtDecimal(totals.w)+' kg';host.append(summary);
+  for(const row of rows){
+    const card=document.createElement('div');card.className='toggle';
+    const left=document.createElement('div');left.className='left';
+    const name=document.createElement('div');name.className='name';name.textContent=row.name;
+    const detail=document.createElement('div');detail.className='meta mono';detail.textContent='Patient 90.00 kg @ '+row.arm+' mm';
+    const status=document.createElement('div');status.className='meta';status.textContent=row.available?(row.occupied?'Occupied':'Empty'):'Position unavailable — clear patient or fit required equipment';
+    left.append(name,detail,status);
+    const button=document.createElement('button');button.className='btn';button.type='button';button.dataset.patientPosition=row.key;button.textContent=row.occupied?'Clear patient':'Assign patient';button.setAttribute('aria-label',(row.occupied?'Clear patient from ':'Assign patient to ')+row.name);
+    button.onclick=()=>{s.patientOccupants??={};s.patientOccupants[row.key]=!row.occupied;invalidateAccountingCertification(s);render();};card.append(left,button);host.append(card);
+  }
+}
+
 function renderSeats(){
   const tail = STORE.selectedTail;
   const s = STORE.sessions[tail];
 
   renderExtraCrew(s);
+  renderPatients(s);
     const listCrew = document.getElementById("seatListCrew");
   const listPax  = document.getElementById("seatListPax");
   if (listCrew) listCrew.innerHTML = "";
@@ -2680,7 +2703,7 @@ if (certMsgEl){
     if (s.customExceptions.length && !s.customExceptionsReviewed){
       msg.push("Custom Exceptions review has not been confirmed on Role Configuration.");
     }
-    msg.push(...accountingIssues(s),...missionIssues(s));
+    msg.push(...accountingIssues(s),...missionIssues(s),...patientIssues(s));
     if(s.fuel.landing>s.fuel.total)msg.push("Landing fuel exceeds departure fuel.");
     const invalidCustom=(s.customExceptions||[]).filter(x => !String(x.description||"").trim() || !Number.isFinite(Number(x.w)) || Number(x.w)===0 || !Number.isFinite(Number(x.arm)) || Number(x.arm)<=0);
     if (invalidCustom.length){

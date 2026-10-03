@@ -894,13 +894,37 @@ const AC_ROLE_FIT = {
     "normally": true,
     "maintenanceIncluded": false
   },
-  "RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM": {
-    "name": "CASEVAC Stretcher Rack (4 Off)",
-    "w": 120.09,
-    "arm": 8577,
+  "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT": {
+    "name": "CASEVAC Stretcher Rack — FWD PORT",
+    "w": 30.0225,
+    "arm": 7898,
     "normally": false,
     "maintenanceIncluded": false,
-    "source": "Supplied CH-149-615 continuity notes: complete four-rack system; local review build"
+    "source": "RFM positions supplied by user; one quarter of the 120.09 kg four-rack system, including litters"
+  },
+  "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD": {
+    "name": "CASEVAC Stretcher Rack — FWD STBD",
+    "w": 30.0225,
+    "arm": 6120,
+    "normally": false,
+    "maintenanceIncluded": false,
+    "source": "RFM positions supplied by user; one quarter of the 120.09 kg four-rack system, including litters"
+  },
+  "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT": {
+    "name": "CASEVAC Stretcher Rack — AFT PORT",
+    "w": 30.0225,
+    "arm": 10235,
+    "normally": false,
+    "maintenanceIncluded": false,
+    "source": "RFM positions supplied by user; one quarter of the 120.09 kg four-rack system, including litters"
+  },
+  "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD": {
+    "name": "CASEVAC Stretcher Rack — AFT STBD",
+    "w": 30.0225,
+    "arm": 10057,
+    "normally": false,
+    "maintenanceIncluded": false,
+    "source": "RFM positions supplied by user; one quarter of the 120.09 kg four-rack system, including litters"
   }
 };
 
@@ -1809,7 +1833,7 @@ const AC_PRESETS = {
   "CASEVAC": {
     "occupantRoles": { "P2": "SAR Tech", "P3": "SAR Tech" },
     "name": "CASEVAC",
-    "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off. Complete four-rack system is one 120.09 kg item at 8577 mm.",
+    "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off. Four independently selectable stretcher racks, 30.0225 kg each at their patient-position arms; total 120.09 kg including litters.",
     "image": "images/CASEVAC.png",
     "seats": {
       "crew": [
@@ -1853,7 +1877,10 @@ const AC_PRESETS = {
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX",
       "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW",
       "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER",
-      "RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM"
+      "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT",
+      "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD",
+      "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT",
+      "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD"
     ],
     "roleFitOff": [
       "RF_SAR_EQUIPMENT_FWD_SAR_CABINET",
@@ -1989,6 +2016,86 @@ const AC_PRESETS = {
   }
 };
 
+// Patient masses and arms supplied from the RFM. Litter structures are included in the CASEVAC rack system.
+const AC_PATIENT_POSITIONS = {
+  "FWD_STBD_TOP": {
+    "name": "FWD STBD top",
+    "arm": 6120,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
+  },
+  "FWD_STBD_MIDDLE": {
+    "name": "FWD STBD middle",
+    "arm": 6120,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
+  },
+  "FWD_STBD_BOTTOM": {
+    "name": "FWD STBD bottom",
+    "arm": 6120,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
+  },
+  "AFT_STBD_MIDDLE": {
+    "name": "AFT STBD middle",
+    "arm": 10057,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD"
+  },
+  "AFT_STBD_BOTTOM": {
+    "name": "AFT STBD bottom",
+    "arm": 10057,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD"
+  },
+  "FWD_PORT_TOP": {
+    "name": "FWD PORT top",
+    "arm": 7898,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
+  },
+  "FWD_PORT_MIDDLE": {
+    "name": "FWD PORT middle",
+    "arm": 7898,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
+  },
+  "FWD_PORT_BOTTOM": {
+    "name": "FWD PORT bottom",
+    "arm": 7898,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
+  },
+  "AFT_PORT_MIDDLE": {
+    "name": "AFT PORT middle",
+    "arm": 10235,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT"
+  },
+  "AFT_PORT_BOTTOM": {
+    "name": "AFT PORT bottom",
+    "arm": 10235,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT"
+  },
+  "PTA": {
+    "name": "PTA patient",
+    "arm": 10375,
+    "weight": 90,
+    "kind": "pta"
+  }
+};
+
 // EXPORT
 const AC = {
   meta:          AC_META,
@@ -2002,6 +2109,7 @@ const AC = {
   maxFuelKg:     AC_MAX_FUEL_KG,
   crewSeats:     AC_CREW_SEATS,
   paxSeats:      AC_PAX_SEATS,
+  patientPositions: AC_PATIENT_POSITIONS,
   stowage:       AC_STOWAGE,
   roleFit:       AC_ROLE_FIT,
   missionEquip:  AC_MISSION_EQUIP,

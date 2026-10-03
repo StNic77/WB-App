@@ -76,7 +76,7 @@ for (const [key,preset] of Object.entries(AC.presets)){
 }
 
 function missionCatalogueSignature(){
-  return JSON.stringify([AC.missionEquip,AC.stowage,AC.bayArms,AC.presets]);
+  return JSON.stringify([AC.missionEquip,AC.stowage,AC.bayArms,AC.presets,AC.patientPositions]);
 }
 function missionDefaultAllocation(key){
   const it=AC.missionEquip[key];

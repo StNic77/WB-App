@@ -17,40 +17,34 @@ const ROLE_FIT_ALIASES = Object.freeze({
   RF_SAR_CABINET:'RF_SAR_EQUIPMENT_FWD_SAR_CABINET', RF_EOIR_HANDCTRL:'RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER'
 });
 function canonicalRoleFitKey(key){ return ROLE_FIT_ALIASES[key] || key; }
+const CASEVAC_RACK_KEYS=Object.freeze(['FWD_PORT','FWD_STBD','AFT_PORT','AFT_STBD'].map(position=>'RF_SAR_EQUIPMENT_CASEVAC_RACK_'+position));
+const LEGACY_CASEVAC_RACK_KEYS=Object.freeze(['RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM','RF_CASEVAC_STRETCHER_RACK_4']);
+function expandedRoleFitKeys(key){return LEGACY_CASEVAC_RACK_KEYS.includes(key)?[...CASEVAC_RACK_KEYS]:[canonicalRoleFitKey(key)];}
 function normalizeAccountingConfiguration(){
-  // Older local editor exports predate the complete rack-system entry.
-  const rack='RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM';
-  const oldRack='RF_CASEVAC_STRETCHER_RACK_4';
-  if (AC.roleFit[oldRack]) {
-    AC.roleFit[rack]=AC.roleFit[oldRack];
-    delete AC.roleFit[oldRack];
+  const legacy=LEGACY_CASEVAC_RACK_KEYS.map(key=>AC.roleFit[key]).find(Boolean);
+  if(legacy){
+    for(const key of CASEVAC_RACK_KEYS)if(!AC.roleFit[key]&&AC_ROLE_FIT[key])AC.roleFit[key]={...AC_ROLE_FIT[key],w:legacy.w/4,normally:!!legacy.normally,maintenanceIncluded:!!legacy.maintenanceIncluded};
   }
-  let overrides=null;
-  try { overrides=JSON.parse(localStorage.getItem('ac_config_overrides')||'null'); } catch (_) {}
-  // Upgrade older overrides once; subsequent editor deletions are authoritative.
-  const upgrade=!!overrides && !overrides.roleFitAccountingVersion;
-  if (!AC.roleFit[rack] && AC_ROLE_FIT[rack] && (!overrides || upgrade)) AC.roleFit[rack]=JSON.parse(JSON.stringify(AC_ROLE_FIT[rack]));
-  for (const preset of Object.values(AC.presets)){
-    for (const field of ['roleFitOn','roleFitOff']){
-      preset[field]=[...new Set((preset[field]||[]).map(canonicalRoleFitKey))].filter(key=>!!AC.roleFit[key]);
-    }
-  }
-  if(upgrade && AC.roleFit[rack] && AC.presets.CASEVAC){
-    AC.presets.CASEVAC.roleFitOn=[...new Set([...AC.presets.CASEVAC.roleFitOn,rack])];
-    AC.presets.CASEVAC.roleFitOff=AC.presets.CASEVAC.roleFitOff.filter(k=>k!==rack);
-  }
+  for(const key of LEGACY_CASEVAC_RACK_KEYS)delete AC.roleFit[key];
+  for(const preset of Object.values(AC.presets))for(const field of ['roleFitOn','roleFitOff'])preset[field]=[...new Set((preset[field]||[]).flatMap(expandedRoleFitKeys))].filter(key=>!!AC.roleFit[key]);
 }
 normalizeAccountingConfiguration();
 function normalizeRackSessionKey(s){
-  const oldKey='RF_CASEVAC_STRETCHER_RACK_4', key='RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM';
   for(const map of [s.roleFit,s.roleFitDeclarations,s.roleFitDeclarationOrigins,s.accepted?.maintenanceBaseline?.roleFit,s.maintenanceDraft?.roleFit]){
-    if(map && Object.prototype.hasOwnProperty.call(map,oldKey)){
-      if(!Object.prototype.hasOwnProperty.call(map,key)) map[key]=map[oldKey];
+    for(const oldKey of LEGACY_CASEVAC_RACK_KEYS){
+      if(!map||!Object.hasOwn(map,oldKey))continue;
+      for(const key of CASEVAC_RACK_KEYS)if(!Object.hasOwn(map,key))map[key]=map[oldKey];
       delete map[oldKey];
     }
   }
-  if(Array.isArray(s.accepted?.maintenanceExceptions)) s.accepted.maintenanceExceptions=s.accepted.maintenanceExceptions.map(canonicalRoleFitKey);
-  for(const item of s.customExceptions||[]) if(item.roleFitKey===oldKey) item.roleFitKey=key;
+  if(Array.isArray(s.accepted?.maintenanceExceptions))s.accepted.maintenanceExceptions=[...new Set(s.accepted.maintenanceExceptions.flatMap(expandedRoleFitKeys))];
+  for(const item of s.customExceptions||[]){
+    if(LEGACY_CASEVAC_RACK_KEYS.includes(item.roleFitKey)||['casevac stretcher rack (4 off)','casevac stretcher rack system'].includes(String(item.description||'').trim().toLowerCase())){
+      // Preserve the recorded custom mass and arm as one adjustment, linked to all four installations.
+      item.roleFitKeys=[...CASEVAC_RACK_KEYS];delete item.roleFitKey;
+      for(const key of CASEVAC_RACK_KEYS){s.roleFitDeclarations??={};s.roleFitDeclarationOrigins??={};s.roleFitDeclarations[key]='NEUTRAL';s.roleFitDeclarationOrigins[key]='manual';}
+    }
+  }
   pruneStaleRoleFitReferences(s);
 }
 function pruneStaleRoleFitReferences(s){
@@ -90,7 +84,8 @@ function customRoleFitKey(item){
   const name=String(item.description||'').trim().toLowerCase().replace(/\s+/g,' ');
   return Object.keys(AC.roleFit).find(key=>AC.roleFit[key].name.trim().toLowerCase().replace(/\s+/g,' ')===name) || '';
 }
-function customForRoleFit(s,key){ return (s.customExceptions||[]).filter(item=>customRoleFitKey(item)===key); }
+function customRoleFitKeys(item){return item.roleFitKeys?.length?item.roleFitKeys:[customRoleFitKey(item)].filter(Boolean);}
+function customForRoleFit(s,key){ return (s.customExceptions||[]).filter(item=>customRoleFitKeys(item).includes(key)); }
 function roleFitIsInstalled(s,key){
   if (roleFitRemovedInAcceptedRecord(s,key)) return false;
   const custom=customForRoleFit(s,key);
@@ -147,9 +142,9 @@ function roleFitAccountingRows(s){
 }
 function customExceptionAccountingRows(s){
   return (s.customExceptions||[]).map(item=>{
-    const key=customRoleFitKey(item), inputW=Number(item.w)||0, arm=Number(item.arm)||0;
+    const keys=customRoleFitKeys(item), key=keys[0]||'', inputW=Number(item.w)||0, arm=Number(item.arm)||0;
     const accounted=item.accounting==='ACCOUNTED';
-    const invalidLink=!!key && (!AC.roleFit[key] || customForRoleFit(s,key).length>1 || (!accounted&&roleFitRemovedInAcceptedRecord(s,key)));
+    const invalidLink=keys.some(link=>!AC.roleFit[link] || customForRoleFit(s,link).length>1 || (!accounted&&roleFitRemovedInAcceptedRecord(s,link)));
     const w=accounted||invalidLink ? 0 : inputW;
     return {...item,key,inputW,arm,w,m:w*arm,accounting:accounted?'ACCOUNTED':'APPLY',invalidLink};
   });

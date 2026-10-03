@@ -5,7 +5,7 @@ function renderAccountingWarnings(s){
     notice.innerHTML='<b>Review required.</b> Role-fit data or accounting rules have changed. Check the fitted equipment and weight adjustments against the accepted aircraft record before certifying. <button class="btn" id="confirmAccountingReview" type="button">I have reviewed these declarations</button>';
     notice.querySelector('button').onclick=()=>{s.accountingReviewRequired=false;render();};
   }
-  const issues=[...accountingIssues(s),...missionIssues(s)], host=document.getElementById('accountingIssues');
+  const issues=[...accountingIssues(s),...missionIssues(s),...patientIssues(s)], host=document.getElementById('accountingIssues');
   host.hidden=!issues.length; host.textContent=issues.join(' ');
 }
 function renderRoleFitDeclarations(s){
@@ -66,7 +66,7 @@ function renderCustomExceptions(s){
     const row=document.createElement('div');row.className='custom-exception-row';
     const options=Object.entries(AC.roleFit).sort((a,b)=>a[1].name.localeCompare(b[1].name)).map(([key,value])=>`<option value="${key}" ${customRoleFitKey(item)===key?'selected':''}>${escapeHtml(value.name)}</option>`).join('');
     row.innerHTML=`<div class="row"><div style="flex:2 1 220px"><div class="lbl">Description</div><input data-ce="description" value="${escapeHtml(item.description)}"></div><div style="flex:1 1 125px"><div class="lbl">Signed item weight (kg)</div><div class="custom-weight-input"><input data-ce="w" type="number" inputmode="decimal" step="any" aria-label="Signed item weight in kilograms" value="${fmtDecimal(item.w)}"><button class="btn" type="button" data-ce-sign aria-label="Switch weight between positive and negative">+/−</button></div><div class="small muted">Enter the weight, then tap +/− to make it an addition or removal.</div></div><div style="flex:1 1 125px"><div class="lbl">Arm (mm)</div><input data-ce="arm" type="number" step="any" value="${fmtDecimal(item.arm)}"></div></div>
-      <div class="row" style="margin-top:8px"><div style="flex:1 1 220px"><div class="lbl">Accounting</div><select data-ce-accounting><option value="APPLY" ${item.accounting!=='ACCOUNTED'?'selected':''}>APPLY — adjust accepted weight</option><option value="ACCOUNTED" ${item.accounting==='ACCOUNTED'?'selected':''}>ACCOUNTED — already included</option></select></div><div style="flex:1 1 260px"><div class="lbl">Listed item (prevents duplicate accounting)</div><select data-ce-link><option value="">Separate unlisted item</option>${options}</select></div></div>
+      <div class="row" style="margin-top:8px"><div style="flex:1 1 220px"><div class="lbl">Accounting</div><select data-ce-accounting><option value="APPLY" ${item.accounting!=='ACCOUNTED'?'selected':''}>APPLY — adjust accepted weight</option><option value="ACCOUNTED" ${item.accounting==='ACCOUNTED'?'selected':''}>ACCOUNTED — already included</option></select></div><div style="flex:1 1 260px"><div class="lbl">Listed item (prevents duplicate accounting)</div><select data-ce-link><option value="">Separate unlisted item</option>${item.roleFitKeys?.length?'<option value="LEGACY_CASEVAC_RACKS" selected>CASEVAC racks — all four (recorded custom adjustment)</option>':''}${options}</select></div></div>
       <div class="row" style="margin-top:8px"><div style="flex:2 1 240px"><div class="lbl">Source / reference</div><input data-ce="source" value="${escapeHtml(item.source)}"></div><div style="flex:1 1 190px"><div class="lbl">Applied adjustment</div><div class="mono" data-ce-applied></div></div><button class="btn bad small" data-ce-remove type="button">Delete entry</button></div>`;
     const refreshApplied=()=>{const applied=customExceptionAccountingRows(s)[index];row.querySelector('[data-ce-applied]').textContent=`${fmtDecimal(applied.w)} kg · ${fmtDecimal(applied.m,2)} kg·mm`;};
     const changed=()=>{s.customExceptionsReviewed=false;reviewed.checked=false;updateDocumentationReview(s);invalidateAccountingCertification(s);syncRoleFitPhysicalState(s);refreshApplied();updateConfigSummary(s);renderAccountingWarnings(s);persistSession();};
@@ -85,9 +85,11 @@ function renderCustomExceptions(s){
     };
     row.querySelector('[data-ce-link]').onchange=event=>{
       const key=event.target.value;
-      if(key&&s.customExceptions.some(other=>other!==item&&customRoleFitKey(other)===key)){alert('Another Custom Exception already represents this item. Edit that entry instead.');render();return;}
+      if(key==='LEGACY_CASEVAC_RACKS')return;
+      if(key&&s.customExceptions.some(other=>other!==item&&customRoleFitKeys(other).includes(key))){alert('Another Custom Exception already represents this item. Edit that entry instead.');render();return;}
       if(key&&roleFitDeclaration(s,key)!=='NEUTRAL'&&!confirm('Move this item’s accounting to this Custom Exception? Its listed declaration will become neutral so it is not counted twice.')){render();return;}
       item.roleFitKey=key;
+      delete item.roleFitKeys;
       if(key){
         const equipment=AC.roleFit[key];if(!String(item.description||'').trim())item.description=equipment.name;
         if(!Number(item.w))item.w=equipment.w;if(!Number(item.arm))item.arm=equipment.arm;

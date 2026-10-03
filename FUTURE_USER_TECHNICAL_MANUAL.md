@@ -140,6 +140,13 @@ These are subjects to capture when the full manual is commissioned, not complete
 - [ ] Explain suggested personal equipment by crew position, optional selection including RON bags, individual stowage/custom arms, and known-capacity warnings. Confirm the final position-to-equipment mappings against the release.
 - [ ] Explain what happens to associated equipment when removing a crew member or changing a role; demonstrate retained versus removed allocations without changing catalogue defaults.
 
+### CASEVAC stretcher racks and patients — manual note, 3 October 2026
+
+- [ ] Explain independent rack installation in Aircraft Roles and Role Config: FWD PORT at 7898 mm, FWD STBD at 6120 mm, AFT PORT at 10235 mm, and AFT STBD at 10057 mm. Each rack is one quarter of 120.09 kg: **30.0225 kg**, including its litters.
+- [ ] State the calculation convention explicitly: fitting all four racks totals **120.09 kg at 8577.5 mm**, compared with the supplied RFM complete-system value of **120.09 kg at 8577 mm**. The resulting moment difference is **60.045 kg·mm**, equivalent to an aircraft CG difference of **0.00500375 mm at 12,000 kg**. The user accepted this difference as negligible on 3 October 2026. Retain the individual-rack calculation for both full and partial installations; do not describe a special combined-system correction.
+- [ ] Document patient assignment in Crew and Pax Seats. Fitting a rack automatically makes its patient positions available: three positions (top, middle, bottom) on each forward rack, and two (middle, bottom) on each aft rack, for ten litter positions total. Each patient is **90.00 kg** at the associated rack arm. A fitted PTA also provides one **90.00 kg** patient position at **10375 mm**. Do not add litter structure weight a second time.
+- [ ] Explain that selecting a role resets patient occupancy; occupied positions with unavailable supporting equipment remain visible for correction and prevent certification. Patient loads are included in weight, CG, occupant summaries and the PDF.
+
 ### Fuel and printed record
 
 - [ ] Explain mapped and Manual Fuel modes. Manual departure CG uses actual tank entries; landing uses the mapped distribution for selected landing fuel. Manual mode has no predicted burn trace in either the app or PDF.

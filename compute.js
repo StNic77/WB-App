@@ -54,6 +54,24 @@ function computeMissionTotals(s){
   return {w:rows.reduce((n,r)=>n+r.w,0),m:rows.reduce((n,r)=>n+r.m,0)};
 }
 
+function patientPositionAvailable(s,position){
+  return position.kind==='pta'
+    ? roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM')
+    : roleFitIsInstalled(s,position.roleFitKey);
+}
+function patientRows(s){
+  return Object.entries(AC.patientPositions||{}).map(([key,position])=>({...position,key,available:patientPositionAvailable(s,position),occupied:s.patientOccupants?.[key]===true}));
+}
+function computePatientTotals(s){
+  const rows=patientRows(s).filter(row=>row.occupied);
+  return {count:rows.length,w:rows.reduce((n,row)=>n+row.weight,0),m:rows.reduce((n,row)=>n+row.weight*row.arm,0)};
+}
+function patientIssues(s){
+  const issues=patientRows(s).filter(row=>row.occupied&&!row.available).map(row=>row.name+': patient position unavailable. Fit the required equipment or clear the patient.');
+  for(const [key,occupied] of Object.entries(s.patientOccupants||{}))if(occupied&&!AC.patientPositions?.[key])issues.push('Unknown patient position: '+key+'. Clear the patient or restore its definition.');
+  return issues;
+}
+
 function computeSeatTotals(s){
   // Occupant standard weights (per RFM):
   //   CREW standard weight = 90.7 kg (200 lb)
@@ -96,6 +114,8 @@ function computeSeatTotals(s){
       occupantM += weight * (seat.occupantArm??seat.arm);
     }
   }
+  const patients=computePatientTotals(s);
+  occupantW+=patients.w;occupantM+=patients.m;
   w = structureW + occupantW; m = structureM + occupantM;
   return {w,m,structureW,structureM,occupantW,occupantM,changes,baselineEstablished:basis !== "MAINTENANCE" || !!maintenanceSeats};
 }

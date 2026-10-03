@@ -1237,6 +1237,8 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 #refHistory, #bayReferenceBlock { max-width: 100%; overflow-x: auto; }
 
 @media (max-width: 600px) {
+  .toggle { flex-wrap: wrap; }
+  .toggle > * { min-width: 0; max-width: 100%; }
   header { position: static; }
   .topbar { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; padding: 10px 12px; }
   .brand, #tabs { grid-column: 1 / -1; }
@@ -1264,3 +1266,4 @@ input, select, textarea { min-width: 0; max-width: 100%; }
   .xcheck-table .xcheck-parameter::before { display: none; }
 }
 @media (max-height: 500px) { header { position: static; } }
+#patientPositionsHost .toggle { margin-top: 8px; }

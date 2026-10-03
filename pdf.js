@@ -44,7 +44,7 @@ function generateWBReport() {
     return;
   }
 
-  const accountingErrors=[...accountingIssues(s),...missionIssues(s)];
+  const accountingErrors=[...accountingIssues(s),...missionIssues(s),...patientIssues(s)];
   if(s.fuel.landing>s.fuel.total)accountingErrors.push("Landing fuel exceeds departure fuel.");
   if(accountingErrors.length){alert("Resolve equipment accounting before generating a clearance: "+accountingErrors.join(" "));return;}
 
@@ -449,7 +449,7 @@ class PDFContext {
     const seatTotals=computeSeatTotals(s);
     const crewOccupants=Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='crew').length;
     const paxOccupants=Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='pax').length;
-    this.kvRow("Current occupants", `${Math.round(seatTotals.occupantW)} kg (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);
+    this.kvRow("Current occupants", `${Math.round(seatTotals.occupantW)} kg (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"}, ${computePatientTotals(s).count} patients)`);
     this.note(`Role-fit physical-fit view: ${rfOnCount} items fitted or retained from the accepted record. Declaration details are in Appendix A.`);
     this.spacer();
   }
@@ -557,7 +557,7 @@ class PDFContext {
 
   drawSeats() {
     const s = this.s;
-    this.sectionHeader("7 · Crew & Passenger Seats");
+    this.sectionHeader("7 · Crew, Passenger Seats & Patients");
 
     // Occupant standard weights (per RFM): crew 90.7 kg, pax 90.00 kg
     const crewW = 90.7;
@@ -618,6 +618,11 @@ class PDFContext {
       this.table(headers, paxRows, colWidths);
     }
 
+    const patients=patientRows(s).filter(row=>row.available||row.occupied);
+    if(patients.length){
+      this.spacer(2);this.kvRow('Patients',String(computePatientTotals(s).count));
+      this.table(['Patient position','Arm mm','Occupancy','Applied kg'],patients.map(row=>[row.name,String(row.arm),row.occupied?'Occupied':'Empty',row.occupied?fmtDecimal(row.weight):'0']),[78,30,45,35]);
+    }
     if (!crewRows.length && !paxRows.length) {
       this.note("No seats installed.");
     }
@@ -789,7 +794,7 @@ class PDFContext {
     this.kvRow("Custom Exceptions", signed(wb.customExceptionW));
     this.note("All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.");
     this.kvRow("Mission Equipment", `${signed(missionTotals.w)}${missionCG == null ? "" : ` @ ${missionCG} mm`}`);
-    this.kvRow("Occupants", `${signed(seatTotals.occupantW)}${occupantCG == null ? "" : ` @ ${occupantCG} mm`} (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"})`);
+    this.kvRow("Occupants", `${signed(seatTotals.occupantW)}${occupantCG == null ? "" : ` @ ${occupantCG} mm`} (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"}, ${computePatientTotals(s).count} patients)`);
     this.spacer(1);
     if(wb.zonesTotal)this.kvRow("Additional Stowage Load",signed(wb.zonesTotal));
     this.kvRow("Operating Weight & CG", `${wb.opW} kg @ ${wb.opCG} mm`);
@@ -1174,7 +1179,8 @@ class PDFContext {
       this.checkPageBreak(55);
       this.kvRow("Custom exception",x.description||"Unnamed");
       if(x.source)this.kvRow("Reference",x.source);
-      if(x.key)this.kvRow("Linked role-fit item",AC.roleFit[x.key]?.name||x.key);
+      if(x.roleFitKeys?.length)this.kvRow("Linked role-fit items",x.roleFitKeys.map(key=>AC.roleFit[key]?.name||key).join(', '));
+      else if(x.key)this.kvRow("Linked role-fit item",AC.roleFit[x.key]?.name||x.key);
       this.kvRow("Treatment",x.accounting==='ACCOUNTED'?"Already reflected — no adjustment":"Apply adjustment to accepted weight");
       this.table(["Signed item kg","Arm mm","Applied kg","Applied kg·mm"],[[fmtDecimal(x.inputW),fmtDecimal(x.arm),signedAccounting(x.w),signedAccounting(x.m)]],[47,47,47,47]);
       this.spacer(3);

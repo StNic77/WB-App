@@ -101,7 +101,7 @@ function editorSaveDraft() {
     const payload = {
       missionSchema: MISSION_SCHEMA,
       baseConfigVersion: AC_META.configVersion,
-      roleFitAccountingVersion: 1,
+      roleFitAccountingVersion: 2,
       missionEquip: EDITOR.draft.missionEquip,
       stowage:      EDITOR.draft.stowage,
       bayArms:      EDITOR.draft.bayArms || AC.bayArms,
@@ -1066,6 +1066,8 @@ function editorExportConfig() {
   push("const AC_CREW_SEATS = " + stringifyPretty(AC.crewSeats) + ";");
   push("const AC_PAX_SEATS = "  + stringifyPretty(AC.paxSeats)  + ";");
   push("");
+  push("const AC_PATIENT_POSITIONS = " + stringifyPretty(AC.patientPositions || {}) + ";");
+  push("");
   push("// SECTION 7 — STOWAGE LOCATIONS");
   push("const AC_STOWAGE = " + stringifyPretty(EDITOR.draft.stowage) + ";");
   push("");
@@ -1092,6 +1094,7 @@ function editorExportConfig() {
   push("  maxFuelKg:     AC_MAX_FUEL_KG,");
   push("  crewSeats:     AC_CREW_SEATS,");
   push("  paxSeats:      AC_PAX_SEATS,");
+  push("  patientPositions: AC_PATIENT_POSITIONS,");
   push("  stowage:       AC_STOWAGE,");
   push("  roleFit:       AC_ROLE_FIT,");
   push("  missionEquip:  AC_MISSION_EQUIP,");

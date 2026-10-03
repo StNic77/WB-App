@@ -41,13 +41,17 @@ function addExtraCrew(s,role,seat,gear){
     if(quantity+1>(item.maxQuantity??Infinity)||quantity+1<(item.minQuantity??0))return item.name+': quantity is outside its limits.';
   }
   const overloads=extraCrewStowageCheck(s,gear);if(overloads.length)return overloads.map(x=>x.message).join(' ');
+  assignCrewOccupant(s,role,seat,gear,'extra crew');
+  invalidateAccountingCertification(s);persistSession();return '';
+}
+function assignCrewOccupant(s,role,seat,gear=[],source='role crew'){
   const crewId=crypto.randomUUID();
-  s.occupants[seat]={type:'crew',label:role+' (extra crew)',crewId};
+  s.occupants[seat]={type:'crew',label:role+' ('+source+')',crewId};
   for(const {key,allocation} of gear){
     if(!s.mission[key]){s.missionLoads??={};s.missionLoads[key]=[];}
     const rows=editMissionAllocations(s,key);rows.push({...allocation,id:crypto.randomUUID(),quantity:1,crewId});s.mission[key]=true;
   }
-  invalidateAccountingCertification(s);persistSession();return '';
+  return crewId;
 }
 function removeCrewEquipment(s,crewId){
   for(const [key,rows] of Object.entries(s.missionLoads||{})){

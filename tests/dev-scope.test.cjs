@@ -43,7 +43,7 @@ test('October scope: loading guide, Editor and offline update',async t=>{
  });
  await t.test('Editor groups/items and operational panels default closed; charts remain expanded',async()=>{
   await fresh();assert.equal(await page.locator('#roleFitDetails').getAttribute('open'),null);assert.equal(await page.locator('#envWrapConfig').isVisible(),true);
-  await page.evaluate(()=>{EDITOR.authed=true;editorInitDraft();setTab('EDITOR');});assert.equal(await page.locator('#editorHost details[open]').count(),0);
+  await page.evaluate(()=>{EDITOR.authed=true;editorInitDraft();setTab('EDITOR');});assert.equal(await page.locator('[data-edsec="ROLEFIT"].active').count(),1);assert.equal(await page.locator('#editorHost details[open]').count(),0);await page.locator('[data-edsec="MISSION"]').click();
   await page.locator('[data-editor-panel="group:SAR MEDICAL EQUIP"] > summary').click();await page.locator('[data-editor-panel="item:'+PEN+'"] > summary').click();
   await page.locator('[data-k="'+PEN+'"][data-f="description"]').fill('Test description');await page.locator('[data-k="'+PEN+'"][data-f="description"]').press('Tab');assert.equal(await page.locator('[data-editor-panel="item:'+PEN+'"]').getAttribute('open'),'');
   await page.screenshot({path:path.join(out,'editor-collapsible.png'),fullPage:true});

@@ -1807,6 +1807,7 @@ const AC_PRESETS = {
     "active": true
   },
   "CASEVAC": {
+    "occupantRoles": { "P2": "SAR Tech", "P3": "SAR Tech" },
     "name": "CASEVAC",
     "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off. Complete four-rack system is one 120.09 kg item at 8577 mm.",
     "image": "images/CASEVAC.png",

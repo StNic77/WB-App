@@ -67,6 +67,13 @@ function loadEquipmentOverrides(){
   }catch(e){missionConfigNotice='Device configuration could not be restored. Original settings are preserved. '+e.message;}
 }
 loadEquipmentOverrides();
+// Older saved role catalogues predate occupant roles. Preserve their edits while
+// supplying the shipped crew identities for seats used by SAR techs.
+for (const [key,preset] of Object.entries(AC.presets)){
+  if (preset.occupantRoles == null && AC_PRESETS[key]?.occupantRoles){
+    preset.occupantRoles = {...AC_PRESETS[key].occupantRoles};
+  }
+}
 
 function missionCatalogueSignature(){
   return JSON.stringify([AC.missionEquip,AC.stowage,AC.bayArms,AC.presets]);

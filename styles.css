@@ -1225,3 +1225,42 @@ body.theme-light .xcheck-input-card {
 .seat-baseline-row label { display:flex; align-items:center; gap:8px; }
 @media(max-width:600px){.seat-baseline-row { grid-template-columns:minmax(0,1fr) 90px 120px;gap:6px; }}
 :root .stowage-unavailable { opacity: .55; cursor: not-allowed; }
+
+.config-seat-row.config-occupant-row { grid-template-columns: minmax(0, 1fr) repeat(3, minmax(44px, 64px)); }
+.config-occupant-row > input:disabled { opacity: .35; }
+
+/* Keep narrow layouts inside the viewport without clipping their contents. */
+.grid > *, .twoCol > *, .row > *, .certify-step-header > div { min-width: 0; }
+main { overflow-anchor: none; }
+main img { max-width: 100%; height: auto; }
+input, select, textarea { min-width: 0; max-width: 100%; }
+#refHistory, #bayReferenceBlock { max-width: 100%; overflow-x: auto; }
+
+@media (max-width: 600px) {
+  header { position: static; }
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; padding: 10px 12px; }
+  .brand, #tabs { grid-column: 1 / -1; }
+  .brand .title { min-width: 0; }
+  .pill { min-width: 0; padding: 8px; flex-wrap: wrap; white-space: normal; }
+  #tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; gap: 6px; }
+  #tabs .tabbtn { white-space: normal; padding: 8px 4px; font-size: 12px; min-height: 44px; }
+  .card { padding: 12px; }
+  .certify-step-header { align-items: flex-start; gap: 10px; }
+  .mcduPre14 { min-width: 0; padding: 10px 12px; font-size: clamp(11px, 3.7vw, 15px); letter-spacing: .2px; }
+  .mcdu { height: auto; min-height: 260px; padding: 12px; }
+  .mcdu-pre, .mcduText { font-size: clamp(10px, 3.4vw, 15px); letter-spacing: .2px; }
+  .seat-baseline-row { grid-template-columns: minmax(0, 1fr); }
+  .config-rolefit-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .config-fit-section { padding: 8px; }
+  .config-seat-row.config-occupant-row { grid-template-columns: minmax(0, 1fr) repeat(3, 44px); gap: 4px; }
+  .config-fit-heading { font-size: 11px; }
+  #editorSectionHost label { overflow-wrap: anywhere; }
+  .xcheck-table, .xcheck-table tbody { display: block; }
+  .xcheck-table thead { display: none; }
+  .xcheck-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .xcheck-table td { display: flex; flex-direction: column; gap: 4px; text-align: left !important; padding: 8px; overflow-wrap: anywhere; }
+  .xcheck-table td::before { content: attr(data-label); font: 11px var(--sans); color: var(--muted); }
+  .xcheck-table .xcheck-parameter { grid-column: 1 / -1; }
+  .xcheck-table .xcheck-parameter::before { display: none; }
+}
+@media (max-height: 500px) { header { position: static; } }

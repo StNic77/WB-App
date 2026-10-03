@@ -212,8 +212,10 @@ function setTab(id){
     for(const wrap of document.querySelectorAll('[id^="envWrap"]'))wrap.style.display='';
     for(const button of document.querySelectorAll('[id^="envToggle"]'))button.textContent='Collapse';
   }
+  const changed=activeTab!==id;
   activeTab = id;
   render();
+  if(changed)window.scrollTo({top:0,left:0,behavior:'instant'});
 }
 
 function renderTabs(){
@@ -1110,24 +1112,12 @@ function applyPreset(tail, presetKey){
   for (const k of (p.seats?.crew || [])) s.seats[k] = true;
   for (const k of (p.seats?.pax  || [])) s.seats[k] = true;
   for (const [k,it] of Object.entries(AC.crewSeats)) if (it.alwaysInstalled) s.seats[k]=true;
-  // If a seat is not installed, it cannot have an occupant
-  for (const k of Object.keys(s.seats)){
-    if (!s.seats[k] && s.occupants && s.occupants[k]){
-      s.occupants[k] = null;
-    }
-  }
-
-  // Default crew (ADDITIVE): fill the config's standard crew seats without
-  // disturbing any occupants the FE has already set. Ensures each default
-  // seat is installed, then marks it occupied if not already. The FE confirms
-  // and adjusts on the Seats tab.
-  if (!s.occupants) s.occupants = {};
+  // Selecting a role replaces the occupant load with its standard crew.
+  s.occupants = Object.fromEntries(Object.keys(s.seats).map(k => [k, null]));
   for (const k of (p.occupants || [])){
     s.seats[k] = true;                      // guarantee the seat is installed
-    if (!s.occupants[k]){                   // don't overwrite an existing occupant
-      const isCrew = !!AC.crewSeats[k];
-      s.occupants[k] = { type: isCrew ? "crew" : "pax", label: "OCCUPIED" };
-    }
+    const role = p.occupantRoles?.[k];
+    s.occupants[k] = { type: (role || AC.crewSeats[k]) ? "crew" : "pax", label: role || "OCCUPIED" };
   }
 
 
@@ -1135,10 +1125,19 @@ function applyPreset(tail, presetKey){
   applyRoleFitPreset(s,p);
   invalidateAccountingCertification(s);
 
-  const extraIds=new Set(Object.values(s.occupants||{}).filter(Boolean).map(o=>o.crewId).filter(Boolean));
-  const extraLoads=Object.entries(s.missionLoads||{}).flatMap(([key,rows])=>rows.filter(r=>extraIds.has(r.crewId)).map(row=>({key,row:{...row}})));
   applyMissionPreset(s,p);
-  for(const {key,row} of extraLoads){if(!s.mission[key])s.missionLoads[key]=[];editMissionAllocations(s,key).push(row);s.mission[key]=true;}
+  let sarTechIndex=0;
+  for (const k of (p.occupants || [])){
+    const role=p.occupantRoles?.[k];
+    if(!role)continue;
+    const crewId=assignCrewOccupant(s,role,k);
+    if(!['Pilot','Flight Engineer','SAR Tech'].includes(role))continue;
+    const person=role==='Pilot'?'AIRCRAFT_COMMANDER':role==='Flight Engineer'?'FLIGHT_ENGINEER':sarTechIndex++===0?'ST_TEAM_LEAD':'ST_TEAM_MEMBER';
+    for(const [key,item] of Object.entries(AC.missionEquip)){
+      if(!key.startsWith('ME_CREW_PERSONAL_EQUIP_'+person+'_')||!s.mission[key])continue;
+      for(const allocation of editMissionAllocations(s,key))if(!allocation.crewId)allocation.crewId=crewId;
+    }
+  }
 
   // Stowage markers describe physical locations available for use, not preset load.
   // Permanent locations default available; SAR Cabinet locations follow cabinet installation.
@@ -2546,11 +2545,11 @@ function renderCertifyCrossCheck(){
 
     return `
       <tr class="${cls}">
-        <td><b>${r.label}</b></td>
-        <td class="num">${r.calc} ${r.unit}</td>
-        <td class="num">${mcduStr}</td>
-        <td class="num">${diffStr}</td>
-        <td><b>${s.word}</b></td>
+        <td class="xcheck-parameter"><b>${r.label}</b></td>
+        <td class="num" data-label="Expected (App)">${r.calc} ${r.unit}</td>
+        <td class="num" data-label="MCDU">${mcduStr}</td>
+        <td class="num" data-label="Difference">${diffStr}</td>
+        <td data-label="Status"><b>${s.word}</b></td>
       </tr>
     `;
   }).join("");
@@ -2966,7 +2965,7 @@ function drawEnvelope(canvasEl, notesEl){
     // small label
     ctx.fillStyle = C.landLbl;
     ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
-    ctx.fillText("LAND", lx + 8, ly + 4);
+    ctx.fillText("LAND", Math.min(lx + 8, W - ctx.measureText("LAND").width - 6), ly + 4);
   }
 
 
@@ -2978,7 +2977,8 @@ function drawEnvelope(canvasEl, notesEl){
   // annotate
   ctx.fillStyle = C.pointLbl;
   ctx.font = "12px " + getComputedStyle(document.body).fontFamily;
-  ctx.fillText(`${wb.auw} kg @ ${wb.auwCG} mm (${wb.cgBand})`, cx+10, cy-10);
+  const pointLabel=`${wb.auw} kg @ ${wb.auwCG} mm (${wb.cgBand})`;
+  ctx.fillText(pointLabel, Math.max(6, Math.min(cx+10, W-ctx.measureText(pointLabel).width-6)), Math.max(14,cy-10));
 
       // notes
   if (notesTarget){
@@ -3001,6 +3001,7 @@ function drawEnvelope(canvasEl, notesEl){
    ========================= */
 
 function render(){
+  const pageScrollY=window.scrollY;
   const liveSource = "Data source: " + formatReferenceDocument(currentReferenceDocument());
   const headerSource=document.getElementById("headerDataSource"); if(headerSource) headerSource.textContent=liveSource;
   const splashSource=document.getElementById("splashDataSource"); if(splashSource) splashSource.textContent=liveSource;
@@ -3029,6 +3030,7 @@ function render(){
   // Autosave the full session state after every render so the app survives
   // being swiped closed on the EFB. No-op if persist.js isn't loaded.
   if (typeof persistSession === "function") persistSession();
+  window.scrollTo({top:pageScrollY,left:0,behavior:'instant'});
 }
 
 /* =========================

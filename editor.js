@@ -23,7 +23,7 @@
 
 const EDITOR = {
   authed: false,
-  activeSection: "MISSION",
+  activeSection: "ROLEFIT",
   draft: null
 };
 
@@ -200,6 +200,11 @@ function editorRemovePresetItem(key, fields) {
    ========================= */
 
 function renderEditor() {
+  const scrollY=window.scrollY;
+  renderEditorContent();
+  window.scrollTo({top:scrollY,left:0,behavior:'instant'});
+}
+function renderEditorContent() {
   const host = document.getElementById("editorHost");
   if (!host) return;
 
@@ -311,6 +316,7 @@ function renderEditorMain(host) {
       EDITOR.activeSection = b.dataset.edsec;
       EDITOR.openPanels={};
       renderEditor();
+      window.scrollTo({top:0,left:0,behavior:'instant'});
     };
   });
 
@@ -375,19 +381,32 @@ function renderEditorConfigurations(host){
       equipment.append(section);
     }
     const fit=card.querySelector('[data-config-fit]');
-    fit.innerHTML='<section class="config-fit-section"><h3>Seats and default occupants</h3><div class="config-seat-row config-fit-heading"><span>Seat</span><span>Installed</span><span>Occupied</span></div><div data-config-seats></div></section><section class="config-fit-section"><h3>Role Fit Equipment</h3><div data-config-rolefit></div></section>';
+    fit.innerHTML='<section class="config-fit-section"><h3>Seats and default occupants</h3><div class="config-seat-row config-occupant-row config-fit-heading"><span>Seat</span><span>Installed</span><span>Occupied</span><span>Crew</span></div><div data-config-seats></div></section><section class="config-fit-section"><h3>Role Fit Equipment</h3><div data-config-rolefit></div></section>';
     const seatsHost=fit.querySelector('[data-config-seats]');
     const roleFitHost=fit.querySelector('[data-config-rolefit]');
     for(const [kind,catalogue] of [['crew',EDITOR.draft.crewSeats],['pax',EDITOR.draft.paxSeats]]){
       for(const [id,it] of Object.entries(catalogue)){
-        const label=document.createElement('div');label.className='config-seat-row small';
+        const label=document.createElement('div');label.className='config-seat-row config-occupant-row small';
         const name=document.createElement('span');name.textContent=it.name;label.append(name);
         for(const occupant of [false,true]){
           const cb=document.createElement('input');cb.type='checkbox';cb.style.width='auto';cb.checked=occupant?(p.occupants||[]).includes(id):(p.seats?.[kind]||[]).includes(id);
           cb.setAttribute('aria-label',it.name+(occupant?' occupied':' installed'));
-          cb.onchange=()=>{p.seats??={crew:[],pax:[]};const list=occupant?(p.occupants??=[]):(p.seats[kind]??=[]);const i=list.indexOf(id);if(i>=0)list.splice(i,1);if(cb.checked)list.push(id);if(occupant&&cb.checked&&!p.seats[kind].includes(id))p.seats[kind].push(id);if(!occupant&&!cb.checked)p.occupants=(p.occupants||[]).filter(x=>x!==id);editorSaveDraft();};
+          cb.onchange=()=>{p.seats??={crew:[],pax:[]};const list=occupant?(p.occupants??=[]):(p.seats[kind]??=[]);const i=list.indexOf(id);if(i>=0)list.splice(i,1);if(cb.checked)list.push(id);if(occupant&&cb.checked&&!p.seats[kind].includes(id))p.seats[kind].push(id);if(!occupant&&!cb.checked)p.occupants=(p.occupants||[]).filter(x=>x!==id);syncCrew();editorSaveDraft();};
           label.append(cb);
-        }seatsHost.append(label);
+        }
+        const crew=document.createElement('input');crew.type='checkbox';crew.style.width='auto';crew.dataset.configOccupantCrew=id;
+        crew.setAttribute('aria-label',it.name+' occupied by crew');
+        const syncCrew=()=>{
+          const occupied=(p.occupants||[]).includes(id);
+          crew.disabled=kind==='crew'||!occupied;
+          crew.checked=occupied&&(kind==='crew'||!!p.occupantRoles?.[id]);
+          crew.title=kind==='crew'?'Crew seat':occupied?'Checked: crew. Unchecked: passenger.':'Occupy the seat to choose crew.';
+          label.children[1].checked=(p.seats?.[kind]||[]).includes(id);
+          label.children[2].checked=occupied;
+        };
+        crew.onchange=()=>{p.occupantRoles??={};if(crew.checked)p.occupantRoles[id]=p.occupantRoles[id]||'Crew';else delete p.occupantRoles[id];editorSaveDraft();};
+        syncCrew();label.append(crew);
+        seatsHost.append(label);
       }
     }
     for(const [id,it] of Object.entries(EDITOR.draft.roleFit)){

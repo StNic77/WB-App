@@ -1,6 +1,9 @@
 /* Mission catalogue and sortie allocations. No aircraft-baseline accounting here. */
 const MISSION_SCHEMA = 2;
 const MISSION_GROUPS = ['AIRCRAFT ALSE EQUIP','SAR MEDICAL EQUIP','SAR MISSION EQUIP','CREW PERSONAL EQUIP','CREW COMFORT EQUIP','SERVICING EQUIP'];
+function sortSelectedFirst(items,isSelected,displayName=item=>item?.name??''){
+  return [...items].sort((a,b)=>Number(!!isSelected(b))-Number(!!isSelected(a))||String(displayName(a)||'').localeCompare(String(displayName(b)||''),undefined,{sensitivity:'base',numeric:true}));
+}
 function missionGroupNames(data=AC){
   return [...new Set([...MISSION_GROUPS,...Object.values(data.missionEquip||{}).map(it=>it.group).filter(g=>typeof g==='string'&&g.trim()&&g!=='Stowage')])];
 }
@@ -26,6 +29,19 @@ function missionConfigurationIssues(data){
     for(const f of ['minQuantity','maxQuantity']) if(it[f]!=null&&(!Number.isInteger(it[f])||it[f]<0))issues.push(key+': '+f+' must be a nonnegative whole number.');
     if(it.defaultQuantity<(it.minQuantity??0)||it.defaultQuantity>(it.maxQuantity??Infinity)||(it.minQuantity??0)>(it.maxQuantity??Infinity))issues.push(key+': quantity limits conflict with the default.');
     if(it.stow==='CUSTOM' ? !Number.isFinite(it.customArm) : it.stow==='BASKET' ? !it.followBasket : !missionLocations(data)[it.stow])issues.push(key+': select a valid default location or arm.');
+    if(it.defaultAllocations!=null){
+      if(!Array.isArray(it.defaultAllocations)||!it.defaultAllocations.length)issues.push(key+': default allocations must contain at least one location.');
+      else{
+        let allocationTotal=0;
+        for(const allocation of it.defaultAllocations){
+          if(!allocation||typeof allocation!=='object'){issues.push(key+': default allocation entries must be objects.');continue;}
+          if(!Number.isInteger(allocation.quantity)||allocation.quantity<0)issues.push(key+': default allocation quantities must be nonnegative whole numbers.');
+          else allocationTotal+=allocation.quantity;
+          if(allocation.stow==='CUSTOM'?!Number.isFinite(allocation.customArm):allocation.stow==='BASKET'?!it.followBasket:!missionLocations(data)[allocation.stow])issues.push(key+': choose a valid default allocation location.');
+        }
+        if(allocationTotal!==it.defaultQuantity)issues.push(key+': default allocation quantities must add up to the default quantity.');
+      }
+    }
     if(it.isBasket && (it.stow==='BASKET'||it.stow==='CARRIER:'+key))issues.push(key+': select a location outside this item.');
   }
   for(const [key,p] of Object.entries(data.presets||{})){
@@ -69,7 +85,12 @@ function loadEquipmentOverrides(){
       ov.baseConfigVersion=AC.meta.configVersion;
       localStorage.setItem('ac_config_overrides',JSON.stringify(ov));
     }
-    for(const field of ['missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets'])if(ov[field])AC[field]=ov[field];
+    for(const field of ['missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets'])if(ov[field]){
+      const shipped=AC[field];AC[field]=ov[field];
+      if(field==='missionEquip')for(const [key,item] of Object.entries(AC.missionEquip)){
+        if(!Object.prototype.hasOwnProperty.call(item,'defaultAllocations')&&Array.isArray(shipped[key]?.defaultAllocations))item.defaultAllocations=JSON.parse(JSON.stringify(shipped[key].defaultAllocations));
+      }
+    }
     if(ov.referenceDocuments)AC.meta.referenceDocuments=ov.referenceDocuments;
   }catch(e){missionConfigNotice='Device configuration could not be restored. Original settings are preserved. '+e.message;}
 }
@@ -89,9 +110,14 @@ function missionDefaultAllocation(key){
   const it=AC.missionEquip[key];
   return {id:'base',quantity:it.defaultQuantity??1,stow:it.stow,customArm:it.customArm??null,basketRef:null};
 }
+function missionDefaultAllocations(key){
+  const it=AC.missionEquip[key];
+  if(!Array.isArray(it.defaultAllocations)||!it.defaultAllocations.length)return [missionDefaultAllocation(key)];
+  return it.defaultAllocations.map((allocation,index)=>({id:'base'+index,quantity:allocation.quantity,stow:allocation.stow,customArm:allocation.customArm??null,basketRef:null}));
+}
 function missionAllocations(s,key){
   const rows=s.missionLoads?.[key];
-  return rows===undefined?[missionDefaultAllocation(key)]:rows;
+  return rows===undefined?missionDefaultAllocations(key):rows;
 }
 function editMissionAllocations(s,key){
   s.missionLoads??={};
@@ -100,6 +126,14 @@ function editMissionAllocations(s,key){
 function missionBaskets(s){
   return Object.entries(AC.missionEquip).filter(([key,it])=>s.mission?.[key]&&it.isBasket&&it.active!==false)
     .flatMap(([key,it])=>missionAllocations(s,key).filter(r=>r.quantity>0).map(r=>({key,id:r.id,label:it.name+' · '+(missionLocations()[r.stow]?.name||r.stow)})));
+}
+function missionDefaultBasket(s,baskets=missionBaskets(s)){
+  const preset=AC.presets?.[s.preset];
+  const excluded=preset?.missionOff||[];
+  const defaults=(preset?.missionOn||[]).filter(key=>!excluded.includes(key)&&AC.missionEquip[key]?.isBasket&&s.mission?.[key]);
+  if(defaults.length!==1)return null;
+  const matches=baskets.filter(b=>b.key===defaults[0]);
+  return matches.length===1?matches[0]:null;
 }
 function resolveMissionLocation(s,row,seen=new Set()){
   if(row.stow?.startsWith('CARRIER:')){
@@ -111,7 +145,7 @@ function resolveMissionLocation(s,row,seen=new Set()){
   }
   if(row.stow==='BASKET'){
     const baskets=missionBaskets(s), link=row.basketRef;
-    const basket=link?baskets.find(b=>b.key===link.key&&b.id===link.id):baskets.length===1?baskets[0]:null;
+    const basket=link?baskets.find(b=>b.key===link.key&&b.id===link.id):baskets.length===1?baskets[0]:missionDefaultBasket(s,baskets);
     if(!basket)return {arm:null,stowId:'BASKET',stow:'Select carrying basket or location',error:'select the carrying basket or a separate stowage location'};
     const token=basket.key+':'+basket.id;
     if(seen.has(token))return {arm:null,stow:'Invalid basket link',error:'basket location cycle'};

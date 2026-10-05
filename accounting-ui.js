@@ -11,7 +11,7 @@ function renderAccountingWarnings(s){
 function renderRoleFitDeclarations(s){
   const box=document.getElementById('roleFitList');box.replaceChildren();
   document.getElementById('roleFitBasisMessage').textContent='Basic Weight is the starting weight entered or selected on the Accept page. Equipment adjustments are applied to that starting weight to calculate the aircraft’s operating weight.';
-  const rows=roleFitAccountingRows(s).sort((a,b)=>Number(roleFitExpectation(s,b.key).installed)-Number(roleFitExpectation(s,a.key).installed)||a.name.localeCompare(b.name));
+  const rows=sortSelectedFirst(roleFitAccountingRows(s),item=>item.current,item=>item.name);
   for(const item of rows){
     const normallyInstalled=roleFitExpectation(s,item.key).installed;
 

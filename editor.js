@@ -351,7 +351,7 @@ function renderEditorConfigurations(host){
     const key=newKey(name);if(!key||presets[key]){alert('Enter a unique configuration name.');return;}
     presets[key]={name,notes:'',active:true,seats:{crew:[],pax:[]},occupants:[],roleFitOn:[],roleFitOff:[],missionOn:[],missionOff:[]};refresh();
   };
-  for(const [key,p] of Object.entries(presets)){
+  for(const [key,p] of sortSelectedFirst(Object.entries(presets),([key])=>Object.values(STORE.sessions||{}).some(s=>s.preset===key),([,p])=>p.name)){
     const card=document.createElement('details');card.className='card';card.dataset.configurationKey=key;
     card.innerHTML=`<summary><b>${escHtml(p.name)}</b>${p.active===false?' · Retired':''}</summary>
       <div class="row" style="margin-top:10px"><label style="flex:1">Name<input data-config-field="name" value="${escHtml(p.name)}"></label><label style="flex:2">Description<input data-config-field="notes" value="${escHtml(p.notes||'')}"></label></div>
@@ -371,8 +371,8 @@ function renderEditorConfigurations(host){
     const equipment=card.querySelector('[data-config-equipment]');
     for(const group of missionGroupNames(EDITOR.draft)){
       const section=document.createElement('details');section.innerHTML='<summary>'+escHtml(group)+'</summary>';
-      for(const [id,it] of Object.entries(EDITOR.draft.missionEquip)){
-        if(it.group!==group)continue;
+      const equipmentRows=sortSelectedFirst(Object.entries(EDITOR.draft.missionEquip).filter(([,it])=>it.group===group),([id])=>(p.missionOn||[]).includes(id)||!!EDITOR.draft.missionEquip[id].alwaysInclude,([,it])=>it.name);
+      for(const [id,it] of equipmentRows){
         const label=document.createElement('label');label.className='small';label.style.cssText='display:block;margin:8px 0';
         const check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.checked=(p.missionOn||[]).includes(id)||!!it.alwaysInclude;check.disabled=!!it.alwaysInclude||(it.active===false&&!check.checked);
         check.onchange=()=>{p.missionOn=(p.missionOn||[]).filter(k=>k!==id);p.missionOff=(p.missionOff||[]).filter(k=>k!==id);if(check.checked)p.missionOn.push(id);editorSaveDraft();};
@@ -409,7 +409,8 @@ function renderEditorConfigurations(host){
         seatsHost.append(label);
       }
     }
-    for(const [id,it] of Object.entries(EDITOR.draft.roleFit)){
+    const roleFitRows=sortSelectedFirst(Object.entries(EDITOR.draft.roleFit),([id])=>(p.roleFitOn||[]).includes(id)||(!(p.roleFitOff||[]).includes(id)&&!!EDITOR.draft.roleFit[id].normally),([,it])=>it.name);
+    for(const [id,it] of roleFitRows){
       const label=document.createElement('label');label.className='config-rolefit-row small';
       const name=document.createElement('span');name.textContent=it.name;label.append(name);
       const select=document.createElement('select');select.innerHTML=`<option value="">Aircraft Default — ${it.normally?'Installed':'Not Installed'}</option><option value="on">Installed</option><option value="off">Removed</option>`;select.value=(p.roleFitOn||[]).includes(id)?'on':(p.roleFitOff||[]).includes(id)?'off':'';
@@ -472,6 +473,28 @@ function renderEditorSeatBaseline(host){
    MISSION EQUIPMENT EDITOR
    ========================= */
 
+function editorAdjustDefaultAllocationTotal(item,total){
+  if(!Array.isArray(item.defaultAllocations)||!item.defaultAllocations.length)return;
+  let delta=total-item.defaultAllocations.reduce((sum,row)=>sum+row.quantity,0);
+  if(delta>0)item.defaultAllocations[0].quantity+=delta;
+  else if(delta<0){
+    let remaining=-delta;
+    for(const row of item.defaultAllocations){
+      const take=Math.min(row.quantity,remaining);row.quantity-=take;remaining-=take;
+      if(!remaining)break;
+    }
+  }
+}
+function editorRefreshDefaultAllocationFields(list,key,item){
+  list.querySelectorAll(`[data-default-allocation-quantity="${key}"]`).forEach(input=>{
+    const index=Number(input.dataset.index);if(item.defaultAllocations[index])input.value=item.defaultAllocations[index].quantity;
+  });
+  const totalInput=list.querySelector(`[data-k="${key}"][data-f="defaultQuantity"]`);
+  if(totalInput)totalInput.value=item.defaultQuantity;
+  const total=list.querySelector(`[data-default-total="${key}"]`);
+  if(total)total.textContent=`Default load: ${item.defaultQuantity} × ${item.unitWeight} = ${fmtDecimal(item.defaultQuantity*item.unitWeight)} kg`;
+}
+
 function renderEditorMission(host) {
   const items   = EDITOR.draft.missionEquip;
   const stowage = missionLocations(EDITOR.draft);
@@ -482,7 +505,7 @@ function renderEditorMission(host) {
   // purely an editor-view split.
   const keys = Object.keys(items)
     .filter(k => (items[k].group || "") !== "Stowage")
-    .sort((a,b)=>MISSION_GROUPS.indexOf(items[a].group)-MISSION_GROUPS.indexOf(items[b].group)||a.localeCompare(b));
+    .sort((a,b)=>MISSION_GROUPS.indexOf(items[a].group)-MISSION_GROUPS.indexOf(items[b].group)||String(items[a].group).localeCompare(String(items[b].group),undefined,{sensitivity:'base'})||items[a].name.localeCompare(items[b].name,undefined,{sensitivity:'base',numeric:true}));
 
   // Build stowage dropdown options grouped by stowage group
   const stowByGroup = {};
@@ -503,6 +526,17 @@ function renderEditorMission(host) {
         out += `<option value="${s.id}" ${sel}>${s.name} (${s.arm} mm)</option>`;
       }
       out += "</optgroup>";
+    }
+    return out;
+  };
+  const allocationOptionsHtml = (selectedId) => {
+    let out='';
+    for(const g of Object.keys(stowByGroup).sort()){
+      const locations=stowByGroup[g].filter(location=>!location.id.startsWith('CARRIER:')).sort((a,b)=>a.name.localeCompare(b.name));
+      if(!locations.length)continue;
+      out+=`<optgroup label="${g}">`;
+      for(const location of locations)out+=`<option value="${location.id}" ${location.id===selectedId?'selected':''}>${location.name} (${location.arm} mm)</option>`;
+      out+='</optgroup>';
     }
     return out;
   };
@@ -581,6 +615,15 @@ function renderEditorMission(host) {
         <label>Minimum<input style="width:90px" type="number" min="0" step="1" data-k="${k}" data-f="minQuantity" value="${it.minQuantity??''}"></label>
         <label>Maximum<input style="width:130px" type="number" min="0" step="1" data-k="${k}" data-f="maxQuantity" value="${it.maxQuantity??''}" placeholder="No maximum" title="No maximum when left blank"></label>
       </div>
+      ${Array.isArray(it.defaultAllocations)?`<div class="card" style="margin-top:10px;box-shadow:none" data-default-allocation-group="${k}">
+        <b>Default quantity by location</b><p class="small muted">The location quantities must add up to the default quantity above.</p>
+        <div data-default-allocation-rows="${k}">${it.defaultAllocations.map((allocation,index)=>`<div class="row" style="align-items:flex-end;margin:8px 0;gap:8px">
+          <label style="flex:1 1 260px">Location<select data-default-allocation-location="${k}" data-index="${index}">${allocationOptionsHtml(allocation.stow)}</select></label>
+          <label style="flex:0 0 110px">Quantity<input type="number" min="0" step="1" value="${allocation.quantity}" data-default-allocation-quantity="${k}" data-index="${index}"></label>
+          <button type="button" class="btn small" data-default-allocation-remove="${k}" data-index="${index}" ${it.defaultAllocations.length<=1?'disabled':''}>Remove</button>
+        </div>`).join('')}</div>
+        <button type="button" class="btn small" data-default-allocation-add="${k}">Add location</button>
+      </div>`:''}
         <span class="small mono" data-default-total="${k}">Default load: ${it.defaultQuantity} × ${it.unitWeight} = ${fmtDecimal(it.defaultQuantity*it.unitWeight)} kg</span>
       <h3>Mission Options</h3><div class="editor-mission-options">
         <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="missionQuantityEditable" ${it.missionQuantityEditable?'checked':''}> Show quantity buttons in Mission Equipment<small>Show quick −/+ buttons during a mission. Extras can still be added through the item’s adjustment controls when unchecked.</small></label>
@@ -613,6 +656,7 @@ function renderEditorMission(host) {
       if(el.type === "checkbox") item[f]=el.checked;
       else if (["defaultQuantity","minQuantity","maxQuantity"].includes(f)) {
         if(el.value===""&&f!=="defaultQuantity")delete item[f];else item[f]=el.valueAsNumber;
+        if(f==="defaultQuantity"&&Array.isArray(item.defaultAllocations))editorAdjustDefaultAllocationTotal(item,item.defaultQuantity);
       } else if (f === "unitWeight") {
         item.unitWeight = el.valueAsNumber;
       } else if (f === "customArm") {
@@ -627,10 +671,36 @@ function renderEditorMission(host) {
         item[f] = el.value;
       }
       if(!editorSaveDraft()){EDITOR.draft.missionEquip[k]=before;renderEditor();}
-      else if(['isBasket','alwaysInclude','group'].includes(f)){if(f==='group'){EDITOR.openPanels??={};EDITOR.openPanels['group:'+item.group]=true;EDITOR.openPanels['item:'+k]=true;}renderEditor();}
+      else if(['isBasket','alwaysInclude','group','name'].includes(f)){if(f==='group'){EDITOR.openPanels??={};EDITOR.openPanels['group:'+item.group]=true;EDITOR.openPanels['item:'+k]=true;}renderEditor();}
+      else if(f==="defaultQuantity"&&Array.isArray(item.defaultAllocations))editorRefreshDefaultAllocationFields(list,k,item);
       else {const total=list.querySelector(`[data-default-total="${k}"]`);if(total)total.textContent=`Default load: ${item.defaultQuantity} × ${item.unitWeight} = ${fmtDecimal(item.defaultQuantity*item.unitWeight)} kg`;}
     });
   });
+
+  list.querySelectorAll("[data-default-allocation-location]").forEach(el=>el.addEventListener("change",()=>{
+    const k=el.dataset.defaultAllocationLocation,index=Number(el.dataset.index),item=EDITOR.draft.missionEquip[k];if(!item?.defaultAllocations?.[index])return;
+    const before=JSON.parse(JSON.stringify(item));item.defaultAllocations[index].stow=el.value;
+    if(!editorSaveDraft()){EDITOR.draft.missionEquip[k]=before;renderEditor();}
+  }));
+  list.querySelectorAll("[data-default-allocation-quantity]").forEach(el=>el.addEventListener("change",()=>{
+    const k=el.dataset.defaultAllocationQuantity,index=Number(el.dataset.index),item=EDITOR.draft.missionEquip[k];if(!item?.defaultAllocations?.[index])return;
+    if(!Number.isInteger(el.valueAsNumber)||el.valueAsNumber<0){el.reportValidity();return;}
+    const before=JSON.parse(JSON.stringify(item));item.defaultAllocations[index].quantity=el.valueAsNumber;
+    item.defaultQuantity=item.defaultAllocations.reduce((sum,row)=>sum+row.quantity,0);
+    if(!editorSaveDraft()){EDITOR.draft.missionEquip[k]=before;renderEditor();}
+    else editorRefreshDefaultAllocationFields(list,k,item);
+  }));
+  list.querySelectorAll("[data-default-allocation-add]").forEach(btn=>btn.addEventListener("click",()=>{
+    const k=btn.dataset.defaultAllocationAdd,item=EDITOR.draft.missionEquip[k];if(!item?.defaultAllocations)return;
+    const before=JSON.parse(JSON.stringify(item));item.defaultAllocations.push({quantity:0,stow:item.stow});
+    if(!editorSaveDraft()){EDITOR.draft.missionEquip[k]=before;renderEditor();}else renderEditor();
+  }));
+  list.querySelectorAll("[data-default-allocation-remove]").forEach(btn=>btn.addEventListener("click",()=>{
+    const k=btn.dataset.defaultAllocationRemove,index=Number(btn.dataset.index),item=EDITOR.draft.missionEquip[k];if(!item?.defaultAllocations||item.defaultAllocations.length<=1)return;
+    const before=JSON.parse(JSON.stringify(item));item.defaultAllocations.splice(index,1);
+    item.defaultQuantity=item.defaultAllocations.reduce((sum,row)=>sum+row.quantity,0);
+    if(!editorSaveDraft()){EDITOR.draft.missionEquip[k]=before;renderEditor();}else renderEditor();
+  }));
 
   // Preset membership checkboxes — add/remove item key from preset's missionOn.
   list.querySelectorAll("[data-preset]").forEach(el => {
@@ -781,7 +851,7 @@ function renderEditorStowage(host){
 
 function renderEditorRoleFit(host) {
   const roleFit = EDITOR.draft.roleFit;
-  const keys    = Object.keys(roleFit).sort();
+  const keys    = sortSelectedFirst(Object.keys(roleFit),key=>!!roleFit[key].normally,key=>roleFit[key].name);
 
   host.innerHTML = `
     <div class="small muted" style="margin-bottom:10px;">
@@ -872,7 +942,7 @@ function renderEditorRoleFit(host) {
       if (f === "w")        it.w = parseFloat(el.value) || 0;
       else if (f === "arm") it.arm = parseInt(el.value, 10) || 0;
       else                  it[f] = el.value;
-      editorSaveDraft();
+      editorSaveDraft();if(f==='name')renderEditor();
     });
   });
 

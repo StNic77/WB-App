@@ -1238,6 +1238,10 @@ const AC_MISSION_EQUIP = {
     "missionQuantityEditable": true,
     "minQuantity": 0,
     "stow": "LOCKBOX_TOP",
+    "defaultAllocations": [
+      { "quantity": 4, "stow": "LOCKBOX_TOP" },
+      { "quantity": 1, "stow": "LOCKBOX_BTM" }
+    ],
     "group": "SAR MISSION EQUIP",
     "active": true
   },

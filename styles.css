@@ -415,6 +415,22 @@ margin: 0 auto;
       font-size: 13px;
       color: var(--muted);
     }
+    .card.mission-pair-warning{
+      background: color-mix(in srgb, var(--warn) 12%, var(--panel));
+      border: 2px solid color-mix(in srgb, var(--warn) 72%, transparent);
+      border-left: 7px solid var(--warn);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 18%, transparent), var(--shadow);
+    }
+    .mission-pair-warning-note{
+      margin-top:10px;
+      padding:11px 13px;
+      border-radius:9px;
+      background: color-mix(in srgb, var(--warn) 18%, var(--panel));
+      color: var(--warn);
+      font-size:14px;
+      font-weight:800;
+      line-height:1.45;
+    }
     .offline-readiness{
       width:100%;
       padding:10px;
@@ -648,6 +664,12 @@ body.theme-light details.card {
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+body.theme-light .card.mission-pair-warning {
+  background: color-mix(in srgb, var(--warn) 12%, var(--panel));
+  border: 2px solid color-mix(in srgb, var(--warn) 72%, transparent);
+  border-left: 7px solid var(--warn);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 18%, transparent), var(--shadow);
 }
 
 body.theme-light input,

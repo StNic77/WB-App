@@ -228,6 +228,22 @@ class PDFContext {
     this.y += 5.5;
   }
 
+  summaryMetricPair(leftLabel,leftValue,rightLabel,rightValue,highlight=null){
+    const x=this.marginL,w=this.contentW,h=16,gap=8,colW=(w-gap)/2;
+    this.checkPageBreak(h+2);
+    this.doc.setFillColor(235,238,248);
+    this.doc.setDrawColor(...this.C_LIGHT);
+    this.doc.setLineWidth(0.2);
+    this.doc.roundedRect(x,this.y,w,h,1.5,1.5,'FD');
+    const metrics=[[leftLabel,leftValue,x+4],[rightLabel,rightValue,x+colW+gap+4]];
+    for(const [label,value,mx] of metrics){
+      this.setFont('bold',8.5);this.setColor(...this.C_MED);this.text(label,mx,this.y+5);
+      this.setFont('bold',12);if(highlight==='good')this.setColor(...this.C_GOOD);else if(highlight==='warn')this.setColor(...this.C_WARN);else if(highlight==='bad')this.setColor(...this.C_BAD);else this.setColor(...this.C_DARK);
+      this.text(String(value??'—'),mx,this.y+11.5);
+    }
+    this.setColor(0,0,0);this.y+=h+4;
+  }
+
   // Table: headers + rows with word-wrapping cells
   // Row height grows to fit the tallest wrapped cell in that row.
   table(headers, rows, colWidths, highlightedRows = new Set()) {
@@ -797,14 +813,13 @@ class PDFContext {
     this.kvRow("Occupants", `${signed(seatTotals.occupantW)}${occupantCG == null ? "" : ` @ ${occupantCG} mm`} (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"}, ${computePatientTotals(s).count} patients)`);
     this.spacer(1);
     if(wb.zonesTotal)this.kvRow("Additional Stowage Load",signed(wb.zonesTotal));
-    this.kvRow("Operating Weight & CG", `${wb.opW} kg @ ${wb.opCG} mm`);
-    this.spacer(1);
+    this.summaryMetricPair("Operating Weight",`${wb.opW} kg`,"CG",`${wb.opCG} mm`);
     // Tactical payload — layered on top of OW (not part of Operating Weight).
     this.kvRow("Bay Loads",            `${wb.bayTotal ?? 0} kg`);
     this.kvRow("Cargo",                `${wb.cargoTotal ?? 0} kg`);
     this.kvRow("Fuel (departure)",     `${wb.fuelTotal} kg`);
     this.spacer(1);
-    this.kvRow("All-Up Weight & CG",   `${wb.auw} kg @ ${wb.auwCG} mm`, auwHl);
+    this.summaryMetricPair("AUW",`${wb.auw} kg`,"CG",`${wb.auwCG} mm`,auwHl);
     this.kvRow("CG Band",              wb.cgBand);
     this.spacer(1);
     this.kvRow("CG Hard Limits",       cgStatus,         cgHl);
@@ -846,8 +861,7 @@ class PDFContext {
         this.text("Landing Condition:", this.marginL, this.y);
         this.y += 5;
         this.kvRow("Fuel at landing",   `${land.fuel} kg`);
-        this.kvRow("Landing AUW",       `${land.w} kg`);
-        this.kvRow("Landing CG",        `${land.cg} mm`);
+        this.summaryMetricPair("Landing Weight",`${land.w} kg`,"CG",`${land.cg} mm`);
         this.kvRow("Landing Envelope",
                    landOk ? "WITHIN" : "OUT",
                    landOk ? "good" : "bad");

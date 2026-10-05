@@ -1,8 +1,8 @@
 // CH-149-615 W&B App — verified offline release and recovery service worker
 const RELEASE = Object.freeze({
-  appVersion: '0.2.15-dev',
+  appVersion: '0.2.16-dev',
   configVersion: 20,
-  releaseId: 'v0.2.15-dev-c20-r1'
+  releaseId: 'v0.2.16-dev-c20-r1'
 });
 const CACHE_PREFIX = 'wb615-release-';
 const CACHE_NAME = CACHE_PREFIX + RELEASE.releaseId;

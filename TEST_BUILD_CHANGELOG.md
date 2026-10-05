@@ -1,5 +1,9 @@
 # CH-149-615 W&B Release History
 
+## v0.2.16-dev / Config v20 — 2026-10-05 22:54:58 UTC
+- PDF Weight and Balance Summary now groups Operating Weight/CG, AUW/CG, and Landing Weight/CG with bold labels, larger values, and increased spacing around the metric panels.
+- Configuration data remains at v20; no aircraft data changed in this update.
+
 ## v0.2.15-dev / Config v20 — 2026-10-05 22:40:20 UTC
 - Mission Equipment equipment groups use selected-first alphabetical ordering; SAR Rifle and SAR Shotgun are grouped, with an amber warning when both are selected.
 - Adds the default NVG set distribution of four on the upper lockbox shelf and one on the lower shelf, with Editor controls for per-shelf quantities.

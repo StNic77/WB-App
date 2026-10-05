@@ -1,10 +1,16 @@
 # CH-149-615 W&B Release History
 
+## v0.2.15-dev / Config v20 — 2026-10-05 22:40:20 UTC
+- Mission Equipment equipment groups use selected-first alphabetical ordering; SAR Rifle and SAR Shotgun are grouped, with an amber warning when both are selected.
+- Adds the default NVG set distribution of four on the upper lockbox shelf and one on the lower shelf, with Editor controls for per-shelf quantities.
+- Compatible v19 Editor overrides are backed up and migrated while the new shipped NVG shelf defaults are added.
+- App, configuration, on-screen, PDF and offline-release version identifiers are synchronized.
+- For future releases: increment the software version for code changes and the configuration version for aircraft data changes; update the UTC configuration release timestamp and newest changelog entry, then synchronize the offline release manifest.
+
 ## v0.2.14-dev / Config v19 — 2026-10-03 06:16:33 UTC
 - Release metadata synchronized across the app, configuration and offline package.
 - Includes crew in passenger seats, role occupant resets, responsive tabs and scrolling, UTC release display, CASEVAC patients and four independently installed stretcher racks.
 - Compatible v18 Editor overrides are backed up and migrated, preserving custom roles and edits.
-- For future releases: increment the software version for code changes and the configuration version for aircraft data changes; update the UTC configuration release timestamp and newest changelog entry, then synchronize the offline release manifest.
 
 ## v0.2.10 / Config v12
 - Added offline preparation, update activation, reversionary operation, and return-to-latest instructions to the opening version screen.

@@ -70,17 +70,20 @@ function loadEquipmentOverrides(){
       missionConfigNotice='Previous equipment settings were backed up. The revised mission catalogue and configurations are loaded; review them before use.';
       return;
     }
-    // v19 formalizes the compatible v18 development data; preserve saved Editor edits.
+    // v19 formalizes compatible v18 data, and v20 adds default per-location loads;
+    // preserve saved Editor edits for both additive updates.
     const migrateV18 = ov.baseConfigVersion===18 && AC.meta.configVersion===19;
+    const migrateV19 = ov.baseConfigVersion===19 && AC.meta.configVersion===20;
+    const migrateCompatible = migrateV18 || migrateV19;
     // Other old complete catalogues must not mask incompatible shipped updates.
-    if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateV18){
+    if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
       return;
     }
     const candidate={...AC,...ov};
     const issues=missionConfigurationIssues(candidate);
     if(issues.length){missionConfigNotice='Device configuration could not be loaded: '+issues.join(' ');return;}
-    if(migrateV18){
+    if(migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
       ov.baseConfigVersion=AC.meta.configVersion;
       localStorage.setItem('ac_config_overrides',JSON.stringify(ov));

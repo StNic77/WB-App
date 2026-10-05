@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Updated from Custodian Editor data on 2026-10-03T06:16:33.000Z
- * Config data version: 19
+ * Updated from Custodian Editor data on 2026-10-05T22:40:20.000Z
+ * Config data version: 20
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 19,
-  "configReleasedAt": "2026-10-03T06:16:33.000Z",
+  "configVersion": 20,
+  "configReleasedAt": "2026-10-05T22:40:20.000Z",
   "changelog": [
+    {
+      "version": 20,
+      "at": "2026-10-05T22:40:20.000Z",
+      "note": "Adds default NVG set distribution across the upper and lower lockbox shelves."
+    },
     {
       "version": 19,
       "at": "2026-10-03T06:16:33.000Z",

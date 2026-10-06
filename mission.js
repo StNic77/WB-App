@@ -29,6 +29,19 @@ function missionLocations(data=AC){
 
 function missionConfigurationIssues(data){
   const issues=[];
+  if(data.tails){
+    const seenTails=new Set();
+    for(const listName of ['active','placeholders']){
+      if(!Array.isArray(data.tails[listName])){issues.push('Aircraft tail '+listName+' list must be an array.');continue;}
+      for(const tail of data.tails[listName]){
+        const normalized=String(tail??'').trim().toUpperCase();
+        if(!normalized)issues.push('Tail numbers cannot be blank.');
+        else if(seenTails.has(normalized))issues.push('Tail number '+normalized+' is duplicated.');
+        else seenTails.add(normalized);
+      }
+    }
+  }
+  if(data.appOptions&&typeof data.appOptions.allowRfmBasicWeight!=='boolean')issues.push('RFM Basic Weight availability must be enabled or disabled.');
   for(const [id,loc] of Object.entries(data.stowage||{}))if(loc.roleFitKey&&!data.roleFit?.[loc.roleFitKey])issues.push(id+': linked Role Fit item is missing.');
   for(const [key,it] of Object.entries(data.missionEquip||{})){
     if(it.group==='Stowage') continue;
@@ -54,6 +67,13 @@ function missionConfigurationIssues(data){
     }
     if(it.isBasket && (it.stow==='BASKET'||it.stow==='CARRIER:'+key))issues.push(key+': select a location outside this item.');
   }
+  const placement=data.crewEquipmentPlacement;
+  if(placement){
+    for(const key of [...(placement.seatAssociatedItems||[]),...(placement.pilotFlightEngineerB25||[]),...(placement.sarTechB25||[])])if(!data.missionEquip?.[key])issues.push('Crew equipment placement references missing equipment '+key+'.');
+    for(const id of placement.pilotFlightEngineerB25Priority||[])if(!missionLocations(data)[id])issues.push('Crew equipment placement references missing stowage '+id+'.');
+    if(new Set(placement.pilotFlightEngineerB25Priority||[]).size!==(placement.pilotFlightEngineerB25Priority||[]).length)issues.push('Pilot / Flight Engineer B25 priority locations must be different.');
+    if(placement.sarTechB25Preferred&&!missionLocations(data)[placement.sarTechB25Preferred])issues.push('Crew equipment placement references missing stowage '+placement.sarTechB25Preferred+'.');
+  }
   const presetDisplayOrders=new Set();
   for(const [key,p] of Object.entries(data.presets||{})){
     if(!String(p.name||'').trim()) issues.push(key+': configuration needs a name.');
@@ -65,6 +85,16 @@ function missionConfigurationIssues(data){
     for(const id of [...(p.missionOn||[]),...(p.missionOff||[])])if(!data.missionEquip[id])issues.push(key+': missing equipment '+id);
     for(const id of [...(p.roleFitOn||[]),...(p.roleFitOff||[])])if(!data.roleFit[id])issues.push(key+': missing role fit '+id);
     for(const id of [...(p.seats?.crew||[]),...(p.seats?.pax||[]),...(p.occupants||[])])if(!data.crewSeats[id]&&!data.paxSeats[id])issues.push(key+': missing seat '+id);
+  }
+  for(const [tail,configuration] of Object.entries(data.tailConfigurations||{})){
+    if(![...(data.tails?.active||[]),...(data.tails?.placeholders||[])].includes(tail))issues.push('Tail configuration references unknown aircraft '+tail+'.');
+    if(!configuration||typeof configuration!=='object')issues.push(tail+': tail configuration must be an object.');
+    else{
+      const tailIssues=missionConfigurationIssues({...data,...configuration,tailConfigurations:{}});
+      for(const issue of tailIssues)issues.push(tail+': '+issue);
+      if(!Array.isArray(configuration.tailOnlyPresetKeys))issues.push(tail+': tail-only configurations must be a list.');
+      else for(const key of configuration.tailOnlyPresetKeys)if(!configuration.presets?.[key])issues.push(tail+': tail-only configuration '+key+' is missing.');
+    }
   }
   return issues;
 }
@@ -91,7 +121,8 @@ function loadEquipmentOverrides(){
     const migrateV18 = ov.baseConfigVersion===18 && AC.meta.configVersion>=19 && AC.meta.configVersion<=21;
     const migrateV19 = ov.baseConfigVersion===19 && AC.meta.configVersion>=20 && AC.meta.configVersion<=21;
     const migrateV20 = ov.baseConfigVersion===20 && AC.meta.configVersion===21;
-    const migrateCompatible = migrateV18 || migrateV19 || migrateV20;
+    const migrateV22 = ov.baseConfigVersion===22 && AC.meta.configVersion===23;
+    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22;
     // Other old complete catalogues must not mask incompatible shipped updates.
     if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
@@ -105,7 +136,7 @@ function loadEquipmentOverrides(){
       ov.baseConfigVersion=AC.meta.configVersion;
       localStorage.setItem('ac_config_overrides',JSON.stringify(ov));
     }
-    for(const field of ['missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets'])if(ov[field]){
+    for(const field of ['tails','appOptions','missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets','crewEquipmentPlacement','tailConfigurations'])if(ov[field]){
       const shipped=AC[field];AC[field]=ov[field];
       if(field==='missionEquip')for(const [key,item] of Object.entries(AC.missionEquip)){
         if(!Object.prototype.hasOwnProperty.call(item,'defaultAllocations')&&Array.isArray(shipped[key]?.defaultAllocations))item.defaultAllocations=JSON.parse(JSON.stringify(shipped[key].defaultAllocations));
@@ -128,8 +159,30 @@ for (const [key,preset] of Object.entries(AC.presets)){
   }
 }
 
+const TAIL_CONFIGURATION_FIELDS=['missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets','crewEquipmentPlacement'];
+function cloneConfigurationData(data){return JSON.parse(JSON.stringify(data));}
+function currentConfigurationData(){
+  const data={};
+  for(const field of TAIL_CONFIGURATION_FIELDS)data[field]=AC[field];
+  data.referenceDocuments=AC.meta.referenceDocuments||{currentId:null,history:[]};
+  return cloneConfigurationData(data);
+}
+let AC_FLEET_CONFIGURATION=currentConfigurationData();
+function activateTailConfiguration(tail){
+  for(const field of TAIL_CONFIGURATION_FIELDS)AC[field]=AC_FLEET_CONFIGURATION[field];
+  AC.meta.referenceDocuments=AC_FLEET_CONFIGURATION.referenceDocuments;
+  const configuration=AC.tailConfigurations?.[tail];
+  if(configuration){
+    for(const field of TAIL_CONFIGURATION_FIELDS)if(configuration[field])AC[field]=configuration[field];
+    if(configuration.referenceDocuments)AC.meta.referenceDocuments=configuration.referenceDocuments;
+  }
+  AC.activeTailConfigurationTail=configuration?tail:null;
+  AC.tailOnlyPresetKeys=configuration?.tailOnlyPresetKeys||[];
+  return configuration||null;
+}
+
 function missionCatalogueSignature(){
-  return JSON.stringify([AC.missionEquip,AC.stowage,AC.bayArms,AC.presets,AC.patientPositions]);
+  return JSON.stringify([AC.missionEquip,AC.stowage,AC.bayArms,AC.presets,AC.patientPositions,AC.crewEquipmentPlacement]);
 }
 function missionDefaultAllocation(key){
   const it=AC.missionEquip[key];
@@ -161,6 +214,13 @@ function missionDefaultBasket(s,baskets=missionBaskets(s)){
   return matches.length===1?matches[0]:null;
 }
 function resolveMissionLocation(s,row,seen=new Set()){
+  if(row.stow==='CREW_SEAT'){
+    const crewId=row.crewId,seat=Object.entries(s.occupants||{}).find(([,person])=>person?.crewId===crewId)?.[0]||row.crewSeat;
+    const loc=seat&&(AC.crewSeats[seat]||AC.paxSeats[seat]);
+    if(!loc)return {arm:null,stowId:'CREW_SEAT',stow:'Crew member seat',error:'associated crew seat is unavailable; choose another stowage location'};
+    const arm=loc.occupantArm??loc.arm;
+    return {arm,stowId:'CREW_SEAT:'+seat,stow:'With crew member · '+seat+' · '+loc.name,stowGroup:'Crew Seat',error:Number.isFinite(arm)?null:'crew seat arm is unavailable'};
+  }
   if(row.stow?.startsWith('CARRIER:')){
     const key=row.stow.slice(8),it=AC.missionEquip[key];
     if(!it?.isBasket||!s.mission?.[key])return {arm:null,stow:'Unavailable carrying item',error:'carrying item is unavailable; choose another stowage location'};

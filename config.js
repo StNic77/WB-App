@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-10-06T04:42:06.125Z
- * Config data version: 22
+ * Exported by the Custodian Editor on 2026-10-06T23:12:29.000Z
+ * Config data version: 23
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 22,
-  "configReleasedAt": "2026-10-06T04:42:06.125Z",
+  "configVersion": 23,
+  "configReleasedAt": "2026-10-06T23:12:29.000Z",
   "changelog": [
+    {
+      "version": 23,
+      "at": "2026-10-06T23:12:29.000Z",
+      "note": "Adds tail-specific configuration data so selected aircraft can have their own role configurations, equipment, seating, stowage and reference documents."
+    },
     {
       "version": 22,
       "at": "2026-10-06T04:42:06.125Z",
@@ -2145,6 +2150,7 @@ const AC = {
   meta:          AC_META,
   auth:          AC_AUTH,
   tails:         AC_TAILS,
+  appOptions:    { allowRfmBasicWeight: true },
   envelope:      AC_ENVELOPE,
   bayArms:       AC_BAY_ARMS,
   ramp:          AC_RAMP,
@@ -2157,7 +2163,33 @@ const AC = {
   stowage:       AC_STOWAGE,
   roleFit:       AC_ROLE_FIT,
   missionEquip:  AC_MISSION_EQUIP,
-  presets:       AC_PRESETS
+  crewEquipmentPlacement: {
+    seatAssociatedItems: [
+      'ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_RON_BAG',
+      'ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG',
+      'ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_RON_BAG',
+      'ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG',
+      'ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_RON_BAG',
+      'ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG',
+      'ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_RON_BAG',
+      'ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_RON_BAG',
+      'ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_HOIST_BAG',
+      'ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_HOIST_BAG'
+    ],
+    pilotFlightEngineerB25: [
+      'ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25',
+      'ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25',
+      'ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_B25'
+    ],
+    pilotFlightEngineerB25Priority: ['RAMP_PORT_AFT','RAMP_STBD_AFT'],
+    sarTechB25: [
+      'ME_CREW_PERSONAL_EQUIP_ST_TEAM_LEAD_B25',
+      'ME_CREW_PERSONAL_EQUIP_ST_TEAM_MEMBER_B25'
+    ],
+    sarTechB25Preferred: 'SAR_CABINET_FWD_BTM'
+  },
+  presets:       AC_PRESETS,
+  tailConfigurations: {}
 };
 
 // Device overrides are validated and loaded by mission.js.

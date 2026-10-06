@@ -7,9 +7,36 @@ function extraCrewStowageCheck(s,gear){
   }
   return Object.entries(added).filter(([id,w])=>shelfLoadState(loads[id]||0,w,STOW_MAX[id]).over).map(([id,w])=>({id,message:(AC.stowage[id]?.name||id)+' would carry '+fmtDecimal((loads[id]||0)+w)+' kg; limit '+fmtDecimal(STOW_MAX[id])+' kg. Choose another location.'}));
 }
+function extraCrewCapacityAllows(s,gear,id){
+  if(!(id in STOW_MAX))return true;
+  const loads=assignedShelfLoads(s);for(const zone of s.zones||[])if(zone.id in STOW_MAX)loads[zone.id]+=(Number(zone.w)||0);
+  const pending=gear.filter(g=>resolveMissionLocation(s,g.allocation).stowId===id).reduce((sum,g)=>sum+Math.max(0,AC.missionEquip[g.key]?.unitWeight||0),0);
+  return !shelfLoadState(loads[id]||0,pending,STOW_MAX[id]).over;
+}
+function extraCrewPreferredAllocation(s,role,key,seat,selectedGear){
+  const rule=AC.crewEquipmentPlacement||{},isSeat=(rule.seatAssociatedItems||[]).includes(key);
+  if(isSeat)return {id:'base',quantity:1,stow:'CREW_SEAT',crewSeat:seat};
+  let preferred=null;
+  if(role==='SAR Tech'&&(rule.sarTechB25||[]).includes(key))preferred=rule.sarTechB25Preferred;
+  if(['Pilot','Flight Engineer'].includes(role)&&(rule.pilotFlightEngineerB25||[]).includes(key)){
+    const existing=Object.entries(s.missionLoads||{}).reduce((n,[itemKey,rows])=>n+((rule.pilotFlightEngineerB25||[]).includes(itemKey)?rows.filter(r=>r.crewId).length:0),0);
+    const priority=rule.pilotFlightEngineerB25Priority||[];preferred=priority[existing]||null;
+  }
+  const allocation=missionDefaultAllocation(key);
+  if(preferred){const candidate={...allocation,stow:preferred};if(!resolveMissionLocation(s,candidate).error&&extraCrewCapacityAllows(s,[...selectedGear,{key,allocation:candidate}],preferred))return candidate;}
+  if((role==='SAR Tech'&&(rule.sarTechB25||[]).includes(key))||(['Pilot','Flight Engineer'].includes(role)&&(rule.pilotFlightEngineerB25||[]).includes(key))){
+    return {...allocation,stow:'',bayOnlyFallback:true};
+  }
+  return allocation;
+}
+function extraCrewLocationOptions(s,choice){
+  if(!choice.allocation.bayOnlyFallback)return missionLocationOptions(s,choice.allocation,AC.missionEquip[choice.key]||{});
+  const selected=choice.allocation.stow;
+  return '<option value="">— Select available cabin bay —</option>'+Object.entries(AC.bayArms||{}).filter(([id])=>id!=='REAR').map(([id,arm])=>`<option value="${escapeHtml(id)}" ${id===selected?'selected':''}>${escapeHtml(missionLocations()[id]?.name||id)} (${arm} mm)</option>`).join('');
+}
 function renderAddedCrew(s,host){
   const section=document.createElement('div');section.id='addedCrewSummary';
-  const heading=document.createElement('h3');heading.textContent='Added crew & equipment';section.append(heading);
+  const heading=document.createElement('h3');heading.textContent='Additional Crew and Equipment';section.append(heading);
   const crew=Object.entries(s.occupants||{}).filter(([,person])=>person?.crewId);
   if(!crew.length){const empty=document.createElement('p');empty.className='small';empty.textContent='No extra crew added.';section.append(empty);}
   for(const [seat,person] of crew){
@@ -33,19 +60,19 @@ function crewEquipmentChoices(role){
 function addExtraCrew(s,role,seat,gear){
   if(!s.seats[seat]||s.occupants[seat])return 'Select an available installed seat.';
   if(!['Pilot','Flight Engineer','SAR Tech'].includes(role))return 'Select a crew role.';
+  const crewId=crypto.randomUUID();
   for(const {key,allocation} of gear){
     const item=AC.missionEquip[key];
     if(!item||item.active===false)return 'Equipment is unavailable. Review the catalogue.';
-    if(resolveMissionLocation(s,allocation).error)return 'Choose a valid stowage location for '+item.name+'.';
+    const resolved=resolveMissionLocation(s,{...allocation,crewId});if(resolved.error)return 'Choose a valid stowage location for '+item.name+'.';
     const quantity=s.mission[key]?missionAllocations(s,key).reduce((n,r)=>n+r.quantity,0):0;
     if(quantity+1>(item.maxQuantity??Infinity)||quantity+1<(item.minQuantity??0))return item.name+': quantity is outside its limits.';
   }
   const overloads=extraCrewStowageCheck(s,gear);if(overloads.length)return overloads.map(x=>x.message).join(' ');
-  assignCrewOccupant(s,role,seat,gear,'extra crew');
+  assignCrewOccupant(s,role,seat,gear,'extra crew',crewId);
   invalidateAccountingCertification(s);persistSession();return '';
 }
-function assignCrewOccupant(s,role,seat,gear=[],source='role crew'){
-  const crewId=crypto.randomUUID();
+function assignCrewOccupant(s,role,seat,gear=[],source='role crew',crewId=crypto.randomUUID()){
   s.occupants[seat]={type:'crew',label:role+' ('+source+')',crewId};
   for(const {key,allocation} of gear){
     if(!s.mission[key]){s.missionLoads??={};s.missionLoads[key]=[];}
@@ -69,37 +96,38 @@ function clearSeatOccupant(s,key){
   s.occupants[key]=null;invalidateAccountingCertification(s);
 }
 function renderExtraCrew(s){
-  let host=document.getElementById('extraCrewHost');
-  if(!host){host=document.createElement('div');host.id='extraCrewHost';host.className='card';document.getElementById('tab_SEATS').prepend(host);}
-  host.innerHTML='<button class="btn" id="openExtraCrew">Add Crew &amp; Equipment</button><div id="extraCrewForm" hidden></div>';
+  const host=document.getElementById('extraCrewHost');
+  if(!host)return;
+  host.className='extra-crew-summary';
+  host.innerHTML='<button class="btn" id="openExtraCrew">Add Crew and Equipment</button><div id="extraCrewForm" hidden></div>';
   renderAddedCrew(s,host);
   host.querySelector('button').onclick=()=>{
     const form=host.querySelector('#extraCrewForm');form.hidden=false;
-    form.innerHTML='<h3>Add Crew &amp; Equipment</h3><div class="row"><label>Crew role<select id="extraCrewRole"><option>Pilot</option><option>Flight Engineer</option><option>SAR Tech</option></select></label><label>Seat<select id="extraCrewSeat"></select></label></div><div id="extraCrewGear"></div><p id="extraCrewError" role="alert"></p><button class="btn good" id="extraCrewApply">Add to Mission</button> <button class="btn" id="extraCrewCancel">Cancel</button>';
+    form.innerHTML='<h3>Add Crew and Equipment</h3><div class="row"><label>Crew role<select id="extraCrewRole"><option>Pilot</option><option>Flight Engineer</option><option>SAR Tech</option></select></label><label>Seat<select id="extraCrewSeat"></select></label></div><div id="extraCrewGear"></div><p id="extraCrewError" role="alert"></p><button class="btn good" id="extraCrewApply">Add to Mission</button> <button class="btn" id="extraCrewCancel">Cancel</button>';
     const seat=form.querySelector('#extraCrewSeat');
     for(const [key,it] of Object.entries({...AC.crewSeats,...AC.paxSeats}))if(s.seats[key]&&!s.occupants[key]){const opt=document.createElement('option');opt.value=key;opt.textContent=key+' · '+it.name;seat.append(opt);}
     if(!seat.options.length)form.querySelector('#extraCrewError').textContent='No available installed seats. Install or clear a seat first.';
     const gearHost=form.querySelector('#extraCrewGear');let choices=[],updates=[];
-    const refresh=()=>{const overloads=extraCrewStowageCheck(s,choices.filter(c=>c.checked));for(const update of updates)update(overloads);form.querySelector('#extraCrewApply').disabled=overloads.length>0||!seat.options.length||choices.some(c=>c.checked&&resolveMissionLocation(s,c.allocation).error);};
+    const refresh=()=>{const overloads=extraCrewStowageCheck(s,choices.filter(c=>c.checked));for(const update of updates)update(overloads);form.querySelector('#extraCrewApply').disabled=overloads.length>0||!seat.options.length||choices.some(c=>c.checked&&resolveMissionLocation(s,{...c.allocation,crewId:'pending'}).error);};
     const showGear=()=>{
-      gearHost.replaceChildren();updates=[];choices=crewEquipmentChoices(form.querySelector('#extraCrewRole').value).map(choice=>({...choice,allocation:AC.missionEquip[choice.key]?missionDefaultAllocation(choice.key):{stow:''}}));
+      gearHost.replaceChildren();updates=[];const role=form.querySelector('#extraCrewRole').value;choices=[];for(const choice of crewEquipmentChoices(role)){const allocation=AC.missionEquip[choice.key]?extraCrewPreferredAllocation(s,role,choice.key,seat.value,choices.filter(c=>c.checked)):{stow:''};choices.push({...choice,allocation});}
       for(const choice of choices){
         const item=AC.missionEquip[choice.key],row=document.createElement('div');row.className='card';
         const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.checked=choice.checked;check.disabled=!item||item.active===false;choice.checked=check.checked&&!check.disabled;
         label.append(check,document.createTextNode(' '+(item?.name?.split(' — ')[0]||choice.key)));row.append(label);
-        const location=document.createElement('select');location.setAttribute('aria-label',(item?.name||choice.key)+' extra crew stowage');location.innerHTML=missionLocationOptions(s,choice.allocation,item||{});const armLabel=document.createElement('label');armLabel.textContent='Custom arm (mm)';
+        const location=document.createElement('select');location.setAttribute('aria-label',(item?.name||choice.key)+' extra crew stowage');location.innerHTML=extraCrewLocationOptions(s,choice);const armLabel=document.createElement('label');armLabel.textContent='Custom arm (mm)';
         const armInput=document.createElement('input');armInput.type='number';armInput.step='any';armInput.setAttribute('aria-label',(item?.name||choice.key)+' extra crew custom arm');armInput.value=Number.isFinite(choice.allocation.customArm)?choice.allocation.customArm:'';armLabel.append(armInput);
         armInput.oninput=()=>{choice.allocation.customArm=Number.isFinite(armInput.valueAsNumber)?armInput.valueAsNumber:null;refresh();};
         const note=document.createElement('div');note.className='small';
-        const update=(overloads=[])=>{location.disabled=!choice.checked;armLabel.hidden=choice.allocation.stow!=='CUSTOM';armInput.disabled=!choice.checked;const loc=resolveMissionLocation(s,choice.allocation),over=choice.checked&&overloads.find(x=>x.id===loc.stowId);note.textContent=!choice.checked?'':loc.error?'Stowage unavailable. Where will this item be carried?':over?over.message:loc.stowId in STOW_MAX?'Within the defined stowage limit.':'No capacity limit is defined for this location; capacity has not been checked.';note.setAttribute('role',over?'alert':'status');note.style.color=over?'var(--bad)':'';};
+        const update=(overloads=[])=>{location.disabled=!choice.checked;armLabel.hidden=choice.allocation.stow!=='CUSTOM';armInput.disabled=!choice.checked;const loc=resolveMissionLocation(s,{...choice.allocation,crewId:'pending'}),over=choice.checked&&overloads.find(x=>x.id===loc.stowId);note.textContent=!choice.checked?'':choice.allocation.bayOnlyFallback?'Preferred location unavailable or at capacity. Select an available cabin bay.':loc.error?'Stowage unavailable. Where will this item be carried?':over?over.message:loc.stowId in STOW_MAX?'Within the defined stowage limit.':'No capacity limit is defined for this location; capacity has not been checked.';note.setAttribute('role',over?'alert':'status');note.style.color=over?'var(--bad)':'';};
         updates.push(update);
         check.onchange=()=>{choice.checked=check.checked;refresh();};
-        location.onchange=()=>{const v=location.value;choice.allocation={...choice.allocation,stow:v,basketRef:null};if(v.startsWith('BASKET:')){const [,key,id]=v.split(':');choice.allocation.stow='BASKET';choice.allocation.basketRef={key,id};}refresh();};
+        location.onchange=()=>{const v=location.value;choice.allocation={...choice.allocation,stow:v,basketRef:null};delete choice.allocation.bayOnlyFallback;if(v.startsWith('BASKET:')){const [,key,id]=v.split(':');choice.allocation.stow='BASKET';choice.allocation.basketRef={key,id};}refresh();};
         row.append(location,armLabel,note);gearHost.append(row);
       }
       refresh();
     };
-    form.querySelector('#extraCrewRole').onchange=showGear;showGear();
+    form.querySelector('#extraCrewRole').onchange=showGear;seat.onchange=showGear;showGear();
     form.querySelector('#extraCrewCancel').onclick=()=>{form.hidden=true;};
     form.querySelector('#extraCrewApply').onclick=()=>{const error=addExtraCrew(s,form.querySelector('#extraCrewRole').value,seat.value,choices.filter(c=>c.checked));if(error){form.querySelector('#extraCrewError').textContent=error;return;}render();};
   };

@@ -1,5 +1,12 @@
 # CH-149-615 W&B Release History
 
+## v0.2.19-dev / Config v23 — 2026-10-06 23:12:29 UTC
+- Adds Create Tail-Specific Configuration, allowing one or more selected aircraft to receive a copied and independently edited configuration.
+- Tail-specific equipment, seats, stowage, role configurations and reference documents load only when an assigned tail with that setup is selected. Tail-specific data is included in config.js exports.
+- Adds the App Settings tab for aircraft management and Accept page options.
+- Updates Crew, Pax and patient summaries, role configuration workflow, tab helpers, and related load planning and certification wording.
+- App, configuration, and offline release identifiers synchronized.
+
 ## v0.2.18-dev / Config v22 — 2026-10-06 04:42:06 UTC
 - RFM normally fitted role-fit defaults now match the current Maintenance Basic Weight inclusion baseline for sanity checks. The default additions are the seven role-fit items already identified as Maintenance-included, plus 18.70 kg of passenger-seat structures.
 - Exported configuration data from the Custodian Editor; synchronized app, configuration, and offline release identifiers.

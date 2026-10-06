@@ -12,7 +12,22 @@ function renderRoleFitDeclarations(s){
   const box=document.getElementById('roleFitList');box.replaceChildren();
   document.getElementById('roleFitBasisMessage').textContent='Basic Weight is the starting weight entered or selected on the Accept page. Equipment adjustments are applied to that starting weight to calculate the aircraft’s operating weight.';
   const rows=sortSelectedFirst(roleFitAccountingRows(s),item=>item.current,item=>item.name);
-  for(const item of rows){
+  const groupFor=item=>{
+    const definition=AC.roleFit[item.key];if(definition.group)return definition.group;
+    const groups=[['RF_AIRCRAFT_SYSTEMS_','Aircraft Systems'],['RF_ICE_PROTECTION_','Ice Protection'],['RF_SAR_EQUIPMENT_','SAR Equipment'],['RF_SENSOR_SYSTEMS_','Sensor Systems'],['RF_SERVICING_EQUIPMENT_','Servicing Equipment'],['RF_STOW_','Stowage Fittings']];
+    return groups.find(([prefix])=>item.key.startsWith(prefix))?.[1]||'Other Equipment';
+  };
+  s.ui??={};s.ui.roleFitGroups??={};
+  const groupOrder=['Aircraft Systems','Ice Protection','SAR Equipment','Sensor Systems','Servicing Equipment','Stowage Fittings','Other Equipment'];
+  const grouped=new Map();
+  for(const item of rows){const group=groupFor(item);if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(item);}
+  const ordered=[...grouped.entries()].sort((a,b)=>{const ai=groupOrder.indexOf(a[0]),bi=groupOrder.indexOf(b[0]);return (ai<0?groupOrder.length:ai)-(bi<0?groupOrder.length:bi)||a[0].localeCompare(b[0]);});
+  for(const [group,items] of ordered){
+    const panel=document.createElement('details');panel.className='role-fit-group';panel.open=!!s.ui.roleFitGroups[group];
+    const summary=document.createElement('summary');summary.textContent=group+' ('+items.length+')';
+    const content=document.createElement('div');content.className='role-fit-group-content';
+    panel.append(summary,content);panel.ontoggle=()=>{s.ui.roleFitGroups[group]=panel.open;};box.append(panel);
+    for(const item of items){
     const normallyInstalled=roleFitExpectation(s,item.key).installed;
 
     const row=document.createElement('div');row.className='role-declaration-row';row.dataset.roleKey=item.key;
@@ -48,7 +63,8 @@ function renderRoleFitDeclarations(s){
       reset.title='Release this manual choice and use the current preset for this item only';
       reset.onclick=()=>{setRoleFitDeclaration(s,item.key,presetRoleFitDeclaration(s,AC.presets[s.preset],item.key),'preset');render();};controls.append(reset);
     }
-    box.append(row);
+    content.append(row);
+    }
   }
 }
 function updateDocumentationReview(s){

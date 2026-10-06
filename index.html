@@ -94,6 +94,10 @@
 <main>
   <!-- HOME -->
   <section id="tab_HOME" class="grid">
+    <div class="callout">
+      <b>Select the aircraft assigned to this mission.</b><br>
+      Mission information persists until cleared. <b>Return the aircraft when the mission is complete.</b> Use <b>Reversionary App</b> if required.
+    </div>
     <div class="card">
       <h2>Home <small>Select a tail (or SIM/IPT)</small></h2>
       <div class="callout">
@@ -152,11 +156,11 @@
 
   <!-- ACCEPT -->
   <section id="tab_ACCEPT" class="grid hide">
-    <div class="callout small">Equipment weights may include decimal values. The calculator uses those values in its calculations, even when the displayed weight is rounded to the nearest kilogram.</div>
     <div class="card">
       <h2>Accept Aircraft Data <small>Establish the starting weight, CG and fuel</small></h2>
       <div class="callout">
-        Enter the aircraft Basic Weight, Basic CG and recorded fuel using the selected source. Enter the accepting person's last name and accept the aircraft data to begin the W&amp;B calculation.
+        <b>Establish the aircraft starting condition.</b><br>
+        Confirm the Basic Weight, CG and recorded fuel for the assigned aircraft. <b>Identify any differences between the aircraft as configured and the selected weight record before accepting.</b>
         <div class="small" style="margin-top:6px;">
           Acceptance establishes and locks the starting aircraft state for this session. To change accepted values or Maintenance Exceptions after acceptance, return to Home and use End Session &amp; Clear All.
         </div>
@@ -166,7 +170,7 @@
         <div class="lbl">Which Basic Weight and CG are you using?</div>
         <div class="row" style="margin-top:6px;">
           <label><input type="radio" name="basicWeightBasis" value="MAINTENANCE"> <b>Recorded Aircraft Basic Weight</b></label>
-          <label><input type="radio" name="basicWeightBasis" value="RFM"> <b>RFM Basic Weight (Beta Testing)</b></label>
+          <label id="rfmBasicWeightOption"><input type="radio" name="basicWeightBasis" value="RFM"> <b>RFM Basic Weight (Beta Testing)</b></label>
         </div>
         <div class="callout" id="basisDescription" style="margin-top:10px;"></div>
         <div id="maintenanceExceptionsHost" style="margin-top:10px;"></div>
@@ -201,17 +205,18 @@
 
   <!-- CONFIG -->
   <section id="tab_CONFIG" class="grid hide">
-    <div class="callout small">Equipment weights may include decimal values. The calculator uses those values in its calculations, even when the displayed weight is rounded to the nearest kilogram.</div>
     <div class="card">
-      <h2>Config</h2>
+      <h2>Role Config</h2>
+      <div class="callout">
+        <b>Configure the aircraft for the required role.</b><br>
+        Select a Role Config to apply its Role-Fit Equipment. Choose whether to also load the standard <b>Mission Equipment, Crew Personal Equipment, Crew Complement, Available Seats and Seating Arrangement</b>.<br>
+        <b>Review and adjust the standard selections in Mission Equipment and Crew, Pax, Patients &amp; Seating to match the actual mission.</b>
+      </div>
       <div class="row">
         <button class="btn" data-preset="SAR3" id="btnPresetSAR3">SAR-3 Pax</button>
         <button class="btn" data-preset="SAR10" id="btnPresetSAR10">SAR-10 Pax</button>
         <button class="btn" data-preset="CASEVAC" id="btnPresetCASEVAC">CASEVAC</button>
         <button class="btn" data-preset="TRANSPORT" id="btnPresetTRANSPORT">Transport</button>
-      </div>
-      <div class="small" style="margin-top:10px;">
-        Selecting a preset applies the standard seats, role-fit equipment and mission equipment for that configuration. Maintenance Exceptions remain unchanged. Select another preset at any time to change the configuration.
       </div>
       <div id="configurationQuickSummary" class="callout small" style="margin-top:10px" role="status"></div>
       <div id="presetImageHost" style="margin-top:14px;"></div>
@@ -259,15 +264,16 @@
       </details>
     </div>
 
-    <div class="card">
-      <h2>Summary</h2>
-      <div class="kpi" id="configKpi"></div>
-    </div>
+    <div id="wbSummaryConfig"></div>
   </section>
 
   <!-- MISSION EQUIPMENT --> 
   <section id="tab_MISSION" class="grid hide">
-    <div class="callout small">Equipment weights may include decimal values. The calculator uses those values in its calculations, even when the displayed weight is rounded to the nearest kilogram.</div>
+    <div class="callout">
+      <b>Confirm the Mission Equipment actually carried.</b><br>
+      Review the standard equipment loaded by the Role Config and add, remove or adjust items to match the mission.<br>
+      <b>Deploying or RON?</b> <b>Crew RON Personal Equipment is available here but is not loaded by default.</b> Account for <b>Pax Baggage, Deployment Support Equipment, or Special Mission Equipment not defined here</b> in <b>Load Planning</b>.
+    </div>
 
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
@@ -286,25 +292,35 @@
     </div>
 
 
-<div class="card"> 
-      <h2>Stowage Load Summary</h2>
+<details class="card" id="stowageLoadSummary">
+      <summary><strong>Stowage Load Summary</strong></summary>
       <div id="stowageTotals"></div>
       <div class="hr"></div>
       <div class="kpi" id="missionKpi"></div>
-    </div>
+    </details>
+    <div id="wbSummaryMission"></div>
   </section>
 
 
   <!-- SEATS -->
   <section id="tab_SEATS" class="grid hide">
-    <div class="callout small">Equipment weights may include decimal values. The calculator uses those values in its calculations, even when the displayed weight is rounded to the nearest kilogram.</div>
+    <div class="card" id="crewSummaryCard">
+      <div class="callout" style="margin-top:0;">
+        <b>Confirm all personnel aboard and their assigned locations.</b><br>
+        Review the standard Crew Complement, Available Seats and Seating Arrangement loaded by the Role Config. Add, remove or reposition <b>crew, passengers and patients</b> to match the mission.<br>
+        When adding crew beyond the standard Crew Complement, use <b>Add Crew and Equipment</b> to include their standard Crew Personal Equipment.
+      </div>
+      <h2>Crew, Pax &amp; Patients Summary</h2>
+      <div id="crewPaxPatientsSummary" class="kpi"></div>
+      <div id="extraCrewHost"></div>
+    </div>
 
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
         <h2 data-fuel-plot-title style="margin:0;">Envelope & Predicted CG Path</h2>
-        <button class="btn small" id="envToggleSeats" type="button">Collapse</button>
+        <button class="btn small" id="envToggleSeats" type="button">Expand</button>
       </div>
-      <div id="envWrapSeats" style="margin-top:10px;">
+      <div id="envWrapSeats" style="margin-top:10px;display:none;">
         <canvas id="envCanvasSeats"></canvas>
         <div class="small" style="margin-top:8px;" id="envNotesSeats"></div>
       </div>
@@ -350,13 +366,20 @@
 
     <!-- Master render target (hidden). Seat logic still writes here; we only redistribute DOM nodes UI-only. -->
     <div id="seatList" style="display:none;"></div>
-
+    <div id="wbSummarySeats"></div>
 
   </section>
 
   <!-- FUEL -->
   <section id="tab_FUEL" class="grid hide">
-    <div class="callout small">Equipment weights may include decimal values. The calculator uses those values in its calculations, even when the displayed weight is rounded to the nearest kilogram.</div>
+    <div class="callout">
+      <b>Confirm the fuel planned for the mission.</b><br>
+      Enter the planned <b>takeoff and landing fuel</b> and confirm the fuel distribution represents the intended aircraft configuration.<br>
+      Fuel can be <b>automatically distributed using the aircraft loading map</b>, or <b>entered manually when the actual fuel distribution does not match the loading map.</b>
+    </div>
+    <div class="callout small" id="manualFuelHelper" hidden>
+      <b>Manual Fuel:</b> Enter the actual quantity in each tank. <b>A predicted CG path is not available when using manual tank quantities.</b>
+    </div>
 
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
@@ -395,11 +418,17 @@
       <div id="tankTable"></div>
       <div class="small" style="margin-top:6px;" id="tankModeText"></div>
     </div>
+    <div id="wbSummaryFuel"></div>
   </section>
 
   <!-- LOAD PLANNING (Cabin & Cargo) --> 
 <section id="tab_CARGO" class="grid hide">
-  <div class="callout small">Equipment weights may include decimal values. The calculator uses those values in its calculations, even when the displayed weight is rounded to the nearest kilogram.</div>
+  <div class="callout">
+    <b>Account for all cargo, baggage and other carried loads.</b><br>
+    Add items not already accounted for as Role-Fit or Mission Equipment, including <b>Pax Baggage</b>, <b>Deployment Support Equipment</b> such as towbars, spare parts and POL, and <b>Special Mission Equipment</b> such as pump kits, SKADs and toboggans.<br>
+    For loads beyond the equipment already assigned to a location, use <b>Add Additional Load by Stowage Location</b> to enter the extra load directly at that location, without using Cargo or Cabin Bay entries. This additional stowage load affects <b>Operating Weight and CG</b>; Cargo and Cabin Bay loads do not affect Operating Weight.<br>
+    <b>If it is aboard the aircraft, make sure it is accounted for.</b>
+  </div>
 
   <div class="card" style="padding:14px;">
     <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
@@ -447,7 +476,7 @@
     <div class="hr"></div>
 
     <details id="panelEditZones">
-      <summary><strong>Edit Stowage Shelves and Zones</strong></summary>
+      <summary><strong>Add Additional Load by Stowage Location</strong></summary>
       <div class="small" style="margin:8px 0 10px 0;">
         Mission and personal equipment assigned to each stowage location is already included. Add further load as required without exceeding the location’s maximum load.
       </div>
@@ -485,10 +514,19 @@
 
     <div class="hr"></div>
   </div>
+  <div id="wbSummaryCargo"></div>
 </section>
 
   <!-- CERTIFY -->
   <section id="tab_CERTIFY" class="grid hide">
+    <div class="callout">
+      <b>Verify the completed aircraft configuration before certifying the W&amp;B.</b><br>
+      Confirm the mission load is complete and follow the certification steps below to compare the app calculation with the aircraft/MCDU. <b>Resolve any discrepancy before certification.</b><br>
+      Once certified, <b>generate the W&amp;B Clearance Form PDF</b> for the mission.
+    </div>
+    <div class="small muted" style="font-size:.85em;">
+      <b>Calculation precision:</b> W&amp;B calculations use the full recorded equipment weights, including decimal values. Displayed weights may be rounded to the nearest kilogram.
+    </div>
 
     <!-- ═══ STEP 1: Enter these INTO the MCDU ═══ -->
     <div class="card certify-step">
@@ -559,7 +597,7 @@
       <div class="row">
         <button class="btn good" id="btnCertify">CERTIFY</button>
         <button class="btn warn" id="btnReturnToAvailableCert">Return to Available</button>
-        <button class="btn" id="btnPrintPDF" onclick="generateWBReport()" style="background:rgba(98,168,255,.18);border-color:rgba(98,168,255,.55);">&#8659; Save W&amp;B PDF</button>
+        <button class="btn" id="btnPrintPDF" onclick="generateWBReport()" style="background:rgba(98,168,255,.18);border-color:rgba(98,168,255,.55);">&#8659; Generate W&amp;B Clearance Form PDF</button>
       </div>
       <div class="small" id="certMsg" style="margin-top:8px;"></div>
     </div>
@@ -589,6 +627,23 @@
     <div id="editorHost"></div>
   </section>
 </main>
+
+<dialog id="roleConfigDialog" class="role-config-dialog" aria-labelledby="roleConfigDialogTitle">
+  <div class="role-config-dialog-card">
+    <div class="role-config-dialog-heading">
+      <h2 id="roleConfigDialogTitle">Configure Role</h2>
+      <button class="btn small" id="roleConfigDialogClose" type="button" aria-label="Close">×</button>
+    </div>
+    <p id="roleConfigDialogMessage"></p>
+    <p id="roleConfigReplaceMessage" class="callout small" hidden></p>
+    <div class="role-config-dialog-actions">
+      <button class="btn good" id="roleConfigApplyStandard" type="button"></button>
+      <button class="btn" id="roleConfigApplyRoleFit" type="button"></button>
+    </div>
+    <p class="small muted">All selections can be reviewed and changed afterward in Mission Equipment and Crew, Pax, Patients &amp; Seating.</p>
+    <button class="btn" id="roleConfigDialogCancel" type="button">Cancel</button>
+  </div>
+</dialog>
 
 <script src="jspdf.umd.min.js"></script>
 <script src="config.js"></script>

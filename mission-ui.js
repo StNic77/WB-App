@@ -45,12 +45,13 @@ function renderConfigurationButtons(s){
   const presets=sortConfigurationsByDisplayOrder(Object.entries(AC.presets).filter(([,p])=>p.active!==false));
   for(const [key,p] of presets){
     const b=document.createElement('button');b.className='btn'+(s.preset===key?' good':'');b.textContent=p.name;
-    b.id='btnPreset'+key;b.dataset.preset=key;b.onclick=()=>{applyPreset(s.tail,key);render();};host.append(b);
+    b.id='btnPreset'+key;b.dataset.preset=key;b.onclick=()=>openRoleConfigDialog(s.tail,key);host.append(b);
   }
 }
 function missionLocationOptions(s,row,item){
   const esc=escapeHtml;
   let out='<option value="">— Select location —</option>';
+  if(row.stow==='CREW_SEAT'||row.crewId||row.crewSeat)out+=`<option value="CREW_SEAT" ${row.stow==='CREW_SEAT'?'selected':''}>With crew member at assigned seat</option>`;
   if(true){
     out+=`<option value="BASKET" ${row.stow==='BASKET'&&!row.basketRef?'selected':''}>Follow carrying item (automatic if only one)</option>`;
     for(const b of missionBaskets(s)){

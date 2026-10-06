@@ -177,7 +177,7 @@ const TABS = [
   {id:"ACCEPT", label:"Accept"},
   {id:"CONFIG", label:"Role Config"},
   {id:"MISSION", label:"Mission Equip"},
-  {id:"SEATS", label:"Crew and Pax Seats"},
+  {id:"SEATS", label:"Crew, Pax, Patients & Seating"},
   {id:"FUEL", label:"Fuel"},
   {id:"CARGO", label:"Load Planning"},
   {id:"CERTIFY", label:"Certify W&B"},
@@ -212,6 +212,10 @@ function setTab(id){
     if(typeof EDITOR!=='undefined')EDITOR.openPanels={};
     for(const wrap of document.querySelectorAll('[id^="envWrap"]'))wrap.style.display='';
     for(const button of document.querySelectorAll('[id^="envToggle"]'))button.textContent='Collapse';
+    if(id==='SEATS'){
+      const wrap=document.getElementById('envWrapSeats'),button=document.getElementById('envToggleSeats');
+      if(wrap)wrap.style.display='none';if(button)button.textContent='Expand';
+    }
   }
   const changed=activeTab!==id;
   activeTab = id;
@@ -319,8 +323,23 @@ if (accSvcEl) accSvcEl.value = (s && s.accepted && (s.accepted.by || "")) || "";
   }
 
   STORE.selectedTail = tail;
+  activateTailConfigurationForSession(tail);
   // Move to ACCEPT tab immediately (Home can "go away" effectively)
   setTab("ACCEPT");
+}
+
+function activateTailConfigurationForSession(tail){
+  if(typeof activateTailConfiguration==='function')activateTailConfiguration(tail);
+  const s=STORE.sessions?.[tail];if(!s)return;
+  s.roleFit??={};s.roleFitDeclarations??={};s.mission??={};s.seats??={};s.occupants??={};
+  for(const [key,item] of Object.entries(AC.roleFit||{}))if(!(key in s.roleFit)){s.roleFit[key]=false;s.roleFitDeclarations[key]='NEUTRAL';}
+  for(const [key,item] of Object.entries(AC.missionEquip||{}))if(!(key in s.mission))s.mission[key]=missionAutomaticDefault(null,key,item);
+  for(const [key,seat] of [...Object.entries(AC.crewSeats||{}),...Object.entries(AC.paxSeats||{})]){
+    if(!(key in s.seats))s.seats[key]=!!(seat.alwaysInstalled||seat.normallyInstalled);
+    if(!(key in s.occupants))s.occupants[key]=null;
+  }
+  normalizeRoleFitState(s.roleFit);
+  if(s.preset&&!AC.presets?.[s.preset])s.preset=null;
 }
 
 function returnToAvailable(tail, reason){
@@ -894,6 +913,7 @@ function bindAcceptInputsOnce(){
       if (!tail || !el.checked) return;
       const s = STORE.sessions[tail];
       const next = el.value === "MAINTENANCE" ? "MAINTENANCE" : "RFM";
+      if (next === "RFM" && AC.appOptions?.allowRfmBasicWeight === false){ renderAccept(); return; }
       if (next === (s.accepted.basicWeightBasis || "MAINTENANCE")) return;
       s.accepted.basicWeightBasis = next;
       s.accepted.maintenanceBaseline = null;
@@ -1006,7 +1026,11 @@ function renderAccept(){
 
   const acceptLocked = !!s.accepted.isAccepted;
   ["accBasicW","accBasicCG","accFuel","accSvc"].forEach(id=>{ const el=document.getElementById(id); if(el) el.disabled=acceptLocked; });
-  document.querySelectorAll('input[name="basicWeightBasis"]').forEach(el=>el.disabled=acceptLocked);
+  const allowRfmBasis=AC.appOptions?.allowRfmBasicWeight!==false;
+  const rfmOption=document.getElementById('rfmBasicWeightOption');
+  const hasExistingRfmBasis=s.accepted.basicWeightBasis==='RFM';
+  if(rfmOption)rfmOption.hidden=!allowRfmBasis&&!hasExistingRfmBasis;
+  document.querySelectorAll('input[name="basicWeightBasis"]').forEach(el=>el.disabled=acceptLocked||(el.value==='RFM'&&!allowRfmBasis));
   const acceptBtn=document.getElementById("btnAccept"); if(acceptBtn) acceptBtn.disabled=acceptLocked;
 
   const basis = s.accepted.basicWeightBasis === "MAINTENANCE" ? "MAINTENANCE" : "RFM";
@@ -1101,6 +1125,7 @@ function applyPreset(tail, presetKey){
   const s = STORE.sessions?.[tail];
   const p = AC.presets?.[presetKey];
   if (!s || !p) return;
+  if(AC.tailOnlyPresetKeys?.includes(presetKey)&&AC.activeTailConfigurationTail!==tail){alert('This role configuration is available only for its assigned tail.');return;}
 
   // Ensure containers exist so Object.keys() can't crash
   if (!s.seats)   s.seats = {};
@@ -1152,6 +1177,37 @@ function applyPreset(tail, presetKey){
 
   // Dependency enforcement (hand controller, etc.)
   computeRoleFitTotals(s);
+}
+
+function applyRoleFitOnly(tail,presetKey){
+  const s=STORE.sessions?.[tail],p=AC.presets?.[presetKey];
+  if(!s||!p)return;
+  s.preset=presetKey;
+  applyRoleFitPreset(s,p);
+  invalidateAccountingCertification(s);
+  computeRoleFitTotals(s);
+}
+
+function openRoleConfigDialog(tail,presetKey){
+  const s=STORE.sessions?.[tail],p=AC.presets?.[presetKey];
+  const dialog=document.getElementById('roleConfigDialog');
+  if(!s||!p||!dialog)return;
+  const title=document.getElementById('roleConfigDialogTitle');
+  const message=document.getElementById('roleConfigDialogMessage');
+  const replace=document.getElementById('roleConfigReplaceMessage');
+  const applyStandard=document.getElementById('roleConfigApplyStandard');
+  const applyRoleFit=document.getElementById('roleConfigApplyRoleFit');
+  title.textContent='Configure '+p.name;
+  message.textContent='Role-Fit Equipment will be configured for '+p.name+'. Would you also like to load the standard Mission Equipment, Crew Personal Equipment, Crew Complement, Available Seats and Seating Arrangement?';
+  replace.hidden=!(s.preset&&s.preset!==presetKey);
+  replace.textContent='Applying '+p.name+' will replace the current Role Config.';
+  applyStandard.textContent='Apply '+p.name+' Standard Configuration';
+  applyRoleFit.textContent='Apply '+p.name+' Role-Fit Equipment Only';
+  document.getElementById('roleConfigDialogClose').onclick=()=>dialog.close();
+  document.getElementById('roleConfigDialogCancel').onclick=()=>dialog.close();
+  applyStandard.onclick=()=>{applyPreset(tail,presetKey);dialog.close();render();};
+  applyRoleFit.onclick=()=>{applyRoleFitOnly(tail,presetKey);dialog.close();render();};
+  if(!dialog.open)dialog.showModal();
 }
 
 
@@ -1234,45 +1290,60 @@ function renderConfig(){
 
 function updateConfigSummary(s){
   const tail=s.tail;
-  // KPIs
   const wb = computeWB(tail);
   const presetName = s.preset ? (AC.presets[s.preset]?.name || "Unavailable configuration") : "None";
   const rf = computeRoleFitTotals(s);
   const me = computeMissionTotals(s);
-  const st = computeSeatTotals(s);
   const crewOccupants = Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='crew').length;
   const paxOccupants = Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='pax').length;
   const quick=document.getElementById('configurationQuickSummary');
   if(quick){
     const manual=Object.values(s.roleFitDeclarationOrigins||{}).includes('manual') || (s.customExceptions||[]).length>0;
     const issues=[...accountingIssues(s),...missionIssues(s),...patientIssues(s)];
-    quick.replaceChildren();const title=document.createElement('strong');title.textContent=s.preset?presetName+' applied':'Aircraft defaults · No configuration selected';
-    const load=document.createElement('div');load.textContent='Crew: '+crewOccupants+' · Passengers: '+paxOccupants+' · Patients: '+computePatientTotals(s).count+' · Mission equipment: '+fmtDecimal(me.w)+' kg · Fuel: '+fmtKg(wb.fuelTotal);
+    quick.replaceChildren();const title=document.createElement('strong');title.textContent='Current Configuration · '+(s.preset?presetName:'No Role Selected');
+    const load=document.createElement('div');load.textContent='Crew: '+crewOccupants+' · Passengers: '+paxOccupants+' · Patients: '+computePatientTotals(s).count+' · Role-Fit Equipment: '+fmtDecimal(rf.w)+' kg · Mission Equipment: '+fmtDecimal(me.w)+' kg · Fuel: '+fmtKg(wb.fuelTotal);
     const hint=document.createElement('div');hint.textContent='Review the load below. Open a section to make changes.'+(manual?' Manual changes retained.':'');quick.append(title,load,hint);
     for(const issue of issues){const line=document.createElement('div');line.textContent=issue;quick.append(line);}
   }
-  const signedKg = value => `${value >= 0 ? "+" : ""}${fmtDecimal(value)} kg`;
+}
 
-    const tacticalPayload = (wb.cargoTotal || 0) + (wb.bayTotal || 0);
-    const auwBuild = tacticalPayload
-      ? `Operating Weight ${fmtKg(wb.opW)} + Cargo/Cabin ${signedKg(tacticalPayload)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`
-      : `Operating Weight ${fmtKg(wb.opW)} + Fuel ${signedKg(wb.fuelTotal)} = ${fmtKg(wb.auw)}`;
+function renderWBSummary(s,hostId){
+  const host=document.getElementById(hostId);if(!host||!s)return;
+  let details=host.querySelector('details[data-wb-summary]'),body;
+  if(!details){
+    details=document.createElement('details');details.className='card wb-summary';details.dataset.wbSummary='';
+    const heading=document.createElement('summary');heading.textContent='W&B Summary';
+    body=document.createElement('dl');body.className='wb-summary-list';
+    details.append(heading,body);host.replaceChildren(details);
+  }else body=details.querySelector('dl');
+  body.replaceChildren();
 
-    const occupantCG = st.occupantW ? Math.round(st.occupantM / st.occupantW) : null;
-    const roleChangeTotal = wb.roleEquipmentAdjustmentW;
-
-    document.getElementById("configKpi").innerHTML = `
-    <div class="box"><div class="t">Preset</div><div class="v">${presetName}</div><div class="s">Current configuration</div></div>
-    <div class="box"><div class="t">Accepted Basic Weight & CG</div><div class="v">${fmtKg(wb.basicW)} @ ${fmtMm(wb.basicCG)}</div></div>
-    <div class="box"><div class="t">Role-Fit Change from Accepted Basic Weight</div><div class="v">${signedKg(roleChangeTotal)}</div><div class="s">Role-Fit Equipment: ${signedKg(wb.roleFitAdjustmentW)} · Seat Structures: ${signedKg(wb.seatStructureAdjustmentW)}<br>All seats except C1 and C2 pilot seats are defined as role-fit equipment in the RFM. Seat structures are shown separately here for W&B accounting.</div></div>
-    <div class="box"><div class="t">Custom Exceptions</div><div class="v">${signedKg(wb.customExceptionW)}</div><div class="s">${s.customExceptions.length} entr${s.customExceptions.length===1?"y":"ies"} · ${!s.customExceptions.length?"No confirmation required":s.customExceptionsReviewed?"Aircraft documentation reviewed":"Review confirmation required"}</div></div>
-    <div class="box"><div class="t">Mission Equipment</div><div class="v">${signedKg(me.w)} @ ${fmtMm(me.w ? Math.round(me.m/me.w) : null)}</div></div>
-    <div class="box"><div class="t">Occupants</div><div class="v">${signedKg(st.occupantW)} @ ${fmtMm(occupantCG)}</div><div class="s">${crewOccupants} crew · ${paxOccupants} passenger${paxOccupants===1?"":"s"} · ${computePatientTotals(s).count} patients</div></div>
-    ${wb.zonesTotal ? `<div class="box"><div class="t">Additional Stowage Load</div><div class="v">${signedKg(wb.zonesTotal)}</div><div class="s">Additional shelf/zone load entered in Load Planning</div></div>` : ""}
-    <div class="box"><div class="t">Operating Weight & CG</div><div class="v">${fmtKg(wb.opW)} @ ${fmtMm(wb.opCG)}</div></div>
-    <div class="box"><div class="t">All-Up Weight & CG</div><div class="v">${fmtKg(wb.auw)} @ ${fmtMm(wb.auwCG)}</div><div class="s">${auwBuild}<br><span class="mono">${wb.cgBand}</span></div></div>
-  `;
-
+  const wb=computeWB(s.tail),rf=computeRoleFitTotals(s),me=computeMissionTotals(s),seats=computeSeatTotals(s);
+  const cargo=computeCargoTotals(s),bays=computeBayTotals(s),fuel=computeFuelTotals(s),patients=computePatientTotals(s);
+  const roleName=s.preset?(AC.presets[s.preset]?.name||'Unavailable Role Config'):'No Role Selected';
+  const signed=value=>`${value>=0?'+':''}${fmtDecimal(value)} kg`;
+  const cg=(weight,moment)=>weight?fmtMm(moment/weight):'—';
+  const crew=Object.entries(s.occupants||{}).filter(([key,person])=>s.seats?.[key]&&person?.type==='crew').length;
+  const pax=Object.entries(s.occupants||{}).filter(([key,person])=>s.seats?.[key]&&person?.type==='pax').length;
+  const rows=[
+    ['Selected Role Configuration',roleName,''],
+    ['Accepted Basic Weight and CG',s.accepted?.isAccepted?`${fmtKg(wb.basicW)} @ ${fmtMm(wb.basicCG)}`:'Not accepted',''],
+    ['Role Fit Change from Accepted Basic Weight',signed(wb.roleEquipmentAdjustmentW),`Role-Fit Equipment ${signed(wb.roleFitAdjustmentW)} · Seat Structures ${signed(wb.seatStructureAdjustmentW)}`],
+    ['Custom Exceptions',signed(wb.customExceptionW),`${(s.customExceptions||[]).length} entr${(s.customExceptions||[]).length===1?'y':'ies'}`],
+    ['Mission Equipment',`${fmtKg(me.w)} @ ${cg(me.w,me.m)}`,''],
+    ['Occupants',`${fmtKg(seats.occupantW)} @ ${cg(seats.occupantW,seats.occupantM)}`,`${crew} crew · ${pax} passengers · ${patients.count} patients`],
+    ['Operating Weight and CG',`${fmtKg(wb.opW)} @ ${fmtMm(wb.opCG)}`,`Includes ${fmtKg(wb.zonesTotal)} additional stowage load`],
+    ['Cargo',`Cargo ${fmtKg(cargo.w)} @ ${cg(cargo.w,cargo.m)} · Cabin Bay ${fmtKg(bays.w)} @ ${cg(bays.w,bays.m)}`,''],
+    ['Fuel',`${fmtKg(fuel.w)} @ ${cg(fuel.w,fuel.m)}`,''],
+    ['AUW and CG',`${fmtKg(wb.auw)} @ ${fmtMm(wb.auwCG)}`,wb.cgBand]
+  ];
+  for(const [label,value,note] of rows){
+    const row=document.createElement('div');row.className='wb-summary-row';
+    const term=document.createElement('dt');term.textContent=label;
+    const description=document.createElement('dd');description.textContent=value;
+    if(note){const sub=document.createElement('small');sub.textContent=note;description.append(sub);}
+    row.append(term,description);body.append(row);
+  }
 }
 
 /* =========================
@@ -1284,7 +1355,7 @@ function renderMission(){ renderMissionEquipment(); }
 
 function renderPatients(s){
   let host=document.getElementById('patientPositionsHost');
-  if(!host){host=document.createElement('div');host.id='patientPositionsHost';host.className='card';document.getElementById('extraCrewHost').after(host);}
+  if(!host){host=document.createElement('div');host.id='patientPositionsHost';host.className='card';document.getElementById('crewSummaryCard').after(host);}
   const rows=patientRows(s).filter(row=>row.available||row.occupied);
   host.hidden=!rows.length;host.replaceChildren();if(!rows.length)return;
   const heading=document.createElement('h2');heading.textContent='Litter & PTA Patients';host.append(heading);
@@ -1305,6 +1376,7 @@ function renderSeats(){
   const tail = STORE.selectedTail;
   const s = STORE.sessions[tail];
 
+  renderCrewPaxPatientsSummary(s);
   renderExtraCrew(s);
   renderPatients(s);
     const listCrew = document.getElementById("seatListCrew");
@@ -1439,6 +1511,19 @@ function renderSeats(){
       }
     };
   }
+}
+
+function renderCrewPaxPatientsSummary(s){
+  const host=document.getElementById('crewPaxPatientsSummary');
+  if(!host)return;
+  const occupants=Object.entries(s.occupants||{}).filter(([seat,person])=>s.seats?.[seat]&&person);
+  const crew=occupants.filter(([,person])=>person.type==='crew').length;
+  const pax=occupants.filter(([,person])=>person.type==='pax').length;
+  const patients=computePatientTotals(s).count;
+  host.innerHTML=`
+    <div class="box"><div class="t">Crew Aboard</div><div class="v">${crew}</div></div>
+    <div class="box"><div class="t">Passengers Aboard</div><div class="v">${pax}</div></div>
+    <div class="box"><div class="t">Patients Aboard</div><div class="v">${patients}</div></div>`;
 }
 
 
@@ -1588,6 +1673,8 @@ const wb = computeWB(tail);
   document.getElementById("tankModeText").innerHTML = s.fuel.manualTanks
     ? `<span class="badge warn">Manual Tank Distribution</span> Total fuel calculated from individual tank quantities.`
     : `<span class="badge good">RFM Fuel Distribution</span> Tank quantities calculated from total fuel.`;
+  const manualFuelHelper=document.getElementById("manualFuelHelper");
+  if(manualFuelHelper)manualFuelHelper.hidden=!s.fuel.manualTanks;
 
     // envelope canvas (delegated so it can be reused in other tabs later)
   renderEnvelopeHeader();
@@ -3047,6 +3134,10 @@ function render(){
   if (activeTab === "CERTIFY") renderCertify();
   if (activeTab === "EDITOR")  { if (typeof renderEditor === "function") renderEditor(); }
 
+  const summaryHosts={CONFIG:'wbSummaryConfig',MISSION:'wbSummaryMission',SEATS:'wbSummarySeats',FUEL:'wbSummaryFuel',CARGO:'wbSummaryCargo'};
+  const summaryHost=summaryHosts[activeTab],summarySession=STORE.sessions?.[STORE.selectedTail];
+  if(summaryHost&&summarySession)renderWBSummary(summarySession,summaryHost);
+
   // Enable/disable Home feel: If a tail is selected, Home is still available as a tab
   // (You said either way is fine; this keeps it available while defaulting you to ACCEPT on selection.)
 
@@ -3064,6 +3155,7 @@ initTails();
 // Restore any saved session (survives swipe-closed). Must run after initTails()
 // has built the default sessions, so a valid snapshot overwrites the defaults.
 if (typeof restoreSession === "function") restoreSession();
+if(STORE.selectedTail)activateTailConfigurationForSession(STORE.selectedTail);
 if(missionConfigNotice){
   const existingNotice=document.getElementById('sessionMigrationWarning')?.textContent;
   showSessionMigrationWarning([existingNotice,missionConfigNotice].filter(Boolean).join(' '));

@@ -24,7 +24,9 @@
 const EDITOR = {
   authed: false,
   activeSection: "ROLEFIT",
-  draft: null
+  draft: null,
+  mode: "fleet",
+  tailConfigTails: []
 };
 
 function editorItemKey(name,prefix=''){
@@ -98,10 +100,33 @@ function editorSaveDraft() {
     }
     const issues=missionConfigurationIssues(EDITOR.draft);
     if(issues.length){alert(issues.join("\n"));return false;}
+    if(EDITOR.mode==='tail'){
+      if(!EDITOR.tailConfigTails.length){alert('Select at least one tail before saving a tail-specific configuration.');return false;}
+      const tailOnlyPresetKeys=Object.keys(EDITOR.draft.presets).filter(key=>!AC_FLEET_CONFIGURATION.presets[key]);
+      const configuration={};
+      for(const field of TAIL_CONFIGURATION_FIELDS)configuration[field]=JSON.parse(JSON.stringify(EDITOR.draft[field]));
+      configuration.referenceDocuments=JSON.parse(JSON.stringify(EDITOR.draft.referenceDocuments));
+      configuration.tailOnlyPresetKeys=tailOnlyPresetKeys;
+      const tailConfigurations=JSON.parse(JSON.stringify(AC.tailConfigurations||{}));
+      for(const tail of EDITOR.tailConfigTails)tailConfigurations[tail]=JSON.parse(JSON.stringify(configuration));
+      const payload=JSON.parse(localStorage.getItem('ac_config_overrides')||'{}');
+      payload.missionSchema=MISSION_SCHEMA;payload.baseConfigVersion=AC_META.configVersion;payload.roleFitAccountingVersion=2;
+      payload.tailConfigurations=tailConfigurations;
+      localStorage.setItem('ac_config_overrides',JSON.stringify(payload));
+      AC.tailConfigurations=tailConfigurations;
+      for(const tail of EDITOR.tailConfigTails){
+        const session=STORE.sessions[tail];if(session)invalidateAccountingCertification(session);
+        if(tail===STORE.selectedTail)activateTailConfigurationForSession(tail);
+      }
+      persistSession();
+      return true;
+    }
     const payload = {
       missionSchema: MISSION_SCHEMA,
       baseConfigVersion: AC_META.configVersion,
       roleFitAccountingVersion: 2,
+      tails: EDITOR.draft.tails,
+      appOptions: EDITOR.draft.appOptions,
       missionEquip: EDITOR.draft.missionEquip,
       stowage:      EDITOR.draft.stowage,
       bayArms:      EDITOR.draft.bayArms || AC.bayArms,
@@ -109,11 +134,15 @@ function editorSaveDraft() {
       crewSeats:    EDITOR.draft.crewSeats,
       paxSeats:     EDITOR.draft.paxSeats,
       presets:      EDITOR.draft.presets,
-      referenceDocuments: EDITOR.draft.referenceDocuments
+      crewEquipmentPlacement: EDITOR.draft.crewEquipmentPlacement,
+      referenceDocuments: EDITOR.draft.referenceDocuments,
+      tailConfigurations: AC.tailConfigurations||{}
     };
     localStorage.setItem("ac_config_overrides", JSON.stringify(payload));
 
     // Mutate live AC so the app sees changes immediately
+    AC.tails = EDITOR.draft.tails;
+    AC.appOptions = EDITOR.draft.appOptions;
     AC.missionEquip = EDITOR.draft.missionEquip;
     AC.stowage      = EDITOR.draft.stowage;
     AC.bayArms      = EDITOR.draft.bayArms || AC.bayArms;
@@ -123,6 +152,9 @@ function editorSaveDraft() {
     AC.meta.referenceDocuments = EDITOR.draft.referenceDocuments;
 
     AC.presets = EDITOR.draft.presets;
+    AC.crewEquipmentPlacement = EDITOR.draft.crewEquipmentPlacement;
+    AC_FLEET_CONFIGURATION=currentConfigurationData();
+    syncEditorTailRegistry();
 
     // Also update the live session's roleFit state for any tail currently loaded —
     // "normally installed" changes should take effect immediately without a reload.
@@ -143,6 +175,7 @@ function editorSaveDraft() {
         }
       }
     }
+    if(STORE.selectedTail)activateTailConfigurationForSession(STORE.selectedTail);
     persistSession();
     return true;
   } catch (e) {
@@ -150,11 +183,20 @@ function editorSaveDraft() {
   }
 }
 
+function syncEditorTailRegistry(){
+  if(typeof STORE==='undefined'||!Array.isArray(EDITOR.draft?.tails?.active)||!Array.isArray(EDITOR.draft?.tails?.placeholders))return;
+  const active=EDITOR.draft.tails.active,placeholders=EDITOR.draft.tails.placeholders;
+  STORE.tails=[...active,...placeholders];
+  for(const tail of active)if(!STORE.sessions[tail])STORE.sessions[tail]=makeNewSession(tail,false);else STORE.sessions[tail].isPlaceholder=false;
+  for(const tail of placeholders)if(!STORE.sessions[tail])STORE.sessions[tail]=makeNewSession(tail,true);else STORE.sessions[tail].isPlaceholder=true;
+}
+
 function editorResetDefaults() {
-  if (!confirm("Reset ALL mission equipment, stowage, and role-fit data to factory defaults?\n\nThis will discard every change made in the editor.")) return;
+  if (!confirm("Discard all local Editor changes?\n\nThis returns this device to the configuration provided by its current config.js.")) return;
+  if (!confirm("Confirm discard of local Editor changes?\n\nChanges made directly to config.js will not be undone.")) return;
   try {
     localStorage.removeItem("ac_config_overrides");
-    alert("Reset complete. The page will now reload.");
+    alert("Local Editor changes discarded. The page will now reload.");
     location.reload();
   } catch (e) {
     alert("Reset failed: " + e.message);
@@ -165,17 +207,23 @@ function editorInitDraft() {
   // Deep-clone current AC state into an editable draft.
   // Presets carry missionOn/Off AND roleFitOn/Off so the editor
   // can manage both mission equipment and role-fit preset membership.
-  const presetsDraft = JSON.parse(JSON.stringify(AC.presets));
+  const source=EDITOR.mode==='tail'&&EDITOR.tailConfigTails.length
+    ? AC.tailConfigurations?.[EDITOR.tailConfigTails[0]] || AC_FLEET_CONFIGURATION
+    : AC_FLEET_CONFIGURATION||AC;
+  const presetsDraft = JSON.parse(JSON.stringify(source.presets));
 
   EDITOR.draft = {
-    missionEquip: JSON.parse(JSON.stringify(AC.missionEquip)),
-    stowage:      JSON.parse(JSON.stringify(AC.stowage)),
-    bayArms:      JSON.parse(JSON.stringify(AC.bayArms)),
-    roleFit:      JSON.parse(JSON.stringify(AC.roleFit)),
-    crewSeats:    JSON.parse(JSON.stringify(AC.crewSeats)),
-    paxSeats:     JSON.parse(JSON.stringify(AC.paxSeats)),
+    missionEquip: JSON.parse(JSON.stringify(source.missionEquip)),
+    stowage:      JSON.parse(JSON.stringify(source.stowage)),
+    bayArms:      JSON.parse(JSON.stringify(source.bayArms)),
+    roleFit:      JSON.parse(JSON.stringify(source.roleFit)),
+    crewSeats:    JSON.parse(JSON.stringify(source.crewSeats)),
+    paxSeats:     JSON.parse(JSON.stringify(source.paxSeats)),
     presets:      presetsDraft,
-    referenceDocuments: JSON.parse(JSON.stringify(AC.meta.referenceDocuments || {currentId:null,history:[]}))
+    tails:        JSON.parse(JSON.stringify(AC_FLEET_CONFIGURATION.tails||AC.tails)),
+    appOptions:   JSON.parse(JSON.stringify(AC_FLEET_CONFIGURATION.appOptions||AC.appOptions||{allowRfmBasicWeight:true})),
+    crewEquipmentPlacement: JSON.parse(JSON.stringify(source.crewEquipmentPlacement||{})),
+    referenceDocuments: JSON.parse(JSON.stringify(source.referenceDocuments || {currentId:null,history:[]}))
   };
   for (const it of Object.values(EDITOR.draft.roleFit)){
     if (it.maintenanceIncluded === undefined) it.maintenanceIncluded = !!it.normally;
@@ -278,7 +326,9 @@ function renderEditorMain(host) {
     { id: "SEATBASE", label: "Crew and Pax Seats" },
     { id: "STOWAGE",  label: "Stowage Locations" },
     { id: "REFERENCE", label: "Reference Documents" },
-    { id: "CONFIGURATIONS", label: "Aircraft Roles" }
+    { id: "CONFIGURATIONS", label: "Aircraft Roles" },
+    ... (EDITOR.mode==='tail' ? [] : [{ id: "AIRCRAFT", label: "App Settings" }]),
+    { id: "TAILCONFIG", label: EDITOR.mode==='tail' ? "Change Tail Selection" : "Create Tail-Specific Configuration" }
   ];
 
   host.innerHTML = `
@@ -295,17 +345,24 @@ function renderEditorMain(host) {
         `).join("")}
       </div>
 
+      <div class="callout">
+        <b>Maintain the configuration data used by the W&amp;B application.</b> Use the Editor to manage the application configuration and operational data available to users. <b>Changes made in the Editor take effect immediately on this device.</b> Verify that changes produce the expected results before publishing them. Use <b>Discard Local Editor Changes</b> or <b>Export config.js</b> below to manage or publish your changes.
+      </div>
+      ${EDITOR.mode==='tail'?`<div class="callout"><b>Tail-specific configuration · ${EDITOR.tailConfigTails.map(escHtml).join(', ')}</b><div class="small">Changes in these Editor sections apply only to the selected tails. Their other fleet configurations remain available. Saving makes the same edited setup available to each selected tail.</div></div>`:''}
+
       <div id="editorSectionHost"></div>
 
       <div class="hr"></div>
-      <div class="row" style="gap:8px;">
-        <button class="btn" id="editorExportBtn">Export config.js</button>
-        <button class="btn bad" id="editorResetBtn">Reset to Factory Defaults</button>
-        <button class="btn warn" id="editorSignOutBtn" style="margin-left:auto;">Sign Out</button>
-      </div>
-      <div class="small muted" style="margin-top:6px;">
-        Export produces a downloadable config.js with your current changes —
-        useful when it is time to publish updates to the rest of the fleet.
+      <div class="editor-actions">
+        <div class="editor-action-card">
+          <button class="btn" id="editorExportBtn">Export config.js</button>
+          <div class="small muted">Exports the current Editor configuration for publication. <b>The exported <code>.txt</code> file must be renamed to <code>config.js</code>, placed in the application directory, and uploaded to the host before the changes become available to all users.</b></div>
+        </div>
+        <div class="editor-action-card">
+          <button class="btn bad" id="editorResetBtn">Discard Local Editor Changes</button>
+          <div class="small muted">Removes changes made locally through the Editor and returns this device to the configuration provided by the application's current <code>config.js</code>. <b>It does not undo changes made directly to <code>config.js</code>.</b></div>
+        </div>
+        <button class="btn warn editor-sign-out" id="editorSignOutBtn">Sign Out</button>
       </div>
     </div>
   `;
@@ -313,7 +370,10 @@ function renderEditorMain(host) {
   // Wire tab buttons
   host.querySelectorAll("[data-edsec]").forEach(b => {
     b.onclick = () => {
-      EDITOR.activeSection = b.dataset.edsec;
+      if(b.dataset.edsec==='TAILCONFIG'){
+        if(EDITOR.mode==='tail'){EDITOR.mode='fleet';EDITOR.tailConfigTails=[];EDITOR.draft=null;}
+        EDITOR.activeSection='TAILCONFIG';
+      }else EDITOR.activeSection = b.dataset.edsec;
       EDITOR.openPanels={};
       renderEditor();
       window.scrollTo({top:0,left:0,behavior:'instant'});
@@ -326,18 +386,81 @@ function renderEditorMain(host) {
   document.getElementById("editorSignOutBtn").onclick = () => {
     EDITOR.authed = false;
     EDITOR.draft = null;
+    EDITOR.mode = 'fleet';EDITOR.tailConfigTails=[];
     renderEditor();
   };
 
   // Render active section
   const secHost = document.getElementById("editorSectionHost");
+  if (EDITOR.activeSection === "TAILCONFIG" && EDITOR.mode==='fleet') renderEditorTailConfigurationSelection(secHost);
   if (EDITOR.activeSection === "CONFIGURATIONS") renderEditorConfigurations(secHost);
+  if (EDITOR.activeSection === "AIRCRAFT") renderEditorAircraftManagement(secHost);
   if (EDITOR.activeSection === "MISSION")  renderEditorMission(secHost);
   if (EDITOR.activeSection === "STOWAGE")  renderEditorStowage(secHost);
   if (EDITOR.activeSection === "ROLEFIT")  renderEditorRoleFit(secHost);
   if (EDITOR.activeSection === "SEATBASE") renderEditorSeatBaseline(secHost);
   if (EDITOR.activeSection === "REFERENCE") renderEditorReference(secHost);
+  if (EDITOR.activeSection === "TAILCONFIG" && EDITOR.mode==='tail') renderEditorTailConfigurationSelection(secHost);
   editorOrganizePanels(secHost);
+}
+
+function renderEditorTailConfigurationSelection(host){
+  const tails=AC.tails.active||[];
+  host.innerHTML='<section class="card"><h3>Create Tail-Specific Configuration</h3><p class="small muted">Select one or more operational tails. The Editor will open with a copy of the fleet configuration, or an existing tail configuration if one is already saved. The selected tails will share the edits made in this editing session.</p><div class="row" id="tailConfigSelectList"></div><div class="small muted" id="tailConfigSelectionNote" style="margin-top:10px"></div><button class="btn good" id="tailConfigBegin" type="button">Open Editor for Selected Tails</button></section>';
+  const list=host.querySelector('#tailConfigSelectList'),note=host.querySelector('#tailConfigSelectionNote');
+  if(!tails.length){list.textContent='No operational tails are available.';return;}
+  for(const tail of tails){
+    const label=document.createElement('label');label.className='toggle';label.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px';
+    const input=document.createElement('input');input.type='checkbox';input.value=tail;input.style.width='auto';input.dataset.tailConfigSelect='';
+    const title=document.createElement('span');title.textContent=tail+(AC.tailConfigurations?.[tail]?' · tail-specific setup saved':' · fleet setup');label.append(input,title);list.append(label);
+  }
+  const updateNote=()=>{
+    const selected=[...host.querySelectorAll('[data-tail-config-select]:checked')].map(el=>el.value);
+    const existing=selected.filter(t=>AC.tailConfigurations?.[t]);
+    note.textContent=existing.length?`Saved tail setup will be used as the starting point: ${existing.join(', ')}. If selected tails have different saved setups, the first selected tail's setup will be copied to all selected tails when the next edit is saved.`:'';
+  };
+  list.onchange=updateNote;
+  host.querySelector('#tailConfigBegin').onclick=()=>{
+    const selected=[...host.querySelectorAll('[data-tail-config-select]:checked')].map(el=>el.value);
+    if(!selected.length){alert('Select at least one tail.');return;}
+    EDITOR.mode='tail';EDITOR.tailConfigTails=selected;EDITOR.draft=null;editorInitDraft();EDITOR.activeSection='ROLEFIT';EDITOR.openPanels={};renderEditor();window.scrollTo({top:0,left:0,behavior:'instant'});
+  };
+}
+
+function renderEditorAircraftManagement(host){
+  const tails=EDITOR.draft.tails;
+  host.innerHTML=`<section class="card"><h3>Aircraft / Tail Numbers</h3><p class="small muted">Manage the aircraft shown on Home. Removing a tail clears any local session data for that tail; accepted or signed-out aircraft must be returned before removal.</p><div class="twoCol"><div><h4>Operational Aircraft</h4><div data-tail-list="active"></div></div><div><h4>Placeholders</h4><div data-tail-list="placeholders"></div></div></div><div class="row" style="align-items:flex-end;margin-top:12px"><label>Tail number<input id="editorNewTail" autocomplete="off" placeholder="e.g. 149941"></label><label>List as<select id="editorNewTailType"><option value="active">Operational aircraft</option><option value="placeholders">Placeholder</option></select></label><button class="btn good" id="editorAddTail" type="button">Add Tail Number</button></div></section><section class="card"><h3>Accept Page Options</h3><label class="small"><input id="editorAllowRfmBasis" type="checkbox" style="width:auto" ${EDITOR.draft.appOptions.allowRfmBasicWeight?'checked':''}> Offer <b>RFM Basic Weight (Beta Testing)</b> on Accept</label><p class="small muted">When disabled, the RFM basis cannot be selected for a new acceptance. An existing session retains its recorded basis.</p></section>`;
+  for(const type of ['active','placeholders']){
+    const list=host.querySelector(`[data-tail-list="${type}"]`),values=tails[type];
+    if(!values.length){const empty=document.createElement('div');empty.className='small muted';empty.textContent='No tail numbers.';list.append(empty);}
+    for(const [index,tail] of values.entries()){
+      const row=document.createElement('div');row.className='tail-editor-row';
+      const value=document.createElement('span');value.className='mono';value.textContent=tail;
+      const remove=document.createElement('button');remove.type='button';remove.className='btn bad small';remove.textContent='Remove';remove.setAttribute('aria-label','Remove tail '+tail);
+      remove.onclick=()=>{
+        const session=STORE.sessions[tail];
+        if(session?.accepted?.isAccepted||(session?.signedOutBy&&!session?.returnedAt)){alert('Return this aircraft to Available before removing it.');return;}
+        if(!confirm('Remove tail '+tail+' from the aircraft list? Any local session data for this tail will also be cleared.'))return;
+        const before=JSON.parse(JSON.stringify(tails)),tailConfigBefore=JSON.parse(JSON.stringify(AC.tailConfigurations||{}));tails[type].splice(index,1);delete AC.tailConfigurations?.[tail];
+        if(!editorSaveDraft()){EDITOR.draft.tails=before;AC.tailConfigurations=tailConfigBefore;renderEditor();return;}
+        delete STORE.sessions[tail];if(STORE.selectedTail===tail)STORE.selectedTail=null;
+        persistSession();render();
+      };
+      row.append(value,remove);list.append(row);
+    }
+  }
+  host.querySelector('#editorAddTail').onclick=()=>{
+    const input=host.querySelector('#editorNewTail'),value=input.value.trim(),type=host.querySelector('#editorNewTailType').value;
+    if(!value){alert('Enter a tail number.');input.focus();return;}
+    if([...tails.active,...tails.placeholders].some(tail=>String(tail).trim().toUpperCase()===value.toUpperCase())){alert('That tail number is already listed.');input.focus();return;}
+    tails[type].push(value);
+    if(!editorSaveDraft()){tails[type].pop();return;}
+    renderEditor();
+  };
+  host.querySelector('#editorAllowRfmBasis').onchange=event=>{
+    const before=EDITOR.draft.appOptions.allowRfmBasicWeight;EDITOR.draft.appOptions.allowRfmBasicWeight=event.target.checked;
+    if(!editorSaveDraft()){EDITOR.draft.appOptions.allowRfmBasicWeight=before;renderEditor();}
+  };
 }
 
 function renderEditorConfigurations(host){
@@ -357,8 +480,10 @@ function renderEditorConfigurations(host){
     card.innerHTML=`<summary><b>${escHtml(p.name)}</b>${p.active===false?' · Retired':''}</summary>
       <div class="row" style="margin-top:10px"><label style="flex:1">Name<input data-config-field="name" value="${escHtml(p.name)}"></label><label style="flex:2">Description<input data-config-field="notes" value="${escHtml(p.notes||'')}"></label></div>
       <div class="row" style="margin-top:10px"><label><input type="checkbox" style="width:auto" data-config-active ${p.active!==false?'checked':''}> Available for use<small>Uncheck to retire this item. Its definition is retained; existing configurations and mission loads may need review.</small></label><button class="btn small" data-config-move="up" ${position===0?'disabled':''} aria-label="Move ${escHtml(p.name)} earlier">Move up</button><button class="btn small" data-config-move="down" ${position===orderedPresets.length-1?'disabled':''} aria-label="Move ${escHtml(p.name)} later">Move down</button><button class="btn" data-config-duplicate>Duplicate</button><button class="btn bad" data-config-delete>Delete</button></div>
-      <h3>Mission equipment</h3><div data-config-equipment></div>
-      <details><summary>Seats, default occupants and role-fit equipment</summary><div data-config-fit></div></details>`;
+      <section class="aircraft-role-section"><h3>Role-Fit Equipment</h3><div data-config-rolefit></div></section>
+      <section class="aircraft-role-section"><h3>Mission Equipment</h3><div data-config-equipment></div></section>
+      <section class="aircraft-role-section"><h3>Standard Seats</h3><details class="aircraft-role-seat-group"><summary>Crew Seats</summary><div class="config-seat-row config-fit-heading"><span>Seat</span><span>Installed</span></div><div data-config-seats-crew></div></details><details class="aircraft-role-seat-group"><summary>Passenger Seats</summary><div class="config-seat-row config-fit-heading"><span>Seat</span><span>Installed</span></div><div data-config-seats-pax></div></details></section>
+      <section class="aircraft-role-section"><h3>Standard Crew</h3><p class="small muted">Set the standard occupants and crew assignments for this role.</p><details class="aircraft-role-seat-group"><summary>Crew Seats</summary><div class="config-seat-row config-occupant-row config-fit-heading"><span>Seat</span><span>Occupied</span><span>Crew</span></div><div data-config-crew-occupants></div></details><details class="aircraft-role-seat-group"><summary>Passenger Seats</summary><div class="config-seat-row config-occupant-row config-fit-heading"><span>Seat</span><span>Occupied</span><span>Crew</span></div><div data-config-pax-occupants></div></details></section>`;
     card.querySelectorAll('[data-config-field]').forEach(input=>input.onchange=()=>{
       const field=input.dataset.configField;if(field==='name'&&!input.value.trim()){input.value=p.name;return;}
       p[field]=input.value.trim();editorSaveDraft();card.querySelector('summary b').textContent=p.name;
@@ -385,41 +510,46 @@ function renderEditorConfigurations(host){
       }
       equipment.append(section);
     }
-    const fit=card.querySelector('[data-config-fit]');
-    fit.innerHTML='<section class="config-fit-section"><h3>Seats and default occupants</h3><div class="config-seat-row config-occupant-row config-fit-heading"><span>Seat</span><span>Installed</span><span>Occupied</span><span>Crew</span></div><div data-config-seats></div></section><section class="config-fit-section"><h3>Role Fit Equipment</h3><div data-config-rolefit></div></section>';
-    const seatsHost=fit.querySelector('[data-config-seats]');
-    const roleFitHost=fit.querySelector('[data-config-rolefit]');
-    for(const [kind,catalogue] of [['crew',EDITOR.draft.crewSeats],['pax',EDITOR.draft.paxSeats]]){
-      for(const [id,it] of Object.entries(catalogue)){
-        const label=document.createElement('div');label.className='config-seat-row config-occupant-row small';
-        const name=document.createElement('span');name.textContent=it.name;label.append(name);
-        for(const occupant of [false,true]){
-          const cb=document.createElement('input');cb.type='checkbox';cb.style.width='auto';cb.checked=occupant?(p.occupants||[]).includes(id):(p.seats?.[kind]||[]).includes(id);
-          cb.setAttribute('aria-label',it.name+(occupant?' occupied':' installed'));
-          cb.onchange=()=>{p.seats??={crew:[],pax:[]};const list=occupant?(p.occupants??=[]):(p.seats[kind]??=[]);const i=list.indexOf(id);if(i>=0)list.splice(i,1);if(cb.checked)list.push(id);if(occupant&&cb.checked&&!p.seats[kind].includes(id))p.seats[kind].push(id);if(!occupant&&!cb.checked)p.occupants=(p.occupants||[]).filter(x=>x!==id);syncCrew();editorSaveDraft();};
-          label.append(cb);
-        }
-        const crew=document.createElement('input');crew.type='checkbox';crew.style.width='auto';crew.dataset.configOccupantCrew=id;
-        crew.setAttribute('aria-label',it.name+' occupied by crew');
-        const syncCrew=()=>{
-          const occupied=(p.occupants||[]).includes(id);
-          crew.disabled=kind==='crew'||!occupied;
-          crew.checked=occupied&&(kind==='crew'||!!p.occupantRoles?.[id]);
-          crew.title=kind==='crew'?'Crew seat':occupied?'Checked: crew. Unchecked: passenger.':'Occupy the seat to choose crew.';
-          label.children[1].checked=(p.seats?.[kind]||[]).includes(id);
-          label.children[2].checked=occupied;
-        };
-        crew.onchange=()=>{p.occupantRoles??={};if(crew.checked)p.occupantRoles[id]=p.occupantRoles[id]||'Crew';else delete p.occupantRoles[id];editorSaveDraft();};
-        syncCrew();label.append(crew);
-        seatsHost.append(label);
-      }
+    const roleFitHost=card.querySelector('[data-config-rolefit]');
+    const roleFitGroups=new Map();
+    for(const [id,it] of Object.entries(EDITOR.draft.roleFit)){
+      const group=it.group||ROLE_EDITOR_GROUPS.find(([prefix])=>id.startsWith(prefix))?.[1]||'Aircraft Systems';
+      if(!roleFitGroups.has(group))roleFitGroups.set(group,[]);roleFitGroups.get(group).push([id,it]);
     }
-    const roleFitRows=sortSelectedFirst(Object.entries(EDITOR.draft.roleFit),([id])=>(p.roleFitOn||[]).includes(id)||(!(p.roleFitOff||[]).includes(id)&&!!EDITOR.draft.roleFit[id].normally),([,it])=>it.name);
-    for(const [id,it] of roleFitRows){
-      const label=document.createElement('label');label.className='config-rolefit-row small';
+    const roleFitOrder=[...ROLE_EDITOR_GROUPS.map(([,name])=>name),... [...roleFitGroups.keys()].filter(name=>!ROLE_EDITOR_GROUPS.some(([,known])=>known===name)).sort()];
+    for(const group of roleFitOrder){
+      const entries=roleFitGroups.get(group);if(!entries?.length)continue;
+      const section=document.createElement('details');section.className='config-fit-section';
+      const summary=document.createElement('summary');summary.textContent=group;section.append(summary);
+      const list=sortSelectedFirst(entries,([id])=>(p.roleFitOn||[]).includes(id)||(!(p.roleFitOff||[]).includes(id)&&!!EDITOR.draft.roleFit[id].normally),([,it])=>it.name);
+      for(const [id,it] of list){
+        const label=document.createElement('label');label.className='config-rolefit-row small';
+        const name=document.createElement('span');name.textContent=it.name;label.append(name);
+        const select=document.createElement('select');select.innerHTML=`<option value="">Aircraft Default — ${it.normally?'Installed':'Not Installed'}</option><option value="on">Installed</option><option value="off">Removed</option>`;select.value=(p.roleFitOn||[]).includes(id)?'on':(p.roleFitOff||[]).includes(id)?'off':'';
+        select.onchange=()=>{p.roleFitOn=(p.roleFitOn||[]).filter(k=>k!==id);p.roleFitOff=(p.roleFitOff||[]).filter(k=>k!==id);if(select.value==='on')p.roleFitOn.push(id);if(select.value==='off')p.roleFitOff.push(id);editorSaveDraft();};label.append(select);section.append(label);
+      }
+      roleFitHost.append(section);
+    }
+    const seatsHosts={crew:card.querySelector('[data-config-seats-crew]'),pax:card.querySelector('[data-config-seats-pax]')};
+    const installedControls=new Map(),occupantControls=new Map();
+    for(const [kind,catalogue] of [['crew',EDITOR.draft.crewSeats],['pax',EDITOR.draft.paxSeats]])for(const [id,it] of Object.entries(catalogue)){
+      const label=document.createElement('label');label.className='config-seat-row small';
       const name=document.createElement('span');name.textContent=it.name;label.append(name);
-      const select=document.createElement('select');select.innerHTML=`<option value="">Aircraft Default — ${it.normally?'Installed':'Not Installed'}</option><option value="on">Installed</option><option value="off">Removed</option>`;select.value=(p.roleFitOn||[]).includes(id)?'on':(p.roleFitOff||[]).includes(id)?'off':'';
-      select.onchange=()=>{p.roleFitOn=(p.roleFitOn||[]).filter(k=>k!==id);p.roleFitOff=(p.roleFitOff||[]).filter(k=>k!==id);if(select.value==='on')p.roleFitOn.push(id);if(select.value==='off')p.roleFitOff.push(id);editorSaveDraft();};label.append(select);roleFitHost.append(label);
+      const installed=document.createElement('input');installed.type='checkbox';installed.style.width='auto';installed.checked=(p.seats?.[kind]||[]).includes(id);installed.setAttribute('aria-label',it.name+' installed');
+      installedControls.set(id,installed);
+      installed.onchange=()=>{p.seats??={crew:[],pax:[]};const list=p.seats[kind]??=([]);const index=list.indexOf(id);if(index>=0)list.splice(index,1);if(installed.checked)list.push(id);else p.occupants=(p.occupants||[]).filter(key=>key!==id);const controls=occupantControls.get(id);if(controls){const active=(p.occupants||[]).includes(id);controls.occupied.checked=active;controls.crew.disabled=kind==='crew'||!active;controls.crew.checked=active&&(kind==='crew'||!!p.occupantRoles?.[id]);}editorSaveDraft();};
+      label.append(installed);seatsHosts[kind].append(label);
+    }
+    const occupantHosts={crew:card.querySelector('[data-config-crew-occupants]'),pax:card.querySelector('[data-config-pax-occupants]')};
+    for(const [kind,catalogue] of [['crew',EDITOR.draft.crewSeats],['pax',EDITOR.draft.paxSeats]])for(const [id,it] of Object.entries(catalogue)){
+      const label=document.createElement('div');label.className='config-seat-row config-occupant-row small';
+      const name=document.createElement('span');name.textContent=it.name;label.append(name);
+      const occupied=document.createElement('input');occupied.type='checkbox';occupied.style.width='auto';occupied.checked=(p.occupants||[]).includes(id);occupied.setAttribute('aria-label',it.name+' occupied');
+      occupied.onchange=()=>{p.occupants??=[];const index=p.occupants.indexOf(id);if(index>=0)p.occupants.splice(index,1);if(occupied.checked){p.occupants.push(id);p.seats??={crew:[],pax:[]};p.seats[kind]??=[];if(!p.seats[kind].includes(id))p.seats[kind].push(id);const installed=installedControls.get(id);if(installed)installed.checked=true;}crew.disabled=kind==='crew'||!occupied.checked;crew.checked=occupied.checked&&(kind==='crew'||!!p.occupantRoles?.[id]);editorSaveDraft();};
+      const crew=document.createElement('input');crew.type='checkbox';crew.style.width='auto';crew.checked=occupied.checked&&(kind==='crew'||!!p.occupantRoles?.[id]);crew.disabled=kind==='crew'||!occupied.checked;crew.setAttribute('aria-label',it.name+' occupied by crew');crew.title=kind==='crew'?'Crew seat':occupied.checked?'Checked: crew. Unchecked: passenger.':'Occupy the seat to choose crew.';
+      crew.onchange=()=>{p.occupantRoles??={};if(crew.checked)p.occupantRoles[id]=p.occupantRoles[id]||'Crew';else delete p.occupantRoles[id];editorSaveDraft();};
+      occupantControls.set(id,{occupied,crew});
+      label.append(occupied,crew);occupantHosts[kind].append(label);
     }
     list.append(card);
   }
@@ -560,7 +690,13 @@ function renderEditorMission(host) {
     <div class="row">
       <button class="btn good" id="missionAddBtn">+ Add New Mission Equipment</button>
     </div>
+    <details class="card" id="crewEquipmentPlacementEditor" style="margin-top:14px;">
+      <summary><b>Additional Crew Equipment Placement</b></summary>
+      <p class="small muted">Set default locations for personal bags and B25 kits added with crew beyond the standard crew complement. If a preferred location cannot take the item, the operator can choose an available cabin bay.</p>
+      <div id="crewEquipmentPlacementFields"></div>
+    </details>
   `;
+  renderCrewEquipmentPlacementEditor(host.querySelector('#crewEquipmentPlacementFields'));
 
   const list = document.getElementById("missionItemList");
 
@@ -804,6 +940,21 @@ function renderEditorMission(host) {
       inp.setSelectionRange(pos, pos);
     });
   };
+}
+
+function renderCrewEquipmentPlacementEditor(host){
+  if(!host)return;
+  const rule=EDITOR.draft.crewEquipmentPlacement||(EDITOR.draft.crewEquipmentPlacement={seatAssociatedItems:[],pilotFlightEngineerB25:[],pilotFlightEngineerB25Priority:[],sarTechB25:[],sarTechB25Preferred:''});
+  const items=EDITOR.draft.missionEquip, locations=missionLocations(EDITOR.draft);
+  const select=(value,options,attribute)=>{const el=document.createElement('select');el.dataset.crewPlacement=attribute;el.innerHTML=options.map(([id,name])=>`<option value="${escHtml(id)}">${escHtml(name)}</option>`).join('');el.value=value||'';el.onchange=()=>{const before=JSON.stringify(rule);if(attribute==='priority0')rule.pilotFlightEngineerB25Priority[0]=el.value;else if(attribute==='priority1')rule.pilotFlightEngineerB25Priority[1]=el.value;else rule.sarTechB25Preferred=el.value;if(!editorSaveDraft()){EDITOR.draft.crewEquipmentPlacement=JSON.parse(before);renderEditor();}};return el;};
+  const itemOptions=Object.entries(items).filter(([key])=>key.startsWith('ME_CREW_PERSONAL_EQUIP_'));
+  const fieldset=(title,field,help,predicate)=>{const section=document.createElement('div');section.className='card';const heading=document.createElement('b');heading.textContent=title;section.append(heading);if(help){const p=document.createElement('p');p.className='small muted';p.textContent=help;section.append(p);}for(const [key,item] of itemOptions.filter(([key])=>predicate(key))){const label=document.createElement('label');label.style.display='block';const cb=document.createElement('input');cb.type='checkbox';cb.style.width='auto';cb.checked=(rule[field]||[]).includes(key);cb.onchange=()=>{const before=JSON.stringify(rule);rule[field]=rule[field]||[];rule[field]=cb.checked?[...new Set([...rule[field],key])]:rule[field].filter(x=>x!==key);if(!editorSaveDraft()){EDITOR.draft.crewEquipmentPlacement=JSON.parse(before);renderEditor();}};label.append(cb,document.createTextNode(' '+item.name));section.append(label);}host.append(section);};
+  host.replaceChildren();
+  fieldset('Associate Bags with Assigned Crew Seat','seatAssociatedItems','The load follows the seat of the added crew member.',key=>!key.endsWith('_B25'));
+  fieldset('Pilot / Flight Engineer B25 Kits','pilotFlightEngineerB25','Assign the first available preferred shelf in priority order. Further kits or kits that do not fit can use cabin bays.',key=>key.endsWith('_B25')&&!key.includes('ST_TEAM'));
+  const priority=document.createElement('div');priority.className='card';priority.innerHTML='<b>Pilot / Flight Engineer B25 Shelf Priority</b><div class="small muted">Locations are tried in order; bay locations are offered when neither preferred shelf can take the kit.</div>';const shelfOptions=Object.entries(EDITOR.draft.stowage).filter(([,loc])=>loc.group==='Ramp'||loc.group==='Port Fwd Shelves').map(([id,loc])=>[id,loc.name]);priority.append('First: ',select(rule.pilotFlightEngineerB25Priority?.[0],shelfOptions,'priority0'),' Second: ',select(rule.pilotFlightEngineerB25Priority?.[1],shelfOptions,'priority1'));host.append(priority);
+  fieldset('SAR Tech B25 Kits','sarTechB25','Use the preferred Zone B location regardless of the order in which SAR Techs are added. If it cannot take the kit, cabin bays are offered.',key=>key.includes('ST_TEAM')&&key.endsWith('_B25'));
+  const sar=document.createElement('div');sar.className='card';sar.innerHTML='<b>SAR Tech B25 Preferred Location</b><div class="small muted">Default location for every additional SAR Tech B25 kit.</div>';sar.append(select(rule.sarTechB25Preferred,Object.entries(EDITOR.draft.stowage).map(([id,loc])=>[id,loc.name]),'sarPreferred'));host.append(sar);
 }
 
 
@@ -1064,6 +1215,9 @@ function renderEditorRoleFit(host) {
 
 function editorExportConfig() {
   if(!editorSaveDraft()) return;
+  const exportDraft=EDITOR.mode==='tail'
+    ? {...EDITOR.draft,...AC_FLEET_CONFIGURATION,tails:AC.tails,appOptions:AC.appOptions}
+    : EDITOR.draft;
   // Read the current config.js from disk is not possible in-browser;
   // we rebuild the file content from AC values.
 
@@ -1095,7 +1249,7 @@ function editorExportConfig() {
     configVersion: newVersion,
     configReleasedAt: nowIso,
     changelog: newLog,
-    referenceDocuments: JSON.parse(JSON.stringify(EDITOR.draft.referenceDocuments || prevMeta.referenceDocuments || {currentId:null,history:[]}))
+    referenceDocuments: JSON.parse(JSON.stringify(exportDraft.referenceDocuments || prevMeta.referenceDocuments || {currentId:null,history:[]}))
   };
   // Reflect into live AC so the running app shows the new version immediately
   // after export (and so a re-export from the same session keeps incrementing).
@@ -1118,7 +1272,8 @@ function editorExportConfig() {
   push("const AC_META = " + stringifyPretty(newMeta) + ";");
   push("");
   push("// SECTION 1 — TAIL NUMBERS");
-  push("const AC_TAILS = " + stringifyPretty(AC.tails) + ";");
+  push("const AC_TAILS = " + stringifyPretty(exportDraft.tails) + ";");
+  push("const AC_APP_OPTIONS = " + stringifyPretty(exportDraft.appOptions) + ";");
   push("");
   push("// SECTION 1A — AUTH");
   push("const AC_AUTH = " + stringifyPretty(AC.auth) + ";");
@@ -1127,7 +1282,7 @@ function editorExportConfig() {
   push("const AC_ENVELOPE = " + stringifyPretty(AC.envelope) + ";");
   push("");
   push("// SECTION 3 — BAY ARMS");
-  push("const AC_BAY_ARMS = " + stringifyPretty(EDITOR.draft.bayArms || AC.bayArms) + ";");
+  push("const AC_BAY_ARMS = " + stringifyPretty(exportDraft.bayArms || AC.bayArms) + ";");
   push("");
   push("// SECTION 4 — RAMP LIMITS");
   push("const AC_RAMP = " + stringifyPretty(AC.ramp) + ";");
@@ -1144,23 +1299,26 @@ function editorExportConfig() {
   push("const AC_PATIENT_POSITIONS = " + stringifyPretty(AC.patientPositions || {}) + ";");
   push("");
   push("// SECTION 7 — STOWAGE LOCATIONS");
-  push("const AC_STOWAGE = " + stringifyPretty(EDITOR.draft.stowage) + ";");
+  push("const AC_STOWAGE = " + stringifyPretty(exportDraft.stowage) + ";");
   push("");
   push("// SECTION 8 — ROLE-FIT EQUIPMENT");
-  push("const AC_ROLE_FIT = " + stringifyPretty(EDITOR.draft.roleFit) + ";");
+  push("const AC_ROLE_FIT = " + stringifyPretty(exportDraft.roleFit) + ";");
   push("");
   push("// SECTION 9 — MISSION EQUIPMENT");
-  push("const AC_MISSION_EQUIP = " + stringifyPretty(EDITOR.draft.missionEquip) + ";");
+  push("const AC_MISSION_EQUIP = " + stringifyPretty(exportDraft.missionEquip) + ";");
+  push("const AC_CREW_EQUIPMENT_PLACEMENT = " + stringifyPretty(exportDraft.crewEquipmentPlacement) + ";");
   push("");
   push("// SECTION 10 — MISSION PRESETS");
-  const exportPresets = JSON.parse(JSON.stringify(EDITOR.draft.presets));
+  const exportPresets = JSON.parse(JSON.stringify(exportDraft.presets));
   push("const AC_PRESETS = " + stringifyPretty(exportPresets) + ";");
+  push("const AC_TAIL_CONFIGURATIONS = " + stringifyPretty(AC.tailConfigurations||{}) + ";");
   push("");
   push("// EXPORT");
   push("const AC = {");
   push("  meta:          AC_META,");
   push("  auth:          AC_AUTH,");
   push("  tails:         AC_TAILS,");
+  push("  appOptions:    AC_APP_OPTIONS,");
   push("  envelope:      AC_ENVELOPE,");
   push("  bayArms:       AC_BAY_ARMS,");
   push("  ramp:          AC_RAMP,");
@@ -1173,7 +1331,9 @@ function editorExportConfig() {
   push("  stowage:       AC_STOWAGE,");
   push("  roleFit:       AC_ROLE_FIT,");
   push("  missionEquip:  AC_MISSION_EQUIP,");
-  push("  presets:       AC_PRESETS");
+  push("  crewEquipmentPlacement: AC_CREW_EQUIPMENT_PLACEMENT,");
+  push("  presets:       AC_PRESETS,");
+  push("  tailConfigurations: AC_TAIL_CONFIGURATIONS");
   push("};");
   push("");
   push("// Device overrides are validated and loaded by mission.js.");
@@ -1188,6 +1348,7 @@ function editorExportConfig() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  if(EDITOR.mode==='tail'&&STORE.selectedTail)activateTailConfigurationForSession(STORE.selectedTail);
 }
 
 

@@ -4,6 +4,16 @@ const MISSION_GROUPS = ['AIRCRAFT ALSE EQUIP','SAR MEDICAL EQUIP','SAR MISSION E
 function sortSelectedFirst(items,isSelected,displayName=item=>item?.name??''){
   return [...items].sort((a,b)=>Number(!!isSelected(b))-Number(!!isSelected(a))||String(displayName(a)||'').localeCompare(String(displayName(b)||''),undefined,{sensitivity:'base',numeric:true}));
 }
+function sortConfigurationsByDisplayOrder(entries){
+  return [...entries].sort((a,b)=>{
+    const ao=Number.isFinite(a[1]?.displayOrder)?a[1].displayOrder:Infinity;
+    const bo=Number.isFinite(b[1]?.displayOrder)?b[1].displayOrder:Infinity;
+    return ao-bo||String(a[1]?.name||a[0]).localeCompare(String(b[1]?.name||b[0]),undefined,{sensitivity:'base',numeric:true});
+  });
+}
+function nextConfigurationDisplayOrder(presets){
+  return Math.max(0,...Object.values(presets||{}).map(p=>Number.isFinite(p.displayOrder)?p.displayOrder:0))+1;
+}
 function missionGroupNames(data=AC){
   return [...new Set([...MISSION_GROUPS,...Object.values(data.missionEquip||{}).map(it=>it.group).filter(g=>typeof g==='string'&&g.trim()&&g!=='Stowage')])];
 }
@@ -44,8 +54,14 @@ function missionConfigurationIssues(data){
     }
     if(it.isBasket && (it.stow==='BASKET'||it.stow==='CARRIER:'+key))issues.push(key+': select a location outside this item.');
   }
+  const presetDisplayOrders=new Set();
   for(const [key,p] of Object.entries(data.presets||{})){
     if(!String(p.name||'').trim()) issues.push(key+': configuration needs a name.');
+    if(p.displayOrder!=null){
+      if(!Number.isInteger(p.displayOrder)||p.displayOrder<1)issues.push(key+': display order must be a whole number greater than zero.');
+      else if(presetDisplayOrders.has(p.displayOrder))issues.push(key+': display order is already used by another configuration.');
+      else presetDisplayOrders.add(p.displayOrder);
+    }
     for(const id of [...(p.missionOn||[]),...(p.missionOff||[])])if(!data.missionEquip[id])issues.push(key+': missing equipment '+id);
     for(const id of [...(p.roleFitOn||[]),...(p.roleFitOff||[])])if(!data.roleFit[id])issues.push(key+': missing role fit '+id);
     for(const id of [...(p.seats?.crew||[]),...(p.seats?.pax||[]),...(p.occupants||[])])if(!data.crewSeats[id]&&!data.paxSeats[id])issues.push(key+': missing seat '+id);
@@ -70,11 +86,12 @@ function loadEquipmentOverrides(){
       missionConfigNotice='Previous equipment settings were backed up. The revised mission catalogue and configurations are loaded; review them before use.';
       return;
     }
-    // v19 formalizes compatible v18 data, and v20 adds default per-location loads;
-    // preserve saved Editor edits for both additive updates.
-    const migrateV18 = ov.baseConfigVersion===18 && AC.meta.configVersion===19;
-    const migrateV19 = ov.baseConfigVersion===19 && AC.meta.configVersion===20;
-    const migrateCompatible = migrateV18 || migrateV19;
+    // v19 formalizes compatible v18 data, v20 adds default per-location loads,
+    // and v21 adds custodian-controlled preset order; preserve Editor edits.
+    const migrateV18 = ov.baseConfigVersion===18 && AC.meta.configVersion>=19 && AC.meta.configVersion<=21;
+    const migrateV19 = ov.baseConfigVersion===19 && AC.meta.configVersion>=20 && AC.meta.configVersion<=21;
+    const migrateV20 = ov.baseConfigVersion===20 && AC.meta.configVersion===21;
+    const migrateCompatible = migrateV18 || migrateV19 || migrateV20;
     // Other old complete catalogues must not mask incompatible shipped updates.
     if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
@@ -92,6 +109,11 @@ function loadEquipmentOverrides(){
       const shipped=AC[field];AC[field]=ov[field];
       if(field==='missionEquip')for(const [key,item] of Object.entries(AC.missionEquip)){
         if(!Object.prototype.hasOwnProperty.call(item,'defaultAllocations')&&Array.isArray(shipped[key]?.defaultAllocations))item.defaultAllocations=JSON.parse(JSON.stringify(shipped[key].defaultAllocations));
+      }
+      if(field==='presets'){
+        for(const [key,preset] of Object.entries(AC.presets))if(!Number.isInteger(preset.displayOrder)&&Number.isInteger(shipped[key]?.displayOrder))preset.displayOrder=shipped[key].displayOrder;
+        const missing=Object.entries(AC.presets).filter(([,preset])=>!Number.isInteger(preset.displayOrder)).sort((a,b)=>String(a[1].name||a[0]).localeCompare(String(b[1].name||b[0]),undefined,{sensitivity:'base',numeric:true}));
+        let next=nextConfigurationDisplayOrder(AC.presets);for(const [,preset] of missing)preset.displayOrder=next++;
       }
     }
     if(ov.referenceDocuments)AC.meta.referenceDocuments=ov.referenceDocuments;

@@ -15,7 +15,7 @@ Provide aircrew and custodians with concise, formal instructions for operating t
 3. Standard operating procedure: aircraft selection; acceptance of recorded weight, CG and fuel; configuration selection; load review; certification and MCDU cross-check; generation and transmission of the weight and balance record; return/end-session procedures.
 4. Detailed operating instructions by tab: Home, Accept, Role Config, Mission Equipment, Crew and PAX Seats, Fuel, Load Planning, Certify W&B. Explain controls, status indications, input units, validation messages and expected results. Include extra crew, linked equipment stowage, unavailable locations and stowage limits.
 5. Non-standard aircraft and mission conditions: maintenance exceptions, custom exceptions, manual fit declarations, additional equipment, relocations, quantity changes, configuration changes and manual fuel entry. Clearly distinguish recorded-weight inclusion from physical fit.
-6. Custodian Editor: access; Role Fit Equipment; Mission Equipment; Crew and Pax Seats; Stowage Locations; Reference Documents; Aircraft Roles, in that order. Explain keys, defaults, limits, retirement/deletion, export, local overrides, published config replacement and verification after changes.
+6. Comprehensive Editor instruction manual: a clearly separated, self-contained custodian part, with its own contents and procedures, or a separate companion volume. Cover access; Role Fit Equipment; Mission Equipment; Crew and Pax Seats; Stowage Locations; Reference Documents; Aircraft Roles, in that order. Explain keys, defaults, limits, retirement/deletion, export, local overrides, published config replacement and verification after changes. A brief Editor overview in the operational user manual does not satisfy this requirement.
 7. Technical calculation basis: source-controlled weights and arms; coordinate datum and units; signed weights and moments; weight summation; CG from total moment/weight; recorded versus RFM basic weight; seat structures and occupants; mission quantities and carrier locations; custom exceptions; fuel mapping and manual fuel; landing fuel distribution; CG-envelope evaluation; rounding and precision; capacity checks and MCDU tolerances.
 8. Data retention and recovery: device storage, accepted snapshots, reset behaviour, configuration updates, review/invalidation rules, offline update/recovery and archived records.
 9. Verification and examples: independently checked standard and non-standard worked examples, expected totals and moments, reference citations, operator acceptance checks and release verification.
@@ -33,6 +33,23 @@ Appendices: terminology and control labels; source-to-data traceability; equipme
 - Resolved policy for manual subtraction versus maintenance/custom exceptions.
 - Frozen release and screenshots, plus accepted units, notation and terminology.
 - Independent technical review of examples and calculations, and a first-time-user trial of procedures.
+
+## Comprehensive Editor manual requirement — 3 October 2026
+
+The user requires comprehensive instructions for the Editor, distinct from the comprehensive operational user manual. The preferred planning structure is one publication with separate User and Editor parts; retain the option to issue the Editor part as a companion manual. Final packaging remains to be agreed. Keep procedures self-contained so custodians can use the Editor part without searching through aircrew operating instructions, and cross-reference shared technical material rather than duplicating it.
+
+Required Editor coverage:
+
+- Purpose, custodian responsibilities, access and session termination, Editor navigation, and the boundary between catalogue editing and operational mission changes.
+- Every Editor tab, control and editable field: meaning, units, permitted values, defaults, required/optional status, validation, dependencies, and the effect on operational pages, calculations and records. Verify all behaviour against the release being documented.
+- Numbered procedures for creating, amending, retiring and deleting items; stable keys versus display names; automatic key formatting and explicit group creation; role membership; seat baselines; quantities; stowage links and capacities; and reference-document maintenance.
+- Worked editing examples, screenshots, expected results and checks after each change. Explain physical installation versus recorded-basic-weight inclusion, seat structure versus occupancy, and other distinctions that can cause duplicate accounting.
+- Save and configuration lifecycle: unsaved edits, browser-local overrides, export, configuration revision identification, controlled distribution, installation on another device, and verification of the active configuration online and offline. Clearly distinguish saving locally from updating the distributed application.
+- Dependency review and change effects: referenced keys, linked locations, role presets, equipment-specific rules, accepted-aircraft snapshots, existing sessions, certification and historical records. Identify implemented safeguards and any checks that custodians must perform themselves.
+- Backup, restore, rollback, troubleshooting and recovery procedures, including the exact scope of reset/session controls. Document limitations from verified behaviour.
+- A complete change checklist covering source evidence, before/after data, validation, representative W&B checks, review, revision records, distribution and successor handover. State which changes require software-maintainer involvement.
+
+This addition records the documentation requirement and scope; it does not constitute the completed Editor manual or authorize drafting the full publication before the existing production prerequisites are met.
 
 ## Intended production sequence
 

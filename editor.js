@@ -342,20 +342,21 @@ function renderEditorMain(host) {
 
 function renderEditorConfigurations(host){
   const presets=EDITOR.draft.presets;
-  host.innerHTML='<div class="small muted">Configurations reference catalogue items. Weights and arms stay in the equipment catalogue. Changes save locally.</div><div id="configurationCards"></div><div class="card"><div class="row"><label>New configuration name<input id="configurationNewName"></label><button class="btn good" id="configurationCreate">Create configuration</button></div></div>';
+  host.innerHTML='<div class="small muted">Configurations reference catalogue items. Weights and arms stay in the equipment catalogue. Use Move up and Move down to set the button order shown in Role Config; selecting a configuration does not change its position. Changes save locally.</div><div id="configurationCards"></div><div class="card"><div class="row"><label>New configuration name<input id="configurationNewName"></label><button class="btn good" id="configurationCreate">Create configuration</button></div></div>';
   const list=host.querySelector('#configurationCards');
   const newKey=name=>editorItemKey(name,'CONFIG_');
-  const refresh=()=>{editorSaveDraft();renderEditor();};
+  const refresh=(expanded=[])=>{editorSaveDraft();renderEditor();for(const id of expanded){const card=document.querySelector(`[data-configuration-key="${id}"]`);if(card)card.open=true;}};
   host.querySelector('#configurationCreate').onclick=()=>{
     const name=host.querySelector('#configurationNewName').value.trim();if(!name){alert('Enter a configuration name.');return;}
     const key=newKey(name);if(!key||presets[key]){alert('Enter a unique configuration name.');return;}
-    presets[key]={name,notes:'',active:true,seats:{crew:[],pax:[]},occupants:[],roleFitOn:[],roleFitOff:[],missionOn:[],missionOff:[]};refresh();
+    presets[key]={name,displayOrder:nextConfigurationDisplayOrder(presets),notes:'',active:true,seats:{crew:[],pax:[]},occupants:[],roleFitOn:[],roleFitOff:[],missionOn:[],missionOff:[]};refresh();
   };
-  for(const [key,p] of sortSelectedFirst(Object.entries(presets),([key])=>Object.values(STORE.sessions||{}).some(s=>s.preset===key),([,p])=>p.name)){
+  const orderedPresets=sortConfigurationsByDisplayOrder(Object.entries(presets));
+  for(const [position,[key,p]] of orderedPresets.entries()){
     const card=document.createElement('details');card.className='card';card.dataset.configurationKey=key;
     card.innerHTML=`<summary><b>${escHtml(p.name)}</b>${p.active===false?' · Retired':''}</summary>
       <div class="row" style="margin-top:10px"><label style="flex:1">Name<input data-config-field="name" value="${escHtml(p.name)}"></label><label style="flex:2">Description<input data-config-field="notes" value="${escHtml(p.notes||'')}"></label></div>
-      <div class="row" style="margin-top:10px"><label><input type="checkbox" style="width:auto" data-config-active ${p.active!==false?'checked':''}> Available for use<small>Uncheck to retire this item. Its definition is retained; existing configurations and mission loads may need review.</small></label><button class="btn" data-config-duplicate>Duplicate</button><button class="btn bad" data-config-delete>Delete</button></div>
+      <div class="row" style="margin-top:10px"><label><input type="checkbox" style="width:auto" data-config-active ${p.active!==false?'checked':''}> Available for use<small>Uncheck to retire this item. Its definition is retained; existing configurations and mission loads may need review.</small></label><button class="btn small" data-config-move="up" ${position===0?'disabled':''} aria-label="Move ${escHtml(p.name)} earlier">Move up</button><button class="btn small" data-config-move="down" ${position===orderedPresets.length-1?'disabled':''} aria-label="Move ${escHtml(p.name)} later">Move down</button><button class="btn" data-config-duplicate>Duplicate</button><button class="btn bad" data-config-delete>Delete</button></div>
       <h3>Mission equipment</h3><div data-config-equipment></div>
       <details><summary>Seats, default occupants and role-fit equipment</summary><div data-config-fit></div></details>`;
     card.querySelectorAll('[data-config-field]').forEach(input=>input.onchange=()=>{
@@ -363,7 +364,11 @@ function renderEditorConfigurations(host){
       p[field]=input.value.trim();editorSaveDraft();card.querySelector('summary b').textContent=p.name;
     });
     card.querySelector('[data-config-active]').onchange=e=>{p.active=e.target.checked;editorSaveDraft();};
-    card.querySelector('[data-config-duplicate]').onclick=()=>{let name=p.name+' Copy',n=2;while(presets[newKey(name)])name=p.name+' Copy '+n++;presets[newKey(name)]={...JSON.parse(JSON.stringify(p)),name,active:true};refresh();};
+    card.querySelectorAll('[data-config-move]').forEach(button=>button.onclick=()=>{
+      const order=sortConfigurationsByDisplayOrder(Object.entries(presets)).map(([id])=>id),from=order.indexOf(key),to=from+(button.dataset.configMove==='up'?-1:1);
+      if(to<0||to>=order.length)return;const expanded=[...list.querySelectorAll('[data-configuration-key][open]')].map(item=>item.dataset.configurationKey);[order[from],order[to]]=[order[to],order[from]];order.forEach((id,index)=>presets[id].displayOrder=index+1);refresh(expanded);
+    });
+    card.querySelector('[data-config-duplicate]').onclick=()=>{let name=p.name+' Copy',n=2;while(presets[newKey(name)])name=p.name+' Copy '+n++;presets[newKey(name)]={...JSON.parse(JSON.stringify(p)),name,active:true,displayOrder:nextConfigurationDisplayOrder(presets)};refresh();};
     card.querySelector('[data-config-delete]').onclick=()=>{
       if(Object.values(STORE.sessions).some(s=>s.preset===key)){alert('This configuration is used by a session. Retire it or select another configuration first.');return;}
       if(!confirm('Delete configuration "'+p.name+'"?'))return;delete presets[key];refresh();

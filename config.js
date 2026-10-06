@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Updated from Custodian Editor data on 2026-10-05T22:40:20.000Z
- * Config data version: 20
+ * Updated from Custodian Editor data on 2026-10-06T02:15:59.000Z
+ * Config data version: 21
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 20,
-  "configReleasedAt": "2026-10-05T22:40:20.000Z",
+  "configVersion": 21,
+  "configReleasedAt": "2026-10-06T02:15:59.000Z",
   "changelog": [
+    {
+      "version": 21,
+      "at": "2026-10-06T02:15:59.000Z",
+      "note": "Adds custodian-controlled display order for Role Config presets; default order is SAR-3 Pax, SAR-10 Pax, Transport, then CASEVAC."
+    },
     {
       "version": 20,
       "at": "2026-10-05T22:40:20.000Z",
@@ -1604,6 +1609,7 @@ const AC_MISSION_EQUIP = {
 const AC_PRESETS = {
   "SAR3": {
     "name": "SAR-3 Pax",
+    "displayOrder": 1,
     "notes": "EO/IR + Sensor WS + SAR Cabinet + PTA Cot installed.",
     "image": "images/SAR_3_Pax.png",
     "seats": {
@@ -1721,6 +1727,7 @@ const AC_PRESETS = {
   },
   "SAR10": {
     "name": "SAR-10 Pax",
+    "displayOrder": 2,
     "notes": "PTA Cot removed vs SAR-3.",
     "image": "images/SAR_10_Pax.png",
     "seats": {
@@ -1847,6 +1854,7 @@ const AC_PRESETS = {
   "CASEVAC": {
     "occupantRoles": { "P2": "SAR Tech", "P3": "SAR Tech" },
     "name": "CASEVAC",
+    "displayOrder": 4,
     "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off. Four independently selectable stretcher racks, 30.0225 kg each at their patient-position arms; total 120.09 kg including litters.",
     "image": "images/CASEVAC.png",
     "seats": {
@@ -1954,6 +1962,7 @@ const AC_PRESETS = {
   },
   "TRANSPORT": {
     "name": "Transport",
+    "displayOrder": 3,
     "notes": "Transport: SAR cabinet removed; Sensor WS removed; EO/IR + TRAKKA stay.",
     "image": "images/Transport.png",
     "seats": {

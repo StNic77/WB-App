@@ -42,7 +42,7 @@ function renderConfigurationButtons(s){
   if(!first)return;
   const host=first.hasAttribute('data-configuration-buttons')?first:first.parentElement;
   host.setAttribute('data-configuration-buttons','');host.innerHTML='';
-  const presets=sortSelectedFirst(Object.entries(AC.presets).filter(([,p])=>p.active!==false),([key])=>s.preset===key,([,p])=>p.name);
+  const presets=sortConfigurationsByDisplayOrder(Object.entries(AC.presets).filter(([,p])=>p.active!==false));
   for(const [key,p] of presets){
     const b=document.createElement('button');b.className='btn'+(s.preset===key?' good':'');b.textContent=p.name;
     b.id='btnPreset'+key;b.dataset.preset=key;b.onclick=()=>{applyPreset(s.tail,key);render();};host.append(b);

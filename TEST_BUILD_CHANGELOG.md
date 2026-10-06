@@ -1,5 +1,10 @@
 # CH-149-615 W&B Release History
 
+## v0.2.17-dev / Config v21 — 2026-10-06 02:15:59 UTC
+- Role Config presets now remain in a custodian-defined display order regardless of selection. Default order: SAR-3 Pax, SAR-10 Pax, Transport, CASEVAC.
+- The Editor provides Move up and Move down controls for configuration order; new and duplicated configurations are appended.
+- Existing v18-v20 Editor overrides are backed up and migrated with the new preset order metadata.
+
 ## v0.2.16-dev / Config v20 — 2026-10-05 22:54:58 UTC
 - PDF Weight and Balance Summary now groups Operating Weight/CG, AUW/CG, and Landing Weight/CG with bold labels, larger values, and increased spacing around the metric panels.
 - Configuration data remains at v20; no aircraft data changed in this update.

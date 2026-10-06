@@ -80,7 +80,7 @@ test('October scope: loading guide, Editor and offline update',async t=>{
   await page.evaluate(()=>{const presets=structuredClone(AC.presets);presets.VERSION_TEST={...structuredClone(presets.CASEVAC),name:'Saved custom role'};delete presets.VERSION_TEST.displayOrder;delete presets.TRANSPORT;localStorage.setItem('ac_config_overrides',JSON.stringify({missionSchema:MISSION_SCHEMA,baseConfigVersion:18,presets}));});
   await page.reload();await page.waitForFunction(()=>typeof STORE!=='undefined');
   const r=await page.evaluate(()=>({version:AC.meta.configVersion,name:AC.presets.VERSION_TEST?.name,deleted:!AC.presets.TRANSPORT,stored:JSON.parse(localStorage.getItem('ac_config_overrides')).baseConfigVersion,backup:JSON.parse(localStorage.getItem('ac_config_overrides_before_config_update')).baseConfigVersion}));
-  assert.deepEqual(r,{version:21,name:'Saved custom role',deleted:true,stored:21,backup:18});
+  assert.deepEqual(r,{version:22,name:'Saved custom role',deleted:true,stored:22,backup:18});
   await page.reload();assert.equal(await page.evaluate(()=>AC.presets.VERSION_TEST.name),'Saved custom role');
  });
  await t.test('ordinary data update needs no review click; direct Role Config to Certify works; PDF uses new wording',async()=>{
@@ -104,7 +104,7 @@ test('October scope: loading guide, Editor and offline update',async t=>{
     worker.addEventListener('statechange',()=>{if(worker.state==='activated'){clearTimeout(timeout);resolve();}else if(worker.state==='redundant'){clearTimeout(timeout);reject(new Error('Updated worker failed'));}});
    });
   });
-  await tab.reload();const updated=await tab.evaluate(async()=>({version:AC.meta.configVersion,control:await (await (await caches.open('wb615-release-control')).match('./__selected_release__')).text(),status:await new Promise(resolve=>{const channel=new MessageChannel();channel.port1.onmessage=e=>resolve(e.data);navigator.serviceWorker.controller.postMessage({type:'WB615_OFFLINE_STATUS'},[channel.port2]);}),keys:await caches.keys()}));assert.equal(updated.version,21,JSON.stringify(updated));await device.setOffline(true);await tab.reload();assert.equal(await tab.evaluate(()=>AC.meta.configVersion),21);
+  await tab.reload();const updated=await tab.evaluate(async()=>({version:AC.meta.configVersion,control:await (await (await caches.open('wb615-release-control')).match('./__selected_release__')).text(),status:await new Promise(resolve=>{const channel=new MessageChannel();channel.port1.onmessage=e=>resolve(e.data);navigator.serviceWorker.controller.postMessage({type:'WB615_OFFLINE_STATUS'},[channel.port2]);}),keys:await caches.keys()}));assert.equal(updated.version,22,JSON.stringify(updated));await device.setOffline(true);await tab.reload();assert.equal(await tab.evaluate(()=>AC.meta.configVersion),22);
   const assets=await tab.evaluate(async()=>{const paths=['config.js','images/SAR_3_Pax.png','images/CASEVAC.png','mission-ui.js','pdf.js'];return Promise.all(paths.map(async p=>(await fetch(p)).ok));});assert.ok(assets.every(Boolean));
   assert.equal(await tab.evaluate(async()=>(await caches.keys()).filter(k=>k.startsWith('wb615-release-')&&k!=='wb615-release-control').length),2);
   await tab.click('#splashAck');await tab.evaluate(()=>{EDITOR.authed=true;editorInitDraft();endPersistedSession();});assert.equal(await tab.evaluate(()=>EDITOR.authed),false);await device.close();

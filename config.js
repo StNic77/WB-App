@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Updated from Custodian Editor data on 2026-10-06T02:15:59.000Z
- * Config data version: 21
+ * Exported by the Custodian Editor on 2026-10-06T04:42:06.125Z
+ * Config data version: 22
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 21,
-  "configReleasedAt": "2026-10-06T02:15:59.000Z",
+  "configVersion": 22,
+  "configReleasedAt": "2026-10-06T04:42:06.125Z",
   "changelog": [
+    {
+      "version": 22,
+      "at": "2026-10-06T04:42:06.125Z",
+      "note": "Aligns normally fitted role-fit equipment with the current Maintenance Basic Weight inclusion baseline for RFM sanity checks."
+    },
     {
       "version": 21,
       "at": "2026-10-06T02:15:59.000Z",
@@ -548,6 +553,93 @@ const AC_PAX_SEATS = {
   }
 };
 
+const AC_PATIENT_POSITIONS = {
+  "STOKES_CABIN": {
+    "name": "Stokes Litter (Cabin)",
+    "arm": 7863,
+    "weight": 90,
+    "kind": "litter",
+    "missionKey": "ME_SAR_MISSION_EQUIP_STOKES_LITTER_CABIN",
+    "requiredStow": "CABIN_DEPLOYED"
+  },
+  "FWD_STBD_TOP": {
+    "name": "FWD STBD top",
+    "arm": 6120,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
+  },
+  "FWD_STBD_MIDDLE": {
+    "name": "FWD STBD middle",
+    "arm": 6120,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
+  },
+  "FWD_STBD_BOTTOM": {
+    "name": "FWD STBD bottom",
+    "arm": 6120,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
+  },
+  "AFT_STBD_MIDDLE": {
+    "name": "AFT STBD middle",
+    "arm": 10057,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD"
+  },
+  "AFT_STBD_BOTTOM": {
+    "name": "AFT STBD bottom",
+    "arm": 10057,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD"
+  },
+  "FWD_PORT_TOP": {
+    "name": "FWD PORT top",
+    "arm": 7898,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
+  },
+  "FWD_PORT_MIDDLE": {
+    "name": "FWD PORT middle",
+    "arm": 7898,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
+  },
+  "FWD_PORT_BOTTOM": {
+    "name": "FWD PORT bottom",
+    "arm": 7898,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
+  },
+  "AFT_PORT_MIDDLE": {
+    "name": "AFT PORT middle",
+    "arm": 10235,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT"
+  },
+  "AFT_PORT_BOTTOM": {
+    "name": "AFT PORT bottom",
+    "arm": 10235,
+    "weight": 90,
+    "kind": "litter",
+    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT"
+  },
+  "PTA": {
+    "name": "PTA patient",
+    "arm": 10375,
+    "weight": 90,
+    "kind": "pta"
+  }
+};
+
 // SECTION 7 — STOWAGE LOCATIONS
 const AC_STOWAGE = {
   "SAR_CABINET_FWD_TOP": {
@@ -689,7 +781,7 @@ const AC_ROLE_FIT = {
     "name": "Stowage: Tool Kit / Emergency Spares",
     "w": 1.6,
     "arm": 12491,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_STOW_STOKES_RAMP": {
@@ -759,7 +851,7 @@ const AC_ROLE_FIT = {
     "name": "WESCAM MX-15 Turret",
     "w": 43.2,
     "arm": 1684,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SENSOR_SYSTEMS_EOIR_HAND_CONTROLLER": {
@@ -780,28 +872,28 @@ const AC_ROLE_FIT = {
     "name": "TRAKKA A-800 Searchlight",
     "w": 34.47,
     "arm": 6340,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SENSOR_SYSTEMS_EOIR_BLANKING": {
     "name": "WESCAM MX-15 Blanking Removal (when turret installed)",
     "w": -0.95,
     "arm": 1908,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SENSOR_SYSTEMS_EOIR_STRUCT_FITTINGS": {
     "name": "WESCAM MX-15 Removable Structure and Fittings",
     "w": 0.11,
     "arm": 3241,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_AIR_COOLING_PACK": {
     "name": "Air Cooling Pack",
     "w": 64.62,
     "arm": 9673,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_FLOATATION_SYSTEM": {
@@ -829,14 +921,14 @@ const AC_ROLE_FIT = {
     "name": "Sea Tray",
     "w": 10.3,
     "arm": 8127,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SAR_EQUIPMENT_DIVE_O2_BOTTLE_RACK": {
     "name": "Dive Bottle / O2 Rack",
     "w": 7,
     "arm": 10849,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SAR_EQUIPMENT_FWD_SAR_CABINET": {
@@ -864,49 +956,49 @@ const AC_ROLE_FIT = {
     "name": "WESCAM MX-15 Removable Cables",
     "w": 3.17,
     "arm": 1800,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_LASHING_KIT": {
     "name": "Lashing/Tie Down Rings",
     "w": 9.76,
     "arm": 7243,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_FIELD_TOOL_KIT": {
     "name": "Field Tool Kit and Spares Pack",
     "w": 5.98,
     "arm": 12688,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_CODE_A_EQUIP": {
     "name": "Plugs and Covers ",
     "w": 23,
     "arm": 10690,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_CREW": {
     "name": "ICS Headset Cables - Crew (3 Off, 6M)",
     "w": 2.48,
     "arm": 8625,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_AIRCRAFT_SYSTEMS_CARRY_ON_EQUIP_ICS_CABLES_PAX": {
     "name": "ICS Headset Cables - Passenger (4 Off, 2M)",
     "w": 1.16,
     "arm": 8625,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SERVICING_EQUIPMENT_CARRY_ON_EQUIP_LADDER": {
     "name": "Maintenance Ladder",
     "w": 27,
     "arm": 14940,
-    "normally": true,
+    "normally": false,
     "maintenanceIncluded": false
   },
   "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT": {
@@ -1249,8 +1341,14 @@ const AC_MISSION_EQUIP = {
     "minQuantity": 0,
     "stow": "LOCKBOX_TOP",
     "defaultAllocations": [
-      { "quantity": 4, "stow": "LOCKBOX_TOP" },
-      { "quantity": 1, "stow": "LOCKBOX_BTM" }
+      {
+        "quantity": 4,
+        "stow": "LOCKBOX_TOP"
+      },
+      {
+        "quantity": 1,
+        "stow": "LOCKBOX_BTM"
+      }
     ],
     "group": "SAR MISSION EQUIP",
     "active": true
@@ -1852,7 +1950,10 @@ const AC_PRESETS = {
     "active": true
   },
   "CASEVAC": {
-    "occupantRoles": { "P2": "SAR Tech", "P3": "SAR Tech" },
+    "occupantRoles": {
+      "P2": "SAR Tech",
+      "P3": "SAR Tech"
+    },
     "name": "CASEVAC",
     "displayOrder": 4,
     "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off. Four independently selectable stretcher racks, 30.0225 kg each at their patient-position arms; total 120.09 kg including litters.",
@@ -2036,94 +2137,6 @@ const AC_PRESETS = {
     ],
     "missionOff": [],
     "active": true
-  }
-};
-
-// Patient masses and arms supplied from the RFM. Litter structures are included in the CASEVAC rack system.
-const AC_PATIENT_POSITIONS = {
-  "STOKES_CABIN": {
-    "name": "Stokes Litter (Cabin)",
-    "arm": 7863,
-    "weight": 90,
-    "kind": "litter",
-    "missionKey": "ME_SAR_MISSION_EQUIP_STOKES_LITTER_CABIN",
-    "requiredStow": "CABIN_DEPLOYED"
-  },
-  "FWD_STBD_TOP": {
-    "name": "FWD STBD top",
-    "arm": 6120,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
-  },
-  "FWD_STBD_MIDDLE": {
-    "name": "FWD STBD middle",
-    "arm": 6120,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
-  },
-  "FWD_STBD_BOTTOM": {
-    "name": "FWD STBD bottom",
-    "arm": 6120,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_STBD"
-  },
-  "AFT_STBD_MIDDLE": {
-    "name": "AFT STBD middle",
-    "arm": 10057,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD"
-  },
-  "AFT_STBD_BOTTOM": {
-    "name": "AFT STBD bottom",
-    "arm": 10057,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD"
-  },
-  "FWD_PORT_TOP": {
-    "name": "FWD PORT top",
-    "arm": 7898,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
-  },
-  "FWD_PORT_MIDDLE": {
-    "name": "FWD PORT middle",
-    "arm": 7898,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
-  },
-  "FWD_PORT_BOTTOM": {
-    "name": "FWD PORT bottom",
-    "arm": 7898,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_FWD_PORT"
-  },
-  "AFT_PORT_MIDDLE": {
-    "name": "AFT PORT middle",
-    "arm": 10235,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT"
-  },
-  "AFT_PORT_BOTTOM": {
-    "name": "AFT PORT bottom",
-    "arm": 10235,
-    "weight": 90,
-    "kind": "litter",
-    "roleFitKey": "RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT"
-  },
-  "PTA": {
-    "name": "PTA patient",
-    "arm": 10375,
-    "weight": 90,
-    "kind": "pta"
   }
 };
 

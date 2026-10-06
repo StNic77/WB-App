@@ -1,5 +1,9 @@
 # CH-149-615 W&B Release History
 
+## v0.2.18-dev / Config v22 — 2026-10-06 04:42:06 UTC
+- RFM normally fitted role-fit defaults now match the current Maintenance Basic Weight inclusion baseline for sanity checks. The default additions are the seven role-fit items already identified as Maintenance-included, plus 18.70 kg of passenger-seat structures.
+- Exported configuration data from the Custodian Editor; synchronized app, configuration, and offline release identifiers.
+
 ## v0.2.17-dev / Config v21 — 2026-10-06 02:15:59 UTC
 - Role Config presets now remain in a custodian-defined display order regardless of selection. Default order: SAR-3 Pax, SAR-10 Pax, Transport, CASEVAC.
 - The Editor provides Move up and Move down controls for configuration order; new and duplicated configurations are appended.

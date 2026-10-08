@@ -8,6 +8,65 @@ function renderAccountingWarnings(s){
   const issues=[...accountingIssues(s),...missionIssues(s),...patientIssues(s)], host=document.getElementById('accountingIssues');
   host.hidden=!issues.length; host.textContent=issues.join(' ');
 }
+function roleFitAffectedMissionLoads(s,key){
+  if(typeof missionRows!=='function'||typeof missionLocations!=='function')return [];
+  const byKey=new Map();
+  for(const [missionKey,on] of Object.entries(s.mission||{}))if(on&&AC.missionEquip[missionKey]){
+    for(const allocation of missionAllocations(s,missionKey)||[]){
+      if(missionLocations()[allocation.stow]?.roleFitKey===key)byKey.set(missionKey,AC.missionEquip[missionKey].name);
+    }
+  }
+  for(const row of missionRows(s))if(missionLocations()[row.stowId]?.roleFitKey===key)byKey.set(row.key,row.name);
+  return [...byKey].map(([missionKey,name])=>({key:missionKey,name}));
+}
+function roleFitStowageRemovalNotice(s,key){
+  const pending=s.roleFitStowageNotices?.[key];
+  if(!pending?.length)return '';
+  if(roleFitIsInstalled(s,key)){delete s.roleFitStowageNotices[key];return '';}
+  const stillPending=pending.filter(missionKey=>{
+    if(!s.mission?.[missionKey])return true;
+    const allocations=missionAllocations(s,missionKey).filter(row=>row.quantity>0);
+    if(!allocations.length)return false;
+    return !allocations.every(row=>{
+      const location=resolveMissionLocation(s,row),definition=missionLocations()[location.stowId];
+      return !location.error&&definition?.roleFitKey!==key;
+    });
+  });
+  if(stillPending.length)s.roleFitStowageNotices[key]=stillPending;
+  else delete s.roleFitStowageNotices[key];
+  return stillPending.map(missionKey=>AC.missionEquip[missionKey]?.name||missionKey).join(', ');
+}
+function applyRoleFitDeclarationFromUI(s,item,action){
+  const affected=action==='EXCLUDED'?roleFitAffectedMissionLoads(s,item.key):[];
+  if(affected.length){
+    const names=[...new Set(affected.map(row=>row.name))].join(', ');
+    const message=item.name+' stowage will become unavailable. '+names+' will be removed from the Mission Equipment load. If still being carried, add it again in the Mission Equipment tab and choose another available stowage location. Continue?';
+    if(!confirm(message))return;
+  }
+  const error=setRoleFitDeclaration(s,item.key,action);
+  if(error){alert(error);return;}
+  if(affected.length){
+    s.roleFitStowageNotices??={};s.roleFitStowageNotices[item.key]=affected.map(row=>row.key);
+    for(const {key} of affected){s.mission[key]=false;if(s.missionLoads)delete s.missionLoads[key];}
+    if(typeof clearUnavailableCabinPatient==='function')clearUnavailableCabinPatient(s);
+  }else if(roleFitIsInstalled(s,item.key)&&s.roleFitStowageNotices){
+    delete s.roleFitStowageNotices[item.key];
+  }
+  render();
+}
+function roleFitWeightHelper(s,item){
+  const name=item.name, arm=fmtDecimal(item.arm), weight=fmtDecimal(item.itemW), expected=roleFitExpectation(s,item.key);
+  if(item.locked)return 'Already recorded as removed on Accept. This item is locked to prevent subtracting it again. Current aircraft weight adjustment: 0 kg.';
+  if(item.declaration==='ADD')return item.itemW>=0?`${name} is fitted. Added to the current aircraft weight: +${weight} kg at ${arm} mm arm.`:`${name} is fitted. Current aircraft weight adjustment: −${fmtDecimal(Math.abs(item.itemW))} kg at ${arm} mm arm.`;
+  if(item.declaration==='ACCOUNTED')return 'This item is fitted and included in the accepted recorded aircraft basic weight. Current aircraft weight adjustment: 0 kg.';
+  if(item.declaration==='REMOVE'||(item.declaration==='EXCLUDED'&&!item.current&&expected.installed)){
+    const delta=-Number(item.itemW||0),signed=delta<0?'−'+fmtDecimal(Math.abs(delta)):'+'+fmtDecimal(delta);
+    return `${name} is not fitted. Current aircraft weight adjusted by ${signed} kg at ${arm} mm arm.`;
+  }
+  if(item.declaration==='EXCLUDED')return `${name} is not fitted. No current aircraft weight adjustment was required (0 kg).`;
+  if(item.declaration==='CUSTOM')return 'Accounting is controlled by the linked Custom Exception. Review its current aircraft weight adjustment in Custom Exceptions.';
+  return 'Choose whether this item is fitted and review its current aircraft weight adjustment.';
+}
 function renderRoleFitDeclarations(s){
   const box=document.getElementById('roleFitList');box.replaceChildren();
   document.getElementById('roleFitBasisMessage').textContent=basicWeightBasis(s)==='RFM'
@@ -35,14 +94,6 @@ function renderRoleFitDeclarations(s){
     const row=document.createElement('div');row.className='role-declaration-row';row.dataset.roleKey=item.key;
     row.dataset.fitStatus=(item.origin==='manual'&&!item.locked)||item.custom?'adjusted':!s.preset?'default':normallyInstalled?'fitted':'excluded';
     const basis=basicWeightBasis(s);
-    const descriptions={
-      NEUTRAL:'Choose whether this item is fitted and how its weight is treated in the selected starting value.',
-      ADD:basis==='RFM'?'RFM Basic Weight excludes Role Fit equipment. The app adds this fitted item’s weight and moment to calculate the aircraft total; the accepted RFM value stays unchanged.':'This item is fitted, but its weight and moment are not included in the accepted recorded aircraft weight. The app adds them to calculate the aircraft total; the accepted value stays unchanged.',
-      REMOVE:'A subtraction from an earlier saved session needs review. Choose a current Role Fit state or record the unusual adjustment as a Custom Exception.',
-      ACCOUNTED:'This item is fitted, and its weight and moment are already included in the accepted recorded aircraft weight. No adjustment is needed.',
-      EXCLUDED:'This item is not fitted and is not included in the selected starting value. No adjustment is needed. Stowage locations provided by this item are unavailable.',
-      CUSTOM:'Accounting is controlled by the linked Custom Exception.'
-    };
     row.innerHTML=`<div><div class="name">${escapeHtml(item.name)}</div><div class="meta mono">${fmtDecimal(item.itemW)} kg @ ${fmtDecimal(item.arm)} mm</div></div><div class="role-declaration-controls" role="group" aria-label="${escapeHtml(item.name)} declaration"></div>`;
     const controls=row.querySelector('.role-declaration-controls');
     const expected=roleFitExpectation(s,item.key), fit=document.createElement('div');
@@ -50,18 +101,22 @@ function renderRoleFitDeclarations(s){
     const badge=document.createElement('strong');
     badge.textContent=item.locked?'Not fitted · Recorded on Accept':item.custom?'Custom Exception':item.origin==='manual'?(item.current?'Fitted':'Not fitted')+' · Manual override of '+(AC.presets[s.preset]?.name||'aircraft default'):expected.aircraftLevel?'Normally fitted to this aircraft':AC.presets[s.preset]?(item.current?'Fitted':'Not fitted')+' for '+expected.configuration:(expected.normal?'Normally fitted to this aircraft':'Not normally fitted');
     fit.append(badge);row.firstElementChild.querySelector('.meta').after(fit);
-    const labels={ACCOUNTED:'Fitted · No weight adjustment',ADD:'Fitted · Add item weight to aircraft total',EXCLUDED:'Not fitted · No weight adjustment'};
+    const labels={ACCOUNTED:'Fitted · No weight adjustment',ADD:'Fitted · Add item weight to aircraft total',EXCLUDED:'Not fitted · adjust current weight as required'};
+    const storedDeclaration=roleFitDeclaration(s,item.key);
+    const resolvedForButton=storedDeclaration==='NEUTRAL'?item.declaration:storedDeclaration;
+    const selected=item.locked||resolvedForButton==='REMOVE'?'EXCLUDED':resolvedForButton;
     for(const action of ['ACCOUNTED','ADD','EXCLUDED']){
       const button=document.createElement('button');button.type='button';button.className='btn small';button.textContent=labels[action];button.dataset.declaration=action;
-      button.setAttribute('aria-pressed',String((item.locked?'EXCLUDED':item.declaration)===action));button.disabled=item.locked||item.custom;
+      button.setAttribute('aria-pressed',String(selected===action));button.disabled=item.locked||item.custom;
       if(action==='ACCOUNTED'&&basis==='RFM'){button.disabled=true;button.title='RFM Basic Weight excludes Role Fit equipment; fitted items must be added to the aircraft total.';}
       button.onclick=()=>{
-        const apply=()=>{const error=setRoleFitDeclaration(s,item.key,action);if(error)alert(error);render();};
-        apply();
+        applyRoleFitDeclarationFromUI(s,item,action);
       };controls.append(button);
     }
     const helper=document.createElement('div');helper.className='role-fit-helper small';helper.setAttribute('aria-live','polite');
-    helper.textContent=(item.locked?'Already recorded as removed on Accept. This item is locked to prevent subtracting it again.':descriptions[item.declaration]||'Review this declaration.')+` Weight adjustment: ${item.w>0?'+':''}${fmtDecimal(item.w)} kg.`;
+    const stowageRemoved=roleFitStowageRemovalNotice(s,item.key);
+    const missionReminder=stowageRemoved?` ${stowageRemoved} was removed from the Mission Equipment load because this stowage is unavailable. If still being carried, manage it in the Mission Equipment tab: add it again and choose another available stowage location.`:'';
+    helper.textContent=roleFitWeightHelper(s,item)+(item.declaration==='EXCLUDED'&&!roleFitIsInstalled(s,item.key)?' Stowage locations provided by this item are unavailable.':'')+missionReminder;
     row.append(helper);
     if(item.origin==='manual'&&!item.locked&&!item.custom){
       const reset=document.createElement('button');reset.type='button';reset.className='btn small';reset.textContent='Use configuration default';

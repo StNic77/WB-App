@@ -493,8 +493,9 @@ class PDFContext {
 
   drawMissionEquip() {
     const s = this.s;
+    const items = missionRows(s);
+    if(!items.length && !s.zones?.some(z=>(+z?.w||0)>0))return;
     this.sectionHeader("6 · Mission Equipment");
-
     const totals = computeMissionTotals(s);
     const equipmentCG=totals.w && Number.isFinite(totals.m)?Math.round(totals.m/totals.w):null;
     this.kvRow("Selected configuration",AC.presets[s.preset]?.name || "Aircraft defaults / custom load");
@@ -502,8 +503,6 @@ class PDFContext {
     this.kvRow("Combined equipment CG",equipmentCG==null?"Not applicable — no net equipment weight":equipmentCG+" mm");
     this.note("Actual mission load, including changes made for this flight.");
     this.spacer(2);
-    const items = missionRows(s);
-
     const hasItems = items.length > 0;
     if (!hasItems) {
       this.note("No loadable mission equipment.");
@@ -1223,15 +1222,28 @@ class PDFContext {
 
 
   drawRoleFitAppendix() {
-    const s=this.s;this.newPage();this.sectionHeader("Appendix A · Role Fit Equipment Summary");
+    const s=this.s;
+    const rows=roleFitAccountingRows(s)
+      .filter(row=>row.current||row.w!==0||row.m!==0||roleFitExpectation(s,row.key).installed)
+      .map(row=>{
+        const expected=roleFitExpectation(s,row.key);
+        // A missing item expected by the selected role is shown as the change
+        // from that role's fitted configuration. This is report-only; W&B totals
+        // continue to use the actual fitted state and accepted basic weight.
+        if(!row.current&&expected.installed&&!row.locked&&!row.custom&&row.w===0&&row.m===0)
+          return {...row,reportW:-row.itemW,reportM:-row.itemW*row.arm};
+        return {...row,reportW:row.w,reportM:row.m};
+      })
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    if(!rows.length)return;
+    this.newPage();this.sectionHeader("Appendix A · Role Fit Equipment Summary");
 
-    const rows=roleFitAccountingRows(s).sort((a,b)=>a.name.localeCompare(b.name));
-    this.note("Expected Role Fit shows the aircraft default or selected role expectation. Selected Role Fit shows the operator’s choice and its weight treatment. Positive values increase the calculated weight or moment; negative values reduce it. Zero means no adjustment. Highlighted rows have a non-zero weight or moment delta.");
+    this.note("Expected Role Fit shows the selected role’s configuration. Fitted equipment and missing equipment expected for that role are listed; unrelated unfitted equipment with no W&B effect is omitted. Ordinary deltas show adjustments to the accepted aircraft basic weight. A missing role-expected item shows the negative difference from its expected fitted state; that report value is not applied a second time. Calculated totals use actual fitted equipment.");
     this.table(
       ["Role Fit item","Expected Role Fit","Selected Role Fit","Item weight (kg)","Arm (mm)","Weight delta (kg)","Moment delta (kg·mm)"],
-      rows.map(x=>[x.name,expectedRoleFitLabel(s,x.key),selectedRoleFitLabel(x),fmtDecimal(x.itemW),fmtDecimal(x.arm),signedAccounting(x.w),signedAccounting(x.m)]),
+      rows.map(x=>[x.name,expectedRoleFitLabel(s,x.key),selectedRoleFitLabel(x),fmtDecimal(x.itemW),fmtDecimal(x.arm),signedAccounting(x.reportW),signedAccounting(x.reportM)]),
       [40,30,42,20,14,20,22],
-      new Set(rows.flatMap((x,i)=>(x.w!==0||x.m!==0)?[i]:[])),
+      new Set(rows.flatMap((x,i)=>(x.reportW!==0||x.reportM!==0)?[i]:[])),
       {wrapHeaders:true,headerFontSize:6.5,headerLineH:2.8,repeatHeaderOnPageBreak:true}
     );
     this.spacer();

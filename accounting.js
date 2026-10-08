@@ -1,7 +1,7 @@
 /* Explicit sortie declarations relative to the accepted aircraft weight/moment.
    Boolean roleFit remains a derived physical-fit view for existing consumers. */
 const ROLE_FIT_DECLARATIONS = Object.freeze(['NEUTRAL','ADD','REMOVE','ACCOUNTED','EXCLUDED']);
-const ROLE_FIT_LABELS = Object.freeze({NEUTRAL:'Needs review',ADD:'Fitted · Add item weight to aircraft total',REMOVE:'Legacy subtraction · review required',ACCOUNTED:'Fitted · No weight adjustment',EXCLUDED:'Not fitted · No weight adjustment',CUSTOM:'Custom Exception'});
+const ROLE_FIT_LABELS = Object.freeze({NEUTRAL:'Needs review',ADD:'Fitted · Add item weight to aircraft total',REMOVE:'Not fitted · Adjust current weight as required',ACCOUNTED:'Fitted · No weight adjustment',EXCLUDED:'Not fitted · Adjust current weight as required',CUSTOM:'Custom Exception'});
 const ROLE_FIT_ALIASES = Object.freeze({
   RF_CASEVAC_STRETCHER_RACK_4:'RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM',
   RF_SECONDARY_HOIST:'RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST', RF_TRAKKA:'RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT',
@@ -61,9 +61,13 @@ function roleFitIsAircraftLevel(key){
   const item=AC.roleFit[key];
   return !!item?.normally && !!item?.maintenanceIncluded;
 }
+function roleFitIncludedInAcceptedWeight(s,key){
+  return !!s.accepted?.isAccepted && basicWeightBasis(s)==='MAINTENANCE' && !!s.accepted?.maintenanceBaseline?.roleFit?.[key];
+}
 function resolvedRoleFitDeclaration(s,key){
   const action=roleFitDeclaration(s,key);
   if(action==='ACCOUNTED' && basicWeightBasis(s)==='RFM') return 'ADD';
+  if(action==='EXCLUDED' && roleFitIncludedInAcceptedWeight(s,key) && !roleFitRemovedInAcceptedRecord(s,key)) return 'REMOVE';
   if(action!=='NEUTRAL') return action;
   if(roleFitRemovedInAcceptedRecord(s,key)) return 'EXCLUDED';
   const baseline=s.accepted?.maintenanceBaseline?.roleFit;
@@ -162,7 +166,7 @@ function accountingIssues(s){
   for (const [key,item] of Object.entries(AC.roleFit)){
     const action=roleFitDeclaration(s,key), linked=customForRoleFit(s,key);
     if (!ROLE_FIT_DECLARATIONS.includes(action)) issues.push(item.name+': invalid declaration.');
-    if (action==='REMOVE') issues.push(item.name+': a saved subtraction from an earlier session needs review. Choose a current Role Fit state or record the unusual adjustment as a Custom Exception.');
+    if (action==='REMOVE' && (!roleFitIncludedInAcceptedWeight(s,key)||roleFitRemovedInAcceptedRecord(s,key))) issues.push(item.name+': subtraction is not supported by the accepted aircraft basic weight. Review this item or record the adjustment as a Custom Exception.');
     if (roleFitRemovedInAcceptedRecord(s,key) && action!=='NEUTRAL') issues.push(item.name+': conflicts with equipment marked removed in the accepted aircraft record.');
     if (linked.length>1) issues.push(item.name+': more than one Custom Exception refers to this item. Resolve duplicate accounting.');
     if (linked.length && action!=='NEUTRAL') issues.push(item.name+': use either the listed declaration or the Custom Exception.');

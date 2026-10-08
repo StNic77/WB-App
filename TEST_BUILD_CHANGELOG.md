@@ -1,5 +1,11 @@
 # CH-149-615 W&B Release History
 
+## v0.3.1-dev / Config v24 — 2026-10-08 23:30 UTC
+- Refines Role Fit current-weight adjustments and clarifies the operator-facing fit explanations.
+- Removes mission loads whose selected stowage becomes unavailable and directs operators to manage them in Mission Equipment.
+- Updates the W&B Record equipment appendix to report fitted equipment and meaningful configuration deviations while omitting unrelated unfitted items and empty sections.
+- No aircraft configuration data or weight-and-balance calculations changed; configuration remains v24.
+
 ## v0.3.0-dev / Config v24 — 2026-10-08 17:02:25 UTC
 - Removes the Maintenance Exceptions workflow from Accept; Custom Exceptions remain available for documented aircraft-specific adjustments.
 - Simplifies Role Fit to three fit and weight-treatment choices with basis-specific explanations, and carries the expected-versus-selected fit and weight/moment effects into Appendix A.

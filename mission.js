@@ -122,7 +122,8 @@ function loadEquipmentOverrides(){
     const migrateV19 = ov.baseConfigVersion===19 && AC.meta.configVersion>=20 && AC.meta.configVersion<=21;
     const migrateV20 = ov.baseConfigVersion===20 && AC.meta.configVersion===21;
     const migrateV22 = ov.baseConfigVersion===22 && AC.meta.configVersion===23;
-    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22;
+    const migrateV23 = ov.baseConfigVersion===23 && AC.meta.configVersion===24;
+    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22 || migrateV23;
     // Other old complete catalogues must not mask incompatible shipped updates.
     if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);

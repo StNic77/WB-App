@@ -127,7 +127,7 @@
       <div class="hr"></div>
       <div class="row">
         <button class="btn bad" id="btnEndSession">End Session &amp; Clear All</button>
-        <div class="small" id="sessionPersistInfo">Sessions are saved automatically and survive the app being closed. End Session wipes all tails back to defaults.</div>
+        <div class="small" id="sessionPersistInfo">Sessions save automatically and remain on this device when the app is closed. End Session &amp; Clear All deletes session data for every tail stored locally in this app and resets them to defaults.</div>
       </div>
     </div>
 
@@ -137,6 +137,9 @@
       <div class="hr"></div>
       <div class="twoCol">
         <div>
+          <!-- Maintainer note: Force Return is intended for a future fleetwide workflow
+               where an operator can see another user's signed-out tail and return it.
+               Networking is a possible future capability, not a committed requirement. -->
           <div class="lbl">Force Return Reason (only if you take a tail that is signed out)</div>
           <input id="forceReturnReason" placeholder="Reason (required for forced return)"/>
         </div>
@@ -149,7 +152,7 @@
         </div>
       </div>
       <div class="small" style="margin-top:8px;">
-        “Return to Available” is your explicit return action (end-of-day / end-of-crew).
+        Return selected tail makes it available and deletes that tail’s session data. It does not clear other tails’ sessions.
       </div>
     </div>
   </section>
@@ -160,9 +163,9 @@
       <h2>Accept Aircraft Data <small>Establish the starting weight, CG and fuel</small></h2>
       <div class="callout">
         <b>Establish the aircraft starting condition.</b><br>
-        Confirm the Basic Weight, CG and recorded fuel for the assigned aircraft. <b>Identify any differences between the aircraft as configured and the selected weight record before accepting.</b>
+        Confirm the Basic Weight, CG and recorded fuel for the assigned aircraft. After acceptance, use Role Fit to identify which listed items are fitted and account for items not included in the selected Basic Weight value.
         <div class="small" style="margin-top:6px;">
-          Acceptance establishes and locks the starting aircraft state for this session. To change accepted values or Maintenance Exceptions after acceptance, return to Home and use End Session &amp; Clear All.
+          Acceptance establishes and locks the starting aircraft state for this session. To change accepted values after acceptance, return this tail to Available from Home.
         </div>
       </div>
       <div class="hr"></div>
@@ -173,7 +176,6 @@
           <label id="rfmBasicWeightOption"><input type="radio" name="basicWeightBasis" value="RFM"> <b>RFM Basic Weight (Beta Testing)</b></label>
         </div>
         <div class="callout" id="basisDescription" style="margin-top:10px;"></div>
-        <div id="maintenanceExceptionsHost" style="margin-top:10px;"></div>
       </div>
       <div class="hr"></div>
       <div class="twoCol">
@@ -236,7 +238,7 @@
     <details class="card documentation-review" id="customExceptionsCard" data-reviewed="false">
       <summary><strong>Custom Exceptions</strong> · Current sortie only <span id="documentationReviewStatus" class="small" role="status"></span></summary><p>Record any custom additions, removals or substitutions below. If entries are made, confirm them against aircraft documentation before certifying. No confirmation is required when there are no custom exceptions.</p>
       <div class="callout small" style="margin-bottom:10px;">
-        Record additions, removals or substitutions. Choose APPLY to adjust the accepted weight, or ACCOUNTED when the signed change is already included in it. If an entry represents a listed role-fit item, select that item below so it is counted only here. Confirm all entries against aircraft documentation.
+        Record unusual additions, removals or substitutions. Choose APPLY to adjust the calculated aircraft total, or ACCOUNTED when the signed change is already included in the selected weight value. If an entry represents a listed Role Fit item, link it below so it is counted only here. Confirm all entries against aircraft documentation.
       </div>
       <div id="customExceptionsList"></div>
       <div class="row" style="margin-top:10px;">

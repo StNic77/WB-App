@@ -348,6 +348,7 @@ function renderEditorMain(host) {
       <div class="callout">
         <b>Maintain the configuration data used by the W&amp;B application.</b> Use the Editor to manage the application configuration and operational data available to users. <b>Changes made in the Editor take effect immediately on this device.</b> Verify that changes produce the expected results before publishing them. Use <b>Discard Local Editor Changes</b> or <b>Export config.js</b> below to manage or publish your changes.
       </div>
+      ${EDITOR.mode==='fleet'?`<div class="callout"><b>Fleet configuration</b><div class="small">You’re editing the defaults used across the fleet.</div></div>`:''}
       ${EDITOR.mode==='tail'?`<div class="callout"><b>Tail-specific configuration · ${EDITOR.tailConfigTails.map(escHtml).join(', ')}</b><div class="small">Changes in these Editor sections apply only to the selected tails. Their other fleet configurations remain available. Saving makes the same edited setup available to each selected tail.</div></div>`:''}
 
       <div id="editorSectionHost"></div>
@@ -680,7 +681,7 @@ function renderEditorMission(host) {
 
   host.innerHTML = `
     <div class="small muted" style="margin-bottom:10px;">
-      ${keys.length} item${keys.length === 1 ? "" : "s"}. Changes save automatically as you edit.
+      Manage the mission equipment available in the W&amp;B application. Set each item’s weight and stowage location, its default load, and whether it is carried by default in each Role Config. Changes save automatically as you edit.
     </div>
 
     <div id="missionItemList"></div>
@@ -751,7 +752,7 @@ function renderEditorMission(host) {
       </div>
       <div class="row" style="margin-top:10px;gap:10px;">
         <label style="flex:2 1 220px;">Description<input data-k="${k}" data-f="description" value="${escHtml(it.description||'')}"></label>
-      </div><h3>Default Load</h3><p class="small muted">Each quantity represents one item. Changes made for a mission do not change these defaults.</p><div class="row">
+      </div><h3>Default Load</h3><p class="small muted">Set the quantity and stowage locations used to build the item’s default load. Changing a mission’s load does not change these defaults.</p><div class="row">
         <label>Default quantity<input style="width:100px" type="number" min="0" step="1" data-k="${k}" data-f="defaultQuantity" value="${it.defaultQuantity}"></label>
         <label>Minimum<input style="width:90px" type="number" min="0" step="1" data-k="${k}" data-f="minQuantity" value="${it.minQuantity??''}"></label>
         <label>Maximum<input style="width:130px" type="number" min="0" step="1" data-k="${k}" data-f="maxQuantity" value="${it.maxQuantity??''}" placeholder="No maximum" title="No maximum when left blank"></label>
@@ -768,16 +769,16 @@ function renderEditorMission(host) {
         <span class="small mono" data-default-total="${k}">Default load: ${it.defaultQuantity} × ${it.unitWeight} = ${fmtDecimal(it.defaultQuantity*it.unitWeight)} kg</span>
       <h3>Mission Options</h3><div class="editor-mission-options">
         <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="missionQuantityEditable" ${it.missionQuantityEditable?'checked':''}> Show quantity buttons in Mission Equipment<small>Show quick −/+ buttons during a mission. Extras can still be added through the item’s adjustment controls when unchecked.</small></label>
-        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="alwaysInclude" ${it.alwaysInclude?'checked':''}> Carry by default in all configurations<small>Select this item whenever a configuration is applied. The crew can deselect it for an individual mission.</small></label>
-        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="active" ${it.active!==false?'checked':''}> Available for use<small>Uncheck to retire this item. Its definition is retained; existing configurations and mission loads may need review.</small></label>
-        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="isBasket" ${it.isBasket?'checked':''}> Allow this item to be a stowage location<small>Other equipment can be assigned to this item and follows its location when moved. If this item is not carried, its contents must be relocated or removed.</small></label>
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="alwaysInclude" ${it.alwaysInclude?'checked':''}> Carry by default in all configurations<small>Select this item whenever a Role Config is applied. The crew can deselect it for an individual mission. When enabled, per-configuration carry selections do not apply.</small></label>
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="active" ${it.active!==false?'checked':''}> Available for use<small>Turn this off to retire the item from routine use. Its definition is retained; existing configurations and mission loads may need review.</small></label>
+        <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="isBasket" ${it.isBasket?'checked':''}> Allow this item to be a stowage location<small>Other equipment can be assigned to this item and moves with it. If this item is not carried, its contents must be relocated or removed.</small></label>
 
       </div>
       <div class="row" style="margin-top:10px; align-items:center; flex-wrap:wrap; gap:8px;">
         <div class="small mono muted" style="flex:1 1 100%;min-width:0;overflow-wrap:anywhere;">Key: ${k}<div class="small">This identifier links the item to configurations and saved selections. It cannot be edited. To use a different key, create a replacement, update its configurations, then delete the old item. Existing mission selections need review.</div></div>
         <div class="small muted" style="flex:0 0 auto;">Carried by default in these configurations:</div>
         <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; flex:1 1 auto;">
-          ${it.alwaysInclude?'<div class="small">Selected automatically where its default-carry rule applies. Individual configuration selections do not apply.</div>':''}${presetChecks}
+          ${it.alwaysInclude?'<div class="small">Selected automatically where its default-carry rule applies. Individual configuration selections do not apply.</div>':'<div class="small">Select the Role Configs that include this item by default. The crew can still adjust the load for an individual mission.</div>'}${presetChecks}
         </div>
         <button class="btn bad" data-delk="${k}" style="flex:0 0 auto;">Delete</button>
       </div>
@@ -1012,7 +1013,9 @@ function renderEditorRoleFit(host) {
   host.innerHTML = `
     <div class="small muted" style="margin-bottom:10px;">
       ${keys.length} role-fit item${keys.length === 1 ? "" : "s"}.
-      Set the default installed state, the fleet Maintenance Basic Weight baseline, and preset membership independently.
+      ${EDITOR.mode==='tail'
+        ? 'For each item, set whether it is normally fitted to this aircraft and whether its weight is included in this aircraft’s recorded weight.'
+        : 'Maintain the Role Fit equipment defaults used by the W&amp;B application. For each item, set whether it is normally fitted across the fleet and whether its weight is included in the fleet’s recorded aircraft weight.'}
     </div>
 
     <div id="roleFitItemList"></div>
@@ -1069,16 +1072,17 @@ function renderEditorRoleFit(host) {
         <div class="small mono muted" style="flex:1 1 100%;min-width:0;overflow-wrap:anywhere;">Key: ${k}<div class="small">This identifier links the item to configurations and saved selections and cannot be edited. Create a replacement with a new key and update its configurations before deleting this item. Existing mission selections need review.</div></div>
         <label class="small" style="flex:0 0 auto; display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" data-k="${k}" data-f="normally" ${it.normally ? "checked" : ""}
-                 style="width:auto; cursor:pointer;"> Default installed state
+                 style="width:auto; cursor:pointer;"> Normally fitted
         </label>
         <label class="small" style="flex:0 0 auto; display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" data-k="${k}" data-f="maintenanceIncluded" ${it.maintenanceIncluded ? "checked" : ""}
-                 style="width:auto; cursor:pointer;" title="Default assumption for aircraft weighing records. Record aircraft-specific differences under Maintenance Exceptions on Accept."> Included in Recorded Aircraft Basic Weight
+                 style="width:auto; cursor:pointer;"> Included in recorded aircraft weight
         </label>
       </div>
       <label class="small"><input style="width:auto" type="checkbox" data-k="${k}" data-f="isStowage" ${it.isStowage?'checked':''}> Allow this item to be a stowage location</label>
       <p class="small muted">Other equipment can be assigned to this item. If it is not fitted, its contents must be relocated or removed.</p>
-      <p class="small muted">Recorded Aircraft Basic Weight inclusion is the default assumption for weighing records. Record aircraft-specific differences under Maintenance Exceptions on Accept.</p>
+      <p class="small muted"><b>Normally fitted:</b> ${it.normally&&it.maintenanceIncluded?'This item is treated as fitted across roles.':EDITOR.mode==='tail'?'Used as this aircraft’s expected fit when a Role Config does not specify this item.':'Used as the expected fleet fit when a Role Config does not specify this item.'}</p>
+      <p class="small muted"><b>Included in recorded aircraft weight:</b> ${EDITOR.mode==='tail'?'This aircraft’s':'The fleet’s'} recorded aircraft weight is assumed to include this item. This setting does not affect RFM Basic Weight.</p>
       <div class="row" style="margin-top:8px; align-items:center; flex-wrap:wrap; gap:10px;">
         <div class="small muted" style="flex:0 0 auto;">Installed in:</div>
         ${presetChecks}

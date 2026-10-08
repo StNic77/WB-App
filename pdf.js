@@ -1,4 +1,14 @@
 function signedAccounting(value){return (value>=0?"+":"")+fmtDecimal(value,2);}
+function expectedRoleFitLabel(s,key){
+  const expectation=roleFitExpectation(s,key);
+  if(expectation.aircraftLevel) return "Normally fitted to this aircraft";
+  if(!s.preset) return expectation.normal?"Normally fitted to this aircraft":"Not normally fitted";
+  return `${expectation.installed?"Fitted":"Not fitted"} for ${expectation.configuration}`;
+}
+function selectedRoleFitLabel(row){
+  if(row.locked) return "Not fitted · Recorded on Accept";
+  return ROLE_FIT_LABELS[row.declaration]||"Needs review";
+}
 /*
  * pdf.js — CH-149 Cormorant W&B App
  * 615 Wing, DLTP 101C-615
@@ -20,7 +30,8 @@ function signedAccounting(value){return (value>=0?"+":"")+fmtDecimal(value,2);}
  *   7. Crew & Pax     — seats installed and occupied
  *   8. Load Planning  — bay loads and cargo entries (if any)
  *   9. Certification  — certification record, MCDU cross-check values
- *   Appendix A        — Role-Fit Equipment Installed (alphabetical)
+ *   Appendix A        — Role Fit Equipment Summary
+ *   Appendix B        — Custom Exceptions
  */
 
 /* =========================
@@ -70,7 +81,7 @@ function generateWBReport() {
   ctx.drawSeats();            // 7
   ctx.drawLoadPlanning();     // 8
   ctx.drawCertification();    // 9
-  ctx.drawRoleFitAppendix();  // Appendix A — Role-Fit Installed
+  ctx.drawRoleFitAppendix();  // Appendix A — Role Fit Equipment Summary
   ctx.drawCustomExceptionsAppendix(); // Appendix B
 
   // File name: WB_615_[TAIL]_[YYYYMMDD]_Z[HH:MM].pdf — all UTC (Zulu)
@@ -246,26 +257,39 @@ class PDFContext {
 
   // Table: headers + rows with word-wrapping cells
   // Row height grows to fit the tallest wrapped cell in that row.
-  table(headers, rows, colWidths, highlightedRows = new Set()) {
-    const hdrH      = 7;
+  table(headers, rows, colWidths, highlightedRows = new Set(), options = {}) {
     const lineH     = 3.4;    // line height within a wrapped cell
     const cellPadY  = 1.6;    // top/bottom padding inside a cell
     const cellPadX  = 2;      // left padding
     const x0        = this.marginL;
+    let cx;
+    const wrapHeaders=!!options.wrapHeaders;
+    const headerFontSize=options.headerFontSize||7.5;
+    const headerLineH=options.headerLineH||3;
+    const wrappedHeaders=headers.map((header,i)=>wrapHeaders
+      ? this.doc.splitTextToSize(String(header??""),colWidths[i]-(cellPadX*2))
+      : [String(header??"")]);
+    const hdrH=wrapHeaders
+      ? Math.max(7,Math.max(1,...wrappedHeaders.map(lines=>lines.length))*headerLineH+3.5)
+      : 7;
 
     this.checkPageBreak(hdrH + 10);
 
-    // ── Header row ───────────────────────────────────────────
-    this.doc.setFillColor(...this.C_MED);
-    this.doc.rect(x0, this.y, this.contentW, hdrH, "F");
-    this.setFont("bold", 7.5);
-    this.setColor(...this.C_WHITE);
-    let cx = x0 + cellPadX;
-    for (let i = 0; i < headers.length; i++) {
-      this.text(headers[i], cx, this.y + 5);
-      cx += colWidths[i];
-    }
-    this.y += hdrH;
+    const drawHeader=()=>{
+      this.doc.setFillColor(...this.C_MED);
+      this.doc.rect(x0, this.y, this.contentW, hdrH, "F");
+      this.setFont("bold", headerFontSize);
+      this.setColor(...this.C_WHITE);
+      cx=x0+cellPadX;
+      for(let i=0;i<headers.length;i++){
+        const lines=wrappedHeaders[i];
+        for(let ln=0;ln<lines.length;ln++) this.text(lines[ln],cx,this.y+2.5+((ln+1)*headerLineH));
+        cx+=colWidths[i];
+      }
+      this.setColor(0,0,0);
+      this.y+=hdrH;
+    };
+    drawHeader();
 
     // ── Data rows (word-wrap aware) ──────────────────────────
     this.setFont("normal", 7.5);
@@ -281,8 +305,11 @@ class PDFContext {
       const maxLines = Math.max(1, ...wrapped.map(w => w.length));
       const rowH     = (maxLines * lineH) + (cellPadY * 2);
 
-      // Page break if this row would overflow
-      this.checkPageBreak(rowH + 2);
+      // Page break if this row would overflow; repeat the header for long tables when requested.
+      if(this.y+rowH+2>this.pageH-16){
+        this.newPage();
+        if(options.repeatHeaderOnPageBreak)drawHeader();
+      }
 
       // Zebra background
       if (highlightedRows.has(ri) || ri % 2 === 0) {
@@ -423,15 +450,8 @@ class PDFContext {
     const basis = basicWeightBasis(s);
     this.kvRow("Basic Weight Source", basis === "MAINTENANCE" ? "RECORDED AIRCRAFT BASIC WEIGHT" : "RFM BASIC WEIGHT (BETA TESTING)");
     this.note(basis === "MAINTENANCE"
-      ? "Basic Weight and CG are taken from the aircraft’s current weighing record in the servicing record set. Maintenance Exceptions identify role-fit equipment recorded as removed and already reflected in these values."
-      : "Beta testing method: values use the entered RFM Basic Weight. Explicit ADD and REMOVE declarations adjust that weight; ACCOUNTED confirms an item is already included.");
-    if (basis === "MAINTENANCE" && s.accepted.maintenanceBaseline){
-      const fleet=fleetMaintenanceBaseline(), exceptions=[];
-      for(const [k,it] of Object.entries(AC.roleFit)) if(!!s.accepted.maintenanceBaseline.roleFit[k]!==!!fleet.roleFit[k]) exceptions.push([it.name,s.accepted.maintenanceBaseline.roleFit[k]?"Included":"Not included"]);
-      for(const [k,it] of [...Object.entries(AC.crewSeats),...Object.entries(AC.paxSeats)]) if(!it.includedInRfmBasic && !!s.accepted.maintenanceBaseline.seats[k]!==!!fleet.seats[k]) exceptions.push([it.name+" seat",s.accepted.maintenanceBaseline.seats[k]?"Included":"Not included"]);
-      this.kvRow("Maintenance Exceptions",exceptions.length ? (exceptions.length===1 ? `${exceptions.length} — ${exceptions[0][0]} Removed` : String(exceptions.length)) : "None - fleet baseline confirmed");
-      if(exceptions.length) this.table(["Equipment","Accepted Basic Weight/CG status"],exceptions.map(x=>[x[0], x[1]==="Not included" ? "Not Included in Accepted Basic Weight/CG" : "Included in Accepted Basic Weight/CG"]),[100,88]);
-    }
+      ? "Basic Weight and CG are taken from the aircraft’s current weighing record in the servicing record set. Role Fit records which listed items are fitted and accounts for items not represented in this recorded value."
+      : "Beta testing method: the entered RFM Basic Weight is the analytical starting value. Fitted Role Fit equipment is added to the calculated aircraft total because it is not included in the RFM baseline.");
     this.drawAccountingTrail();
     this.kvRow("Fuel Total from Log", `${s.accepted.fuelLog ?? "—"} kg`);
     this.note("The logged fuel initializes fuel planning and AUW/CG calculations. Fuel is not included in Operating Weight.");
@@ -459,14 +479,14 @@ class PDFContext {
     this.kvRow("Listed role-fit adjustment",signedAccounting(wb.roleFitAdjustmentW)+" kg");
     this.kvRow("Seat-structure adjustment",signedAccounting(wb.seatStructureAdjustmentW)+" kg");
     this.kvRow("Custom-exception adjustment",signedAccounting(wb.customExceptionW)+" kg");
-    this.note("Full role-fit declarations: Appendix A. Custom exception details: Appendix B.");
+    this.note("Role Fit equipment fit and accounting: Appendix A. Custom Exception details: Appendix B.");
     if(wb.seatStructureChanges.length) this.table(["Seat structure","Change","Delta kg","Arm mm"],wb.seatStructureChanges.map(x=>[x.name,x.current?"Installed":"Removed",signedAccounting(x.w),String(x.arm)]),[91,32,30,35]);
     this.note(!s.customExceptions.length?"No custom exceptions; confirmation not required.":s.customExceptionsReviewed?"Aircraft documentation review was confirmed for custom exceptions.":"Aircraft documentation review was not confirmed.");
     const seatTotals=computeSeatTotals(s);
     const crewOccupants=Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='crew').length;
     const paxOccupants=Object.keys(s.occupants).filter(k=>s.seats[k]&&s.occupants[k]?.type==='pax').length;
     this.kvRow("Current occupants", `${Math.round(seatTotals.occupantW)} kg (${crewOccupants} crew, ${paxOccupants} passenger${paxOccupants===1?"":"s"}, ${computePatientTotals(s).count} patients)`);
-    this.note(`Role-fit physical-fit view: ${rfOnCount} items fitted or retained from the accepted record. Declaration details are in Appendix A.`);
+    this.note(`Role Fit includes ${rfOnCount} items fitted or retained from the accepted record. Appendix A shows expected and selected fit, plus each item’s weight and moment adjustment.`);
     this.spacer();
   }
 
@@ -1103,16 +1123,35 @@ class PDFContext {
       const landOk = ptInEnvelope(landPt);
       const landColor = landOk ? [80, 140, 220] : this.C_BAD;
 
+      // Fine crosshairs and a white-ringed center make the exact plotted
+      // coordinate easier to identify over the grid and burn track.
+      doc.setDrawColor(...landColor);
+      doc.setLineWidth(0.25);
+      doc.line(lx - 4, ly, lx + 4, ly);
+      doc.line(lx, ly - 4, lx, ly + 4);
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(255, 255, 255);
+      doc.circle(lx, ly, 2.2, "FD");
       doc.setFillColor(...landColor);
       doc.setDrawColor(...landColor);
-      doc.circle(lx, ly, 2, "F");
+      doc.circle(lx, ly, 1.1, "F");
 
+      const landValue = `${landPt.w} kg / ${landPt.cg} mm`;
+      this.setFont("bold", 6.5);
+      const landTitleW = doc.getTextWidth("Landing");
+      this.setFont("normal", 6.5);
+      const landValueW = doc.getTextWidth(landValue);
+      const landTextW = Math.max(landTitleW, landValueW);
+      // Place left and below the marker, with a white backing to mask the track.
+      const landTextX = Math.max(plotX + pad.l + 2, lx - landTextW - 7);
+      const landTextY = Math.min(plotY + pad.t + innerH - 2, ly + 6);
+      doc.setFillColor(255, 255, 255);
+      doc.rect(landTextX - 1, landTextY - 4.5, landTextW + 2, 8, "F");
       this.setFont("bold", 6.5);
       this.setColor(...landColor);
-      // Opposite sides keep departure and landing labels apart at similar CGs.
-      const landingLabelX = Math.max(plotX + pad.l + 35, lx - 3);
-      doc.text("LANDING", landingLabelX, ly - 4, {align:"right"});
-      doc.text(`${landPt.w} kg / ${landPt.cg} mm`, landingLabelX, ly, {align:"right"});
+      doc.text("Landing", landTextX, landTextY - 1);
+      this.setFont("normal", 6.5);
+      doc.text(landValue, landTextX, landTextY + 2.5);
     }
 
     // Plot the aircraft point (DEPARTURE)
@@ -1120,22 +1159,36 @@ class PDFContext {
     const ptY = toY(wb.auw);
     const ptColor = wb.flags.envOk ? this.C_GOOD : this.C_BAD;
 
+    // Fine crosshairs and a white-ringed center make the exact plotted
+    // coordinate easier to identify over the grid and burn track.
+    doc.setLineWidth(0.25);
+    doc.setDrawColor(...ptColor);
+    doc.line(ptX - 4, ptY, ptX + 4, ptY);
+    doc.line(ptX, ptY - 4, ptX, ptY + 4);
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(255, 255, 255);
+    doc.circle(ptX, ptY, 2.6, "FD");
     doc.setFillColor(...ptColor);
     doc.setDrawColor(...ptColor);
-    doc.circle(ptX, ptY, 2.5, "F");
+    doc.circle(ptX, ptY, 1.4, "F");
 
-    // Crosshairs
-    doc.setLineWidth(0.3);
-    doc.setDrawColor(...ptColor);
-    doc.line(ptX - 5, ptY, ptX + 5, ptY);
-    doc.line(ptX, ptY - 5, ptX, ptY + 5);
-
-    // Departure label
+    // Takeoff label, placed above and right of the marker with an opaque backing.
+    const takeoffValue = `${wb.auw} kg / ${wb.auwCG} mm`;
+    this.setFont("bold", 7);
+    const takeoffTitleW = doc.getTextWidth("Takeoff");
+    this.setFont("normal", 6.5);
+    const takeoffValueW = doc.getTextWidth(takeoffValue);
+    const takeoffTextW = Math.max(takeoffTitleW, takeoffValueW);
+    let takeoffTextX = ptX + 6;
+    if (takeoffTextX + takeoffTextW > plotX + pad.l + innerW - 2) takeoffTextX = ptX - takeoffTextW - 6;
+    const takeoffTextY = Math.max(plotY + pad.t + 5, ptY - 5);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(takeoffTextX - 1, takeoffTextY - 4, takeoffTextW + 2, 8, "F");
     this.setFont("bold", 7);
     this.setColor(...ptColor);
-    doc.text("DEPARTURE", ptX + 3, ptY - 2);
+    doc.text("Takeoff", takeoffTextX, takeoffTextY - 1);
     this.setFont("normal", 6.5);
-    doc.text(`${wb.auw} kg / ${wb.auwCG} mm`, ptX + 3, ptY + 3);
+    doc.text(takeoffValue, takeoffTextX, takeoffTextY + 2.5);
 
     // ── Burn track legend (bottom-left of plot) ──
     const legX = plotX + pad.l + 2;
@@ -1170,22 +1223,29 @@ class PDFContext {
 
 
   drawRoleFitAppendix() {
-    const s=this.s;this.newPage();this.sectionHeader("Appendix A · Role-Fit Declarations");
+    const s=this.s;this.newPage();this.sectionHeader("Appendix A · Role Fit Equipment Summary");
 
     const rows=roleFitAccountingRows(s).sort((a,b)=>a.name.localeCompare(b.name));
-    this.note("Highlighted rows add or subtract weight. Other declarations apply no adjustment; custom entries are in Appendix B.");
-    this.table(["Item","Declaration","Item kg","Arm mm","Delta kg"],rows.map(x=>[x.name,x.locked?ROLE_FIT_LABELS.EXCLUDED:ROLE_FIT_LABELS[x.declaration],fmtDecimal(x.itemW),fmtDecimal(x.arm),signedAccounting(x.w)]),[70,46,24,24,24],new Set(rows.flatMap((x,i)=>(x.w!==0||x.m!==0)?[i]:[])));
+    this.note("Expected Role Fit shows the aircraft default or selected role expectation. Selected Role Fit shows the operator’s choice and its weight treatment. Positive values increase the calculated weight or moment; negative values reduce it. Zero means no adjustment. Highlighted rows have a non-zero weight or moment delta.");
+    this.table(
+      ["Role Fit item","Expected Role Fit","Selected Role Fit","Item weight (kg)","Arm (mm)","Weight delta (kg)","Moment delta (kg·mm)"],
+      rows.map(x=>[x.name,expectedRoleFitLabel(s,x.key),selectedRoleFitLabel(x),fmtDecimal(x.itemW),fmtDecimal(x.arm),signedAccounting(x.w),signedAccounting(x.m)]),
+      [40,30,42,20,14,20,22],
+      new Set(rows.flatMap((x,i)=>(x.w!==0||x.m!==0)?[i]:[])),
+      {wrapHeaders:true,headerFontSize:6.5,headerLineH:2.8,repeatHeaderOnPageBreak:true}
+    );
     this.spacer();
   }
 
   drawAccountingTrail() {
     this.spacer(2);
-    this.note("Configuration equipment additions and removals are applied to the accepted basic weight. See Role Configuration for adjustment totals and Appendix A for highlighted role-fit changes. Custom exceptions are detailed in Appendix B.");
+    this.note("Role Fit and mission equipment adjustments are applied when calculating the aircraft total from the accepted starting weight. See Role Configuration for adjustment totals, Appendix A for Role Fit equipment and accounting, and Appendix B for Custom Exceptions.");
   }
 
 
   drawCustomExceptionsAppendix() {
     this.newPage();this.sectionHeader("Appendix B · Custom Exceptions");
+    this.note("Custom Exceptions record documented, aircraft-specific equipment adjustments outside the standard Role Fit list. An adjustment can add or subtract weight from the calculation. Each entry shows its weight, arm, and source when recorded; any linked Role Fit equipment is shown to prevent double-counting.");
     this.note(!this.s.customExceptions.length?"No custom exceptions; confirmation not required.":this.s.customExceptionsReviewed?"Current aircraft documentation review confirmed.":"Aircraft documentation review not confirmed.");
     const rows=customExceptionAccountingRows(this.s);
     if(!rows.length){this.note("No custom exceptions recorded.");return;}
@@ -1195,8 +1255,14 @@ class PDFContext {
       if(x.source)this.kvRow("Reference",x.source);
       if(x.roleFitKeys?.length)this.kvRow("Linked role-fit items",x.roleFitKeys.map(key=>AC.roleFit[key]?.name||key).join(', '));
       else if(x.key)this.kvRow("Linked role-fit item",AC.roleFit[x.key]?.name||x.key);
-      this.kvRow("Treatment",x.accounting==='ACCOUNTED'?"Already reflected — no adjustment":"Apply adjustment to accepted weight");
-      this.table(["Signed item kg","Arm mm","Applied kg","Applied kg·mm"],[[fmtDecimal(x.inputW),fmtDecimal(x.arm),signedAccounting(x.w),signedAccounting(x.m)]],[47,47,47,47]);
+      this.kvRow("Treatment",x.accounting==='ACCOUNTED'?"Already included in selected value — no adjustment":"Apply adjustment to calculated aircraft total");
+      this.table(
+        ["Exception item weight (kg)","Arm (mm)","Applied weight change (kg)","Applied moment change (kg·mm)"],
+        [[fmtDecimal(x.inputW),fmtDecimal(x.arm),signedAccounting(x.w),signedAccounting(x.m)]],
+        [46,26,58,58],
+        new Set(),
+        {wrapHeaders:true,headerFontSize:7,headerLineH:3}
+      );
       this.spacer(3);
     }
   }

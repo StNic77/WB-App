@@ -1,7 +1,7 @@
 /* Explicit sortie declarations relative to the accepted aircraft weight/moment.
    Boolean roleFit remains a derived physical-fit view for existing consumers. */
 const ROLE_FIT_DECLARATIONS = Object.freeze(['NEUTRAL','ADD','REMOVE','ACCOUNTED','EXCLUDED']);
-const ROLE_FIT_LABELS = Object.freeze({NEUTRAL:'No change',ADD:'Add equipment',REMOVE:'Remove equipment',ACCOUNTED:'Already included — fitted',EXCLUDED:'Already excluded — removed',CUSTOM:'Custom exception'});
+const ROLE_FIT_LABELS = Object.freeze({NEUTRAL:'Needs review',ADD:'Fitted · Add item weight to aircraft total',REMOVE:'Legacy subtraction · review required',ACCOUNTED:'Fitted · No weight adjustment',EXCLUDED:'Not fitted · No weight adjustment',CUSTOM:'Custom Exception'});
 const ROLE_FIT_ALIASES = Object.freeze({
   RF_CASEVAC_STRETCHER_RACK_4:'RF_SAR_EQUIPMENT_CASEVAC_RACK_SYSTEM',
   RF_SECONDARY_HOIST:'RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST', RF_TRAKKA:'RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT',
@@ -30,7 +30,7 @@ function normalizeAccountingConfiguration(){
 }
 normalizeAccountingConfiguration();
 function normalizeRackSessionKey(s){
-  for(const map of [s.roleFit,s.roleFitDeclarations,s.roleFitDeclarationOrigins,s.accepted?.maintenanceBaseline?.roleFit,s.maintenanceDraft?.roleFit]){
+  for(const map of [s.roleFit,s.roleFitDeclarations,s.roleFitDeclarationOrigins,s.accepted?.maintenanceBaseline?.roleFit]){
     for(const oldKey of LEGACY_CASEVAC_RACK_KEYS){
       if(!map||!Object.hasOwn(map,oldKey))continue;
       for(const key of CASEVAC_RACK_KEYS)if(!Object.hasOwn(map,key))map[key]=map[oldKey];
@@ -49,7 +49,7 @@ function normalizeRackSessionKey(s){
 }
 function pruneStaleRoleFitReferences(s){
   let changed=false;
-  for(const map of [s.roleFit,s.roleFitDeclarations,s.roleFitDeclarationOrigins,s.maintenanceDraft?.roleFit]){
+  for(const map of [s.roleFit,s.roleFitDeclarations,s.roleFitDeclarationOrigins]){
     for(const key of Object.keys(map||{})) if(!AC.roleFit[key]) { delete map[key]; changed=true; }
   }
   // Keep accepted snapshots and custom links as evidence; unresolved custom links block certification.
@@ -57,8 +57,13 @@ function pruneStaleRoleFitReferences(s){
 }
 function roleFitAccountingSignature(){ return JSON.stringify([2,AC.roleFit,AC.presets]); }
 function roleFitDeclaration(s,key){ return s.roleFitDeclarations?.[key] || 'NEUTRAL'; }
+function roleFitIsAircraftLevel(key){
+  const item=AC.roleFit[key];
+  return !!item?.normally && !!item?.maintenanceIncluded;
+}
 function resolvedRoleFitDeclaration(s,key){
   const action=roleFitDeclaration(s,key);
+  if(action==='ACCOUNTED' && basicWeightBasis(s)==='RFM') return 'ADD';
   if(action!=='NEUTRAL') return action;
   if(roleFitRemovedInAcceptedRecord(s,key)) return 'EXCLUDED';
   const baseline=s.accepted?.maintenanceBaseline?.roleFit;
@@ -68,7 +73,7 @@ function resolvedRoleFitDeclaration(s,key){
     // defaults separately describe physical fit and inclusion in accepted weight.
     if(s.roleFitDeclarationOrigins?.[key]==='manual') return included?'ACCOUNTED':'EXCLUDED';
     const preset=AC.presets[s.preset];
-    if(preset?.roleFitOff?.includes(key)) return included?'REMOVE':'EXCLUDED';
+    if(preset?.roleFitOff?.includes(key) && !roleFitIsAircraftLevel(key)) return 'EXCLUDED';
     const fitted=preset?.roleFitOn?.includes(key) || !!AC.roleFit[key]?.normally || included;
     return fitted?(included?'ACCOUNTED':'ADD'):'EXCLUDED';
   }
@@ -114,19 +119,21 @@ function setRoleFitDeclaration(s,key,action,origin='manual'){
 }
 function presetRoleFitDeclaration(s,preset,key){
   const included=basicWeightBasis(s)==='MAINTENANCE' && !!s.accepted?.maintenanceBaseline?.roleFit?.[key];
-  if ((preset?.roleFitOff||[]).includes(key)) return included ? 'REMOVE' : 'NEUTRAL';
+  if (roleFitIsAircraftLevel(key)) return included ? 'ACCOUNTED' : 'ADD';
+  if ((preset?.roleFitOff||[]).includes(key)) return 'EXCLUDED';
   if ((preset?.roleFitOn||[]).includes(key)) return included ? 'NEUTRAL' : 'ADD';
   return 'NEUTRAL'; // omission never means REMOVE
 }
 function roleFitExpectation(s,key){
   const normal=!!AC.roleFit[key]?.normally, preset=AC.presets[s.preset];
   const on=!!preset?.roleFitOn?.includes(key), off=!!preset?.roleFitOff?.includes(key);
-  return {normal,installed:off?false:on?true:normal,configuration:preset?.name||'No configuration',inherited:!!preset&&!on&&!off};
+  const aircraftLevel=roleFitIsAircraftLevel(key);
+  return {normal,aircraftLevel,installed:aircraftLevel?true:off?false:on?true:normal,configuration:preset?.name||'No configuration',inherited:!!preset&&!on&&!off};
 }
 function applyRoleFitPreset(s,preset){
   for (const key of Object.keys(AC.roleFit)){
     if (roleFitRemovedInAcceptedRecord(s,key)) { setRoleFitDeclaration(s,key,'NEUTRAL','accepted'); continue; }
-    if (s.roleFitDeclarationOrigins?.[key]==='manual' || ['ACCOUNTED','EXCLUDED'].includes(roleFitDeclaration(s,key)) || customForRoleFit(s,key).length) continue;
+    if (s.roleFitDeclarationOrigins?.[key]==='manual' || customForRoleFit(s,key).length) continue;
     setRoleFitDeclaration(s,key,presetRoleFitDeclaration(s,preset,key),'preset');
   }
   syncRoleFitPhysicalState(s);
@@ -155,7 +162,8 @@ function accountingIssues(s){
   for (const [key,item] of Object.entries(AC.roleFit)){
     const action=roleFitDeclaration(s,key), linked=customForRoleFit(s,key);
     if (!ROLE_FIT_DECLARATIONS.includes(action)) issues.push(item.name+': invalid declaration.');
-    if (roleFitRemovedInAcceptedRecord(s,key) && action!=='NEUTRAL') issues.push(item.name+': conflicts with an accepted maintenance removal.');
+    if (action==='REMOVE') issues.push(item.name+': a saved subtraction from an earlier session needs review. Choose a current Role Fit state or record the unusual adjustment as a Custom Exception.');
+    if (roleFitRemovedInAcceptedRecord(s,key) && action!=='NEUTRAL') issues.push(item.name+': conflicts with equipment marked removed in the accepted aircraft record.');
     if (linked.length>1) issues.push(item.name+': more than one Custom Exception refers to this item. Resolve duplicate accounting.');
     if (linked.length && action!=='NEUTRAL') issues.push(item.name+': use either the listed declaration or the Custom Exception.');
   }

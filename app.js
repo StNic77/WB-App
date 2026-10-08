@@ -15,7 +15,6 @@ function formatReferenceDocument(doc){
   const ver = [doc.versionType, doc.version].filter(Boolean).join(" ");
   return `${doc.designation || ""}${ver ? ", " + ver : ""}${doc.versionDate ? " (" + doc.versionDate + ")" : ""}${doc.status ? " — " + doc.status : ""}`.trim();
 }
-function maintenanceLockedRoleFit(s,key){ return roleFitRemovedInAcceptedRecord(s,key); }
 
 /* =========================
    INIT TAILS / SESSIONS
@@ -95,12 +94,11 @@ function makeNewSession(tail, isPlaceholder){
       fuelLog:null,
       basicWeightBasis:"MAINTENANCE",
       maintenanceBaseline:null,
+      maintenanceExceptions:[],
       referenceDocument:null
     },
 
     preset: null,
-
-    maintenanceDraft: null,
 
     roleFit: roleFitState,
     roleFitDeclarations: Object.fromEntries(Object.keys(AC.roleFit).map(key=>[key,"NEUTRAL"])),
@@ -310,6 +308,10 @@ if (accSvcEl) accSvcEl.value = (s && s.accepted && (s.accepted.by || "")) || "";
     return;
   }
 
+  // Future fleet coordination note: Force Return is meaningful when an operator
+  // can see that another user has signed out this tail and return it on their behalf.
+  // That may use shared/networked state, but networking is not a committed requirement.
+  // This current check only sees the local session and must not imply fleetwide status.
   // If tail is signed out and not returned, selecting it triggers forced return.
   if (s.signedOutBy && !s.returnedAt){
     const reason = (document.getElementById("forceReturnReason").value || "").trim();
@@ -342,101 +344,24 @@ function activateTailConfigurationForSession(tail){
   if(s.preset&&!AC.presets?.[s.preset])s.preset=null;
 }
 
-function returnToAvailable(tail, reason){
-  console.log("[RTA] returnToAvailable CALLED", tail, reason);
+function returnToAvailable(tail){
+  if (!STORE?.sessions?.[tail]) return;
 
-  const s = (STORE && STORE.sessions && STORE.sessions[tail]) ? STORE.sessions[tail] : null;
-  if (!s) return;
+  // Returning a tail ends its entire local session: restore all planning,
+  // acceptance, configuration, and certification data to the new-session defaults.
+  STORE.sessions[tail] = makeNewSession(tail, STORE.sessions[tail].isPlaceholder);
 
-  // DEBUG: show state that drives "Signed out by" + "Certified"
-  try {
-    console.log("[RTA] BEFORE", {
-      signedOutBy: s.signedOutBy,
-      returnedAt: s.returnedAt,
-      signedOut: !!(s.signedOutBy && !s.returnedAt),
-      certify: s.certify
-    });
-  } catch(e){}
+  // A returned tail is available and no longer selected for this operator.
+  if (STORE.selectedTail === tail) STORE.selectedTail = null;
+  activeTab = "HOME";
 
-
-  // -----------------------------
-  // 1) HOME / ownership -> AVAILABLE
-  // -----------------------------
-  s.signedOutBy = "";
-  s.signedOutAt = null;
-  s.returnedAt = new Date().toISOString();
-  s.returnReason = reason || "Return to available";
-  s.patientOccupants = {};
-
-  // -----------------------------
-  // 2) ACCEPT stamp (clear Accepted By + time + flag)
-  // -----------------------------
-  if (!s.accepted || typeof s.accepted !== "object") s.accepted = {};
-  s.accepted.isAccepted = false;
-  s.accepted.acceptedBy = "";
-  s.accepted.acceptedAt = null;
-
-  if ("acceptedBy" in s) s.acceptedBy = "";
-  if ("acceptedAt" in s) s.acceptedAt = null;
-
-  // -----------------------------
-  // 3) CERTIFY stamp + CERTIFY editable inputs (HARD clear)
-  // -----------------------------
-  // HARD reset CERTIFY model (clears certified + ALL certify editable inputs)
-s.certify = { certified:false, by:"", at:null, mcdu:null };
-
-// Clear any parallel certify flags (safe if unused)
-if ("certified" in s) s.certified = false;
-if ("certifiedBy" in s) s.certifiedBy = "";
-if ("certifiedAt" in s) s.certifiedAt = null;
-
-// If you have separate certify input containers, clear them too
-if ("certifyForm" in s) s.certifyForm = {};
-if ("certifyInputs" in s) s.certifyInputs = {};
-
-// -----------------------------
-// UI wipe: inputs keep their .value unless we clear them
-// -----------------------------
-const wipeInput = (id, val="") => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if ("value" in el) el.value = val;
-};
-
-// UI wipe: clear only the known service-number and certify inputs
-wipeInput("certSvc", "");
-wipeInput("mcduAUW", "");
-wipeInput("mcduCG", "");
-wipeInput("mcduFuel", "");
-wipeInput("accSvc", ""); // ACCEPT service#
-
-const certMsgEl = document.getElementById("certMsg");
-if (certMsgEl) certMsgEl.innerHTML = `<span class="badge">Not certified</span>`;
-
-// FINAL HARD FORCE: prevent any lingering "signed out" or "certified" display
-s.signedOutBy = "";
-s.signedOutAt = null;
-
-// ALSO reset ACCEPT state (service # lives in s.accepted.by)
-s.accepted = { isAccepted:false, by:"", at:null, basicW:null, basicCG:null, fuelLog:null, basicWeightBasis:"MAINTENANCE", maintenanceBaseline:null, maintenanceExceptions:[], referenceDocument:null };
-s.maintenanceDraft = null;
-s.customExceptions = [];
-s.customExceptionsReviewed = false;
-s.roleFitDeclarations=Object.fromEntries(Object.keys(AC.roleFit).map(key=>[key,"NEUTRAL"]));
-s.roleFitDeclarationOrigins={};
-s.accountingReviewRequired=false;
-syncRoleFitPhysicalState(s);
-s.acceptanceInvalidated = true;
-
-s.returnedAt = new Date().toISOString();
-
-
-s.certify = { certified:false, by:"", at:null, mcdu:null };
-if ("certified" in s) s.certified = false;
-if ("certifiedBy" in s) s.certifiedBy = "";
-if ("certifiedAt" in s) s.certifiedAt = null;
-
-
+  // Clear certify fields that live in the page rather than in the session model.
+  for (const id of ["mcduAUW", "mcduCG", "mcduFuel", "certSvc", "accBasicW", "accBasicCG", "accFuel", "accSvc"]){
+    const input = document.getElementById(id);
+    if (input) input.value = "";
+  }
+  const certMsgEl = document.getElementById("certMsg");
+  if (certMsgEl) certMsgEl.innerHTML = `<span class="badge">Not certified</span>`;
 }
 
 
@@ -803,7 +728,7 @@ function renderHome(){
 
   document.getElementById("btnReturnToAvailableHome").onclick = ()=>{
     if (!STORE.selectedTail){ alert("No selected tail."); return; }
-    returnToAvailable(STORE.selectedTail, "Manual return");
+    returnToAvailable(STORE.selectedTail);
     render();
   };
 
@@ -917,7 +842,6 @@ function bindAcceptInputsOnce(){
       if (next === (s.accepted.basicWeightBasis || "MAINTENANCE")) return;
       s.accepted.basicWeightBasis = next;
       s.accepted.maintenanceBaseline = null;
-      s.maintenanceDraft = null;
       s.accepted.isAccepted = false;
       s.accepted.at = null;
       s.accepted.snapshot = null;
@@ -962,24 +886,12 @@ s.accepted.isAccepted = true;
     s.accepted.referenceDocument = JSON.parse(JSON.stringify(currentReferenceDocument()));
 
     if ((s.accepted.basicWeightBasis || "MAINTENANCE") === "MAINTENANCE"){
-      ensureMaintenanceDraft(s);
-      s.accepted.maintenanceBaseline = JSON.parse(JSON.stringify(s.maintenanceDraft));
-
-      // ACCEPT is the commitment point. Capture the exact role-fit removals selected
-      // as Maintenance Exceptions so presets and manual Mission Config toggles cannot
-      // reinstall them during this accepted session.
-      const fleet = fleetMaintenanceBaseline();
-      s.accepted.maintenanceExceptions = Object.keys(AC.roleFit).filter(k =>
-        !!fleet.roleFit[k] && s.maintenanceDraft.roleFit[k] === false
-      );
-
-      // Immediately force the live role-fit state to respect the accepted record.
-      for (const k of s.accepted.maintenanceExceptions) setRoleFitDeclaration(s,k,"NEUTRAL","accepted");
+      // Snapshot the active aircraft's recorded-weight inclusion assumptions.
+      // Actual equipment fit is declared separately in Role Config.
+      s.accepted.maintenanceBaseline = JSON.parse(JSON.stringify(fleetMaintenanceBaseline()));
     } else {
       s.accepted.maintenanceBaseline = null;
-      s.accepted.maintenanceExceptions = [];
     }
-
     s.acceptanceInvalidated = false;
     // Snapshot of the logbook values at the moment of ACCEPT
     s.accepted.snapshot = {
@@ -1038,10 +950,8 @@ function renderAccept(){
   if (radio) radio.checked = true;
   const desc = document.getElementById("basisDescription");
   if (desc) desc.innerHTML = basis === "MAINTENANCE"
-    ? `Uses the aircraft’s current Basic Weight and CG from the weighing record in the servicing record set. The weighing record identifies role-fit equipment included in these values. Confirm the installed aircraft configuration matches the weighing record and identify any differences under Maintenance Exceptions.`
+    ? `Uses this aircraft’s current Basic Weight and CG from its weighing record in the servicing record set. Role Fit records which listed items are fitted and whether their weight is already included in this recorded value.`
     : `Uses the RFM Basic Weight and CG as the starting point. Role-fit equipment is not included in this baseline and is accounted for separately through the selected aircraft configuration.`;
-
-  renderMaintenanceExceptions(s);
 
   renderAcceptStateText();
 }
@@ -1054,45 +964,6 @@ function fleetMaintenanceBaseline(){
   return {roleFit,seats};
 }
 
-function ensureMaintenanceDraft(s){
-  if (!s.maintenanceDraft) s.maintenanceDraft = fleetMaintenanceBaseline();
-  if (!s.maintenanceDraft.roleFit) s.maintenanceDraft.roleFit = {};
-  if (!s.maintenanceDraft.seats) s.maintenanceDraft.seats = {};
-  for (const [k,it] of Object.entries(AC.roleFit)) if (!(k in s.maintenanceDraft.roleFit)) s.maintenanceDraft.roleFit[k]=roleFitMaintenanceDefault(it);
-  for (const [k,it] of [...Object.entries(AC.crewSeats),...Object.entries(AC.paxSeats)]) if (!(k in s.maintenanceDraft.seats)) s.maintenanceDraft.seats[k]=!!(it.includedInRfmBasic||seatMaintenanceDefault(it));
-}
-
-function renderMaintenanceExceptions(s){
-  const host=document.getElementById("maintenanceExceptionsHost");
-  if (!host) return;
-  if (basicWeightBasis(s) !== "MAINTENANCE"){ host.innerHTML=""; return; }
-  const wasOpen=!!host.querySelector("details")?.open;
-  ensureMaintenanceDraft(s);
-  const fleet=fleetMaintenanceBaseline();
-  // Maintenance Exceptions are removals from the expected recorded-aircraft baseline.
-  const items=[];
-  for (const [k,it] of Object.entries(AC.roleFit)){
-    if (fleet.roleFit[k]) items.push({kind:"roleFit",k,name:it.name,w:it.w,arm:it.arm});
-  }
-  const exceptionCount=items.filter(x=>s.maintenanceDraft.roleFit[x.k]===false).length;
-  const locked=!!s.accepted.isAccepted;
-  host.innerHTML=`<details class="card" style="padding:12px;"><summary><b>Maintenance Exceptions</b> · ${exceptionCount ? `${exceptionCount} removed` : "none"}</summary><div class="small muted" style="margin:8px 0;">Select role-fit equipment identified as removed in the aircraft’s current weighing record. These removals are already reflected in the recorded Basic Weight and CG and will remain unavailable when selecting a role configuration.${locked ? " Accepted aircraft data is locked for this session." : ""}</div><div id="maintenanceExceptionList"></div></details>`;
-  host.querySelector("details").open=wasOpen;
-  const list=host.querySelector("#maintenanceExceptionList");
-  for (const x of items){
-    const removed=s.maintenanceDraft.roleFit[x.k]===false;
-    const row=document.createElement("label"); row.className="toggle"; row.style.cursor=locked?"default":"pointer";
-    row.innerHTML=`<div class="left"><div class="name">${x.name}</div><div class="meta mono">${roundKg(x.w)} kg @ ${roundMm(x.arm)} mm</div></div><label class="small"><input type="checkbox" ${removed?"checked":""} ${locked?"disabled":""} style="width:auto;"> Removed</label>`;
-    const cb=row.querySelector("input");
-    cb.onchange=(e)=>{
-      if (locked) return;
-      s.maintenanceDraft.roleFit[x.k]=!e.target.checked;
-      s.roleFit[x.k]=!e.target.checked;
-      render();
-    };
-    list.appendChild(row);
-  }
-}
 function renderAcceptStateText(){
   const tail = STORE.selectedTail;
   if (!tail) return;
@@ -2765,7 +2636,7 @@ if (certMsgEl){
   // Return to available button
   document.getElementById("btnReturnToAvailableCert").onclick = ()=>{
     if (!tail) return;
-    returnToAvailable(tail, "Return from certify");
+    returnToAvailable(tail);
     render();
   };
 
@@ -3072,10 +2943,14 @@ function drawEnvelope(canvasEl, notesEl){
     ctx.fillStyle = landOk ? "rgba(80,160,255,.95)" : "rgba(255,90,115,.95)";
     ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI*2); ctx.fill();
 
-    // small label
+    // Show the landing values as well as the takeoff values, matching the PDF.
     ctx.fillStyle = C.landLbl;
-    ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
-    ctx.fillText("LAND", Math.min(lx + 8, W - ctx.measureText("LAND").width - 6), ly + 4);
+    ctx.font = "12px " + getComputedStyle(document.body).fontFamily;
+    const landLabel = `LDG ${landPt.w} kg / ${landPt.cg} mm`;
+    const landLabelWidth = ctx.measureText(landLabel).width;
+    const landLabelX = lx + landLabelWidth + 14 <= W - 6 ? lx + 9 : Math.max(6, lx - landLabelWidth - 9);
+    const landLabelY = Math.max(14, Math.min(H - 38, ly - 8));
+    ctx.fillText(landLabel, landLabelX, landLabelY);
   }
 
 
@@ -3087,7 +2962,7 @@ function drawEnvelope(canvasEl, notesEl){
   // annotate
   ctx.fillStyle = C.pointLbl;
   ctx.font = "12px " + getComputedStyle(document.body).fontFamily;
-  const pointLabel=`${wb.auw} kg @ ${wb.auwCG} mm (${wb.cgBand})`;
+  const pointLabel=`T/O ${wb.auw} kg / ${wb.auwCG} mm (${wb.cgBand})`;
   ctx.fillText(pointLabel, Math.max(6, Math.min(cx+10, W-ctx.measureText(pointLabel).width-6)), Math.max(14,cy-10));
 
       // notes
@@ -3096,9 +2971,10 @@ function drawEnvelope(canvasEl, notesEl){
     if (!wb.flags.envOk) warn.push("Outside envelope.");
     if (wb.flags.altGross) warn.push("Alternate gross weight range (15600–16000).");
     if (wb.flags.overweightAirborne) warn.push("OVERWEIGHT > 16000 (airborne limit).");
+    if (landPt && !landOk) warn.push("Landing point outside envelope.");
     notesTarget.innerHTML = warn.length
       ? `<span class="badge bad">${warn.join(" · ")}</span>`
-      : `<span class="badge good">TAKEOFF CG Within limits</span>`;
+      : `<span class="badge good">TAKEOFF and LANDING CG Within limits</span>`;
     if(plot.manual) notesTarget.innerHTML += `<div class="small" style="margin-top:8px">${MANUAL_FUEL_ADVISORY}</div>`;
   }
 }

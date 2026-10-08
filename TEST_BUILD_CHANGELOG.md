@@ -1,5 +1,11 @@
 # CH-149-615 W&B Release History
 
+## v0.3.0-dev / Config v24 — 2026-10-08 17:02:25 UTC
+- Removes the Maintenance Exceptions workflow from Accept; Custom Exceptions remain available for documented aircraft-specific adjustments.
+- Simplifies Role Fit to three fit and weight-treatment choices with basis-specific explanations, and carries the expected-versus-selected fit and weight/moment effects into Appendix A.
+- Clarifies fleet and selected-tail Editor scope, Role Fit defaults, and Mission Equipment guidance; adds a v23-to-v24 migration that backs up and preserves compatible tail-specific overrides.
+- Improves Appendix B explanation and exception weight, arm, and applied-change headings; synchronizes app, configuration, and offline release identifiers.
+
 ## v0.2.19-dev / Config v23 — 2026-10-06 23:12:29 UTC
 - Adds Create Tail-Specific Configuration, allowing one or more selected aircraft to receive a copied and independently edited configuration.
 - Tail-specific equipment, seats, stowage, role configurations and reference documents load only when an assigned tail with that setup is selected. Tail-specific data is included in config.js exports.

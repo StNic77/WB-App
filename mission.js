@@ -43,6 +43,21 @@ function missionConfigurationIssues(data){
   }
   if(data.appOptions&&typeof data.appOptions.allowRfmBasicWeight!=='boolean')issues.push('RFM Basic Weight availability must be enabled or disabled.');
   for(const [id,loc] of Object.entries(data.stowage||{}))if(loc.roleFitKey&&!data.roleFit?.[loc.roleFitKey])issues.push(id+': linked Role Fit item is missing.');
+  for(const [key,position] of Object.entries(data.patientPositions||{})){
+    if(!/^[A-Z0-9_]+$/.test(key))issues.push(key+': patient position key must use uppercase letters, numbers and underscores.');
+    if(!String(position.name||'').trim())issues.push(key+': patient position needs a name.');
+    if(!Number.isFinite(position.arm))issues.push(key+': patient position arm must be a number.');
+    if(!Number.isFinite(position.weight)||position.weight<0)issues.push(key+': patient weight must be a nonnegative number.');
+    if(!['litter','pta'].includes(position.kind))issues.push(key+': patient position type must be litter or PTA.');
+    if(position.roleFitKey&&!data.roleFit?.[position.roleFitKey])issues.push(key+': linked Role Fit item is missing.');
+    if(position.missionKey){
+      if(position.roleFitKey)issues.push(key+': choose either a Role Fit requirement or a Mission Equipment requirement, not both.');
+      if(!data.missionEquip?.[position.missionKey]||data.missionEquip[position.missionKey].group==='Stowage')issues.push(key+': linked Mission Equipment item is missing.');
+      if(!position.requiredStow||!missionLocations(data)[position.requiredStow])issues.push(key+': choose a valid required stowage location.');
+    }else if(!position.roleFitKey&&position.kind!=='pta'){
+      issues.push(key+': litter position needs a Role Fit or Mission Equipment availability requirement.');
+    }
+  }
   for(const [key,it] of Object.entries(data.missionEquip||{})){
     if(it.group==='Stowage') continue;
     if(!/^ME_[A-Z0-9_]+$/.test(key)) issues.push(key+': key must start with ME_ and contain uppercase letters, numbers and underscores.');
@@ -106,7 +121,7 @@ function loadEquipmentOverrides(){
     if(ov.missionSchema!==MISSION_SCHEMA){
       // Keep the full previous file recoverable. Preserve unrelated custodian data.
       if(!localStorage.getItem('ac_config_overrides_before_mission_v2'))localStorage.setItem('ac_config_overrides_before_mission_v2',raw);
-      for(const field of ['roleFit','crewSeats','paxSeats'])if(ov[field])AC[field]=ov[field];
+      for(const field of ['roleFit','crewSeats','paxSeats','patientPositions'])if(ov[field])AC[field]=ov[field];
       if(ov.referenceDocuments)AC.meta.referenceDocuments=ov.referenceDocuments;
       // Preserve the existing compatibility corrections for unrelated aircraft data.
       for(const [key,seat] of Object.entries(AC.crewSeats))if(seat.occupantArm==null&&AC_CREW_SEATS[key])seat.occupantArm=AC_CREW_SEATS[key].occupantArm;
@@ -123,7 +138,9 @@ function loadEquipmentOverrides(){
     const migrateV20 = ov.baseConfigVersion===20 && AC.meta.configVersion===21;
     const migrateV22 = ov.baseConfigVersion===22 && AC.meta.configVersion===23;
     const migrateV23 = ov.baseConfigVersion===23 && AC.meta.configVersion===24;
-    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22 || migrateV23;
+    const migrateV24 = Number(ov.baseConfigVersion)===24 && AC.meta.configVersion>=25 && AC.meta.configVersion<=26;
+    const migrateV25 = Number(ov.baseConfigVersion)===25 && AC.meta.configVersion===26;
+    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22 || migrateV23 || migrateV24 || migrateV25;
     // Other old complete catalogues must not mask incompatible shipped updates.
     if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
@@ -137,7 +154,7 @@ function loadEquipmentOverrides(){
       ov.baseConfigVersion=AC.meta.configVersion;
       localStorage.setItem('ac_config_overrides',JSON.stringify(ov));
     }
-    for(const field of ['tails','appOptions','missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets','crewEquipmentPlacement','tailConfigurations'])if(ov[field]){
+    for(const field of ['tails','appOptions','missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','patientPositions','presets','crewEquipmentPlacement','tailConfigurations'])if(ov[field]){
       const shipped=AC[field];AC[field]=ov[field];
       if(field==='missionEquip')for(const [key,item] of Object.entries(AC.missionEquip)){
         if(!Object.prototype.hasOwnProperty.call(item,'defaultAllocations')&&Array.isArray(shipped[key]?.defaultAllocations))item.defaultAllocations=JSON.parse(JSON.stringify(shipped[key].defaultAllocations));
@@ -160,7 +177,7 @@ for (const [key,preset] of Object.entries(AC.presets)){
   }
 }
 
-const TAIL_CONFIGURATION_FIELDS=['missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','presets','crewEquipmentPlacement'];
+const TAIL_CONFIGURATION_FIELDS=['missionEquip','stowage','bayArms','roleFit','crewSeats','paxSeats','patientPositions','presets','crewEquipmentPlacement'];
 function cloneConfigurationData(data){return JSON.parse(JSON.stringify(data));}
 function currentConfigurationData(){
   const data={};

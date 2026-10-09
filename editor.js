@@ -133,6 +133,7 @@ function editorSaveDraft() {
       roleFit:      EDITOR.draft.roleFit,
       crewSeats:    EDITOR.draft.crewSeats,
       paxSeats:     EDITOR.draft.paxSeats,
+      patientPositions: EDITOR.draft.patientPositions,
       presets:      EDITOR.draft.presets,
       crewEquipmentPlacement: EDITOR.draft.crewEquipmentPlacement,
       referenceDocuments: EDITOR.draft.referenceDocuments,
@@ -149,6 +150,7 @@ function editorSaveDraft() {
     AC.roleFit      = EDITOR.draft.roleFit;
     AC.crewSeats    = EDITOR.draft.crewSeats;
     AC.paxSeats     = EDITOR.draft.paxSeats;
+    AC.patientPositions = EDITOR.draft.patientPositions;
     AC.meta.referenceDocuments = EDITOR.draft.referenceDocuments;
 
     AC.presets = EDITOR.draft.presets;
@@ -219,6 +221,7 @@ function editorInitDraft() {
     roleFit:      JSON.parse(JSON.stringify(source.roleFit)),
     crewSeats:    JSON.parse(JSON.stringify(source.crewSeats)),
     paxSeats:     JSON.parse(JSON.stringify(source.paxSeats)),
+    patientPositions: JSON.parse(JSON.stringify(source.patientPositions||AC.patientPositions||{})),
     presets:      presetsDraft,
     tails:        JSON.parse(JSON.stringify(AC_FLEET_CONFIGURATION.tails||AC.tails)),
     appOptions:   JSON.parse(JSON.stringify(AC_FLEET_CONFIGURATION.appOptions||AC.appOptions||{allowRfmBasicWeight:true})),
@@ -323,7 +326,7 @@ function renderEditorMain(host) {
   const tabs = [
     { id: "ROLEFIT",  label: "Role Fit Equipment" },
     { id: "MISSION",  label: "Mission Equipment" },
-    { id: "SEATBASE", label: "Crew and Pax Seats" },
+    { id: "SEATBASE", label: "Crew, Pax, Patients & Seating" },
     { id: "STOWAGE",  label: "Stowage Locations" },
     { id: "REFERENCE", label: "Reference Documents" },
     { id: "CONFIGURATIONS", label: "Aircraft Roles" },
@@ -399,7 +402,10 @@ function renderEditorMain(host) {
   if (EDITOR.activeSection === "MISSION")  renderEditorMission(secHost);
   if (EDITOR.activeSection === "STOWAGE")  renderEditorStowage(secHost);
   if (EDITOR.activeSection === "ROLEFIT")  renderEditorRoleFit(secHost);
-  if (EDITOR.activeSection === "SEATBASE") renderEditorSeatBaseline(secHost);
+  if (EDITOR.activeSection === "SEATBASE" || EDITOR.activeSection === "PATIENTPOS") {
+    EDITOR.activeSection = "SEATBASE";
+    renderEditorSeatBaseline(secHost);
+  }
   if (EDITOR.activeSection === "REFERENCE") renderEditorReference(secHost);
   if (EDITOR.activeSection === "TAILCONFIG" && EDITOR.mode==='tail') renderEditorTailConfigurationSelection(secHost);
   editorOrganizePanels(secHost);
@@ -602,6 +608,150 @@ function renderEditorSeatBaseline(host){
     set[el.dataset.seat][el.dataset.field]=el.checked;
     editorSaveDraft();
   });
+  renderEditorPatientPositions(host);
+}
+
+function editorPatientPositionGate(position){
+  if(position.missionKey)return 'mission';
+  if(position.roleFitKey)return 'roleFit';
+  return position.kind==='pta'?'pta':'roleFit';
+}
+function editorPatientPositionOptions(select,entries,selected,emptyLabel){
+  select.replaceChildren();
+  const empty=document.createElement('option');empty.value='';empty.textContent=emptyLabel;select.append(empty);
+  for(const [key,label] of entries){const option=document.createElement('option');option.value=key;option.textContent=label;select.append(option);}
+  select.value=selected||'';
+}
+function editorPatientPositionLocations(){
+  return Object.entries(missionLocations(EDITOR.draft)).map(([key,location])=>[key,`${location.name||key}${Number.isFinite(location.arm)?` (${location.arm} mm)`:''}`]);
+}
+function editorPatientPositionMissions(){
+  return Object.entries(EDITOR.draft.missionEquip).filter(([,item])=>item.group!=='Stowage').map(([key,item])=>[key,item.name||key]);
+}
+function editorPatientPositionRoleFit(){
+  return Object.entries(EDITOR.draft.roleFit).map(([key,item])=>[key,item.name||key]);
+}
+function editorPatientPositionRequirementControls(position,gate,scope){
+  const wrapper=document.createElement('div');wrapper.className='row';wrapper.style.cssText='align-items:flex-end;gap:8px;flex-wrap:wrap';
+  const modeLabel=document.createElement('label');modeLabel.className='small';modeLabel.textContent='Available when';
+  const mode=document.createElement('select');mode.dataset.positionGate='';
+  for(const [value,label] of [['roleFit','Role-Fit item is fitted'],['mission','Mission item is carried at a location'],['pta','PTA treatment system is fitted']]){const option=document.createElement('option');option.value=value;option.textContent=label;mode.append(option);}
+  mode.value=gate;modeLabel.append(mode);wrapper.append(modeLabel);
+  const roleLabel=document.createElement('label');roleLabel.className='small';roleLabel.textContent='Required Role-Fit item';
+  const roleSelect=document.createElement('select');roleSelect.dataset.positionRoleFit='';editorPatientPositionOptions(roleSelect,editorPatientPositionRoleFit(),position.roleFitKey,'Choose Role-Fit item');roleLabel.append(roleSelect);wrapper.append(roleLabel);
+  const missionLabel=document.createElement('label');missionLabel.className='small';missionLabel.textContent='Required Mission Equipment';
+  const missionSelect=document.createElement('select');missionSelect.dataset.positionMission='';editorPatientPositionOptions(missionSelect,editorPatientPositionMissions(),position.missionKey,'Choose Mission Equipment');missionLabel.append(missionSelect);wrapper.append(missionLabel);
+  const stowLabel=document.createElement('label');stowLabel.className='small';stowLabel.textContent='Required stowage location';
+  const stowSelect=document.createElement('select');stowSelect.dataset.positionStow='';editorPatientPositionOptions(stowSelect,editorPatientPositionLocations(),position.requiredStow,'Choose stowage location');stowLabel.append(stowSelect);wrapper.append(stowLabel);
+  const typeLabel=document.createElement('label');typeLabel.className='small';typeLabel.textContent='Position type';
+  const typeSelect=document.createElement('select');typeSelect.dataset.positionKind='';
+  for(const [value,label] of [['litter','Litter'],['pta','PTA patient']]){const option=document.createElement('option');option.value=value;option.textContent=label;typeSelect.append(option);}
+  typeSelect.value=position.kind||'litter';typeLabel.append(typeSelect);wrapper.append(typeLabel);
+  const update=()=>{
+    roleLabel.hidden=mode.value!=='roleFit';missionLabel.hidden=mode.value!=='mission';stowLabel.hidden=mode.value!=='mission';
+    typeLabel.hidden=mode.value==='pta';
+    if(mode.value==='pta')typeSelect.value='pta';
+  };
+  mode.addEventListener('change',update);update();
+  return {wrapper,mode,roleSelect,missionSelect,stowSelect,typeSelect};
+}
+function editorPatientPositionDefinitionFromControls(base,controls,fields){
+  const next={...base,name:fields.name.trim(),weight:Number(fields.weight),arm:Number(fields.arm),kind:controls.typeSelect.value};
+  delete next.roleFitKey;delete next.missionKey;delete next.requiredStow;
+  if(controls.mode.value==='roleFit')next.roleFitKey=controls.roleSelect.value;
+  else if(controls.mode.value==='mission'){next.missionKey=controls.missionSelect.value;next.requiredStow=controls.stowSelect.value;}
+  else next.kind='pta';
+  return next;
+}
+function editorPatientPositionSave(next,key){
+  const before=JSON.parse(JSON.stringify(EDITOR.draft.patientPositions[key]));
+  EDITOR.draft.patientPositions[key]=next;
+  if(!editorSaveDraft()){EDITOR.draft.patientPositions[key]=before;renderEditor();return false;}
+  renderEditor();if(typeof render==='function')render();return true;
+}
+function editorPatientPositionDelete(key){
+  const affectedTails=EDITOR.mode==='tail'?EDITOR.tailConfigTails:Object.keys(STORE.sessions||{});
+  if(affectedTails.some(tail=>STORE.sessions?.[tail]?.patientOccupants?.[key])){alert('Clear the patient assigned to this position before deleting it.');return;}
+  const before=EDITOR.draft.patientPositions[key];delete EDITOR.draft.patientPositions[key];
+  if(!editorSaveDraft()){EDITOR.draft.patientPositions[key]=before;renderEditor();return;}
+  renderEditor();if(typeof render==='function')render();
+}
+function renderEditorPatientPositions(host){
+  const positions=EDITOR.draft.patientPositions||(EDITOR.draft.patientPositions={});
+  const intro=document.createElement('p');intro.className='small muted';intro.textContent='Manage the patient and litter positions shown in Crew, Pax, Patients & Seating. New positions default to 90.00 kg; enter the approved arm and choose the equipment or stowage condition that makes each position available.';host.append(intro);
+  const card=document.createElement('details');card.className='card';card.dataset.editorPanel='patientPositions';card.open=!!EDITOR.openPanels?.patientPositions;
+  card.ontoggle=()=>{EDITOR.openPanels??={};EDITOR.openPanels.patientPositions=card.open;};
+  const summary=document.createElement('summary');summary.textContent=`Patient Positions (${Object.keys(positions).length})`;card.append(summary);
+  const content=document.createElement('div');content.style.marginTop='10px';card.append(content);
+  const quickAdds=[
+    ['AFT_STBD_TOP','AFT STBD TOP',10057,'RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_STBD'],
+    ['AFT_PORT_TOP','AFT PORT TOP',10235,'RF_SAR_EQUIPMENT_CASEVAC_RACK_AFT_PORT']
+  ];
+  const suggestions=quickAdds.filter(([key])=>!positions[key]);
+  if(suggestions.length){
+    const note=document.createElement('p');note.className='small muted';note.textContent='Add the supplied rear CASEVAC rack top positions as local Editor entries. They are not part of the shipped defaults.';content.append(note);
+    const suggested=document.createElement('div');suggested.className='row';suggested.style.flexWrap='wrap';
+    for(const [key,name,arm,roleFitKey] of suggestions){
+      const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=`+ Add ${name} · ${arm} mm`;
+      button.onclick=()=>{
+        const position={name,arm,weight:PATIENT_STANDARD_WEIGHT_KG,kind:'litter',roleFitKey};
+        positions[key]=position;
+        if(!editorSaveDraft()){delete positions[key];renderEditor();return;}
+        renderEditor();if(typeof render==='function')render();
+      };
+      suggested.append(button);
+    }
+    content.append(suggested);
+  }
+  const list=document.createElement('div');list.style.marginTop='12px';content.append(list);
+  for(const [key,position] of Object.entries(positions).sort((a,b)=>a[1].name.localeCompare(b[1].name,undefined,{numeric:true,sensitivity:'base'}))){
+    const row=document.createElement('section');row.className='card';row.style.padding='12px';
+    const title=document.createElement('div');title.className='small mono muted';title.textContent=key+' · stable position key';row.append(title);
+    const fields=document.createElement('div');fields.className='row';fields.style.cssText='align-items:flex-end;gap:8px;flex-wrap:wrap;margin-top:8px';
+    const makeInput=(labelText,value,type,step,field)=>{const label=document.createElement('label');label.className='small';label.textContent=labelText;const input=document.createElement('input');input.type=type;input.value=value;input.dataset.positionField=field;if(step)input.step=step;label.append(input);fields.append(label);return input;};
+    const nameInput=makeInput('Position name',position.name||'','text',null,'name');
+    const weightInput=makeInput('Patient weight (kg)',Number(position.weight??PATIENT_STANDARD_WEIGHT_KG).toFixed(2),'number','0.01','weight');
+    const armInput=makeInput('Arm (mm)',position.arm,'number','1','arm');
+    row.append(fields);
+    const requirement=editorPatientPositionRequirementControls(position,editorPatientPositionGate(position),'edit');row.append(requirement.wrapper);
+    const actions=document.createElement('div');actions.className='row';actions.style.marginTop='8px';
+    const save=document.createElement('button');save.type='button';save.className='btn good';save.textContent='Save Position';
+    save.onclick=()=>{
+      if(!nameInput.value.trim()||!Number.isFinite(weightInput.valueAsNumber)||weightInput.valueAsNumber<0||!Number.isFinite(armInput.valueAsNumber)){alert('Enter a position name, nonnegative patient weight, and numeric arm.');return;}
+      const next=editorPatientPositionDefinitionFromControls(position,requirement,{name:nameInput.value,weight:weightInput.valueAsNumber,arm:armInput.valueAsNumber});
+      editorPatientPositionSave(next,key);
+    };
+    const remove=document.createElement('button');remove.type='button';remove.className='btn bad';remove.textContent='Delete Position';remove.onclick=()=>editorPatientPositionDelete(key);
+    actions.append(save,remove);row.append(actions);list.append(row);
+  }
+  const addToggle=document.createElement('button');addToggle.type='button';addToggle.className='btn good';addToggle.textContent=EDITOR.openPanels?.patientPositionAdd?'Cancel Add':'Add Custom Patient Position';addToggle.style.marginTop='10px';content.append(addToggle);
+  if(EDITOR.openPanels?.patientPositionAdd){
+    const form=document.createElement('section');form.className='card';form.style.cssText='padding:12px;margin-top:8px;border:2px solid var(--accent,#4a9eff)';
+    const keyInput=document.createElement('input');keyInput.placeholder='e.g. AFT_STBD_TOP';keyInput.autocomplete='off';
+    const nameInput=document.createElement('input');nameInput.placeholder='e.g. AFT STBD TOP';
+    const weightInput=document.createElement('input');weightInput.type='number';weightInput.step='0.01';weightInput.value=PATIENT_STANDARD_WEIGHT_KG.toFixed(2);
+    const armInput=document.createElement('input');armInput.type='number';armInput.step='1';armInput.placeholder='Approved arm in mm';
+    const keyLabel=document.createElement('label');keyLabel.className='small';keyLabel.textContent='Position key (cannot be changed later)';keyLabel.append(keyInput);
+    const nameLabel=document.createElement('label');nameLabel.className='small';nameLabel.textContent='Position name';nameLabel.append(nameInput);
+    const weightLabel=document.createElement('label');weightLabel.className='small';weightLabel.textContent='Patient weight (kg)';weightLabel.append(weightInput);
+    const armLabel=document.createElement('label');armLabel.className='small';armLabel.textContent='Arm (mm)';armLabel.append(armInput);
+    const row=document.createElement('div');row.className='row';row.style.cssText='align-items:flex-end;gap:8px;flex-wrap:wrap';row.append(keyLabel,nameLabel,weightLabel,armLabel);form.append(row);
+    const blank={kind:'litter'};const requirement=editorPatientPositionRequirementControls(blank,'roleFit','add');form.append(requirement.wrapper);
+    const add=document.createElement('button');add.type='button';add.className='btn good';add.textContent='Add Patient Position';add.style.marginTop='10px';
+    add.onclick=()=>{
+      const key=editorItemKey(keyInput.value);
+      if(!key||!nameInput.value.trim()||!Number.isFinite(weightInput.valueAsNumber)||weightInput.valueAsNumber<0||!Number.isFinite(armInput.valueAsNumber)){alert('Enter a unique position key, name, nonnegative patient weight, and numeric arm.');return;}
+      if(Object.prototype.hasOwnProperty.call(positions,key)){alert('That patient position key is already in use. Choose a different key.');return;}
+      const position=editorPatientPositionDefinitionFromControls(blank,requirement,{name:nameInput.value,weight:weightInput.valueAsNumber,arm:armInput.valueAsNumber});
+      positions[key]=position;
+      if(!editorSaveDraft()){delete positions[key];renderEditor();return;}
+      EDITOR.openPanels.patientPositionAdd=false;renderEditor();if(typeof render==='function')render();
+    };
+    const cancel=document.createElement('button');cancel.type='button';cancel.className='btn';cancel.textContent='Cancel';cancel.style.marginTop='10px';cancel.onclick=()=>{EDITOR.openPanels.patientPositionAdd=false;renderEditor();};
+    form.append(add,cancel);content.append(form);
+  }
+  addToggle.onclick=()=>{EDITOR.openPanels??={};EDITOR.openPanels.patientPositionAdd=!EDITOR.openPanels.patientPositionAdd;renderEditor();};
+  host.append(card);
 }
 
 
@@ -1300,7 +1450,7 @@ function editorExportConfig() {
   push("const AC_CREW_SEATS = " + stringifyPretty(AC.crewSeats) + ";");
   push("const AC_PAX_SEATS = "  + stringifyPretty(AC.paxSeats)  + ";");
   push("");
-  push("const AC_PATIENT_POSITIONS = " + stringifyPretty(AC.patientPositions || {}) + ";");
+  push("const AC_PATIENT_POSITIONS = " + stringifyPretty(exportDraft.patientPositions || AC.patientPositions || {}) + ";");
   push("");
   push("// SECTION 7 — STOWAGE LOCATIONS");
   push("const AC_STOWAGE = " + stringifyPretty(exportDraft.stowage) + ";");

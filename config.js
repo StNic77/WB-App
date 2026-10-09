@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-10-08T17:02:25.000Z
- * Config data version: 24
+ * Exported by the Custodian Editor on 2026-10-09T04:06:09.000Z
+ * Config data version: 26
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,19 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 24,
-  "configReleasedAt": "2026-10-08T17:02:25.000Z",
+  "configVersion": 26,
+  "configReleasedAt": "2026-10-09T04:06:09.000Z",
   "changelog": [
+    {
+      "version": 26,
+      "at": "2026-10-09T04:06:09.000Z",
+      "note": "Standardizes Role-Fit stowage item titles to use a hyphen separator."
+    },
+    {
+      "version": 25,
+      "at": "2026-10-09T03:56:44.000Z",
+      "note": "Adds editable patient positions to fleet and tail-specific configurations; existing patient positions and defaults are preserved."
+    },
     {
       "version": 24,
       "at": "2026-10-08T17:02:25.000Z",
@@ -788,7 +798,7 @@ const AC_STOWAGE = {
 // SECTION 8 — ROLE-FIT EQUIPMENT
 const AC_ROLE_FIT = {
   "RF_STOW_TOOLKIT": {
-    "name": "Stowage: Tool Kit / Emergency Spares",
+    "name": "Stowage - Tool Kit / Emergency Spares",
     "w": 1.6,
     "arm": 12491,
     "normally": false,
@@ -844,14 +854,14 @@ const AC_ROLE_FIT = {
     "maintenanceIncluded": true
   },
   "RF_STOW_LIFERAFT_STBD_B3_F": {
-    "name": "Stowage: Internal Life Raft Stbd Bay 3 Fwd",
+    "name": "Stowage - Internal Life Raft Stbd Bay 3 Fwd",
     "w": 0.57,
     "arm": 7100,
     "normally": false,
     "maintenanceIncluded": false
   },
   "RF_STOW_LIFERAFT_STBD_B4_A": {
-    "name": "Stowage: Internal Life Raft Stbd Bay 4 Aft",
+    "name": "Stowage - Internal Life Raft Stbd Bay 4 Aft",
     "w": 0.57,
     "arm": 8600,
     "normally": false,

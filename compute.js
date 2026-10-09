@@ -54,14 +54,14 @@ function computeMissionTotals(s){
   return {w:rows.reduce((n,r)=>n+r.w,0),m:rows.reduce((n,r)=>n+r.m,0)};
 }
 
+const PATIENT_STANDARD_WEIGHT_KG=90.00;
 function patientPositionAvailable(s,position){
   if(position.missionKey){
     if(!s.mission?.[position.missionKey])return false;
     return missionAllocations(s,position.missionKey).some(row=>row.quantity>0&&row.stow===position.requiredStow&&!resolveMissionLocation(s,row).error);
   }
-  return position.kind==='pta'
-    ? roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM')
-    : roleFitIsInstalled(s,position.roleFitKey);
+  if(position.roleFitKey)return roleFitIsInstalled(s,position.roleFitKey);
+  return position.kind==='pta'&&roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_CSH_PATIENT_TREATMENT_SYSTEM');
 }
 function patientRows(s){
   return Object.entries(AC.patientPositions||{}).map(([key,position])=>({...position,key,available:patientPositionAvailable(s,position),occupied:s.patientOccupants?.[key]===true}));

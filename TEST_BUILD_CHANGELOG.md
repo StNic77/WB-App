@@ -1,5 +1,16 @@
 # CH-149-615 W&B Release History
 
+## v0.4.1-dev / Config v26 — 2026-10-09 04:06 UTC
+- Moves Patient Positions into the Crew, Pax, Patients & Seating Editor tab and aligns the tab label with the operator-facing app.
+- Standardizes Role-Fit stowage equipment titles to use “Stowage - Title” throughout the app.
+- Preserves compatible v24 and v25 local Editor overrides across configuration v26.
+
+## v0.4.0-dev / Config v25 — 2026-10-09 03:56 UTC
+- Adds a Patient Positions section to the W&B Editor for creating, editing, and deleting fleet or tail-specific patient and litter positions.
+- New positions default to 90.00 kg and can be gated by fitted Role-Fit equipment or Mission Equipment carried at a required location.
+- Adds optional Editor entries for the supplied AFT STBD TOP and AFT PORT TOP rear rack positions; they are not added to shipped patient-position defaults.
+- Shows the 90.00 kg standard patient weight in Crew, Pax, Patients & Seating; configuration v25 migrates compatible v24 Editor overrides.
+
 ## v0.3.1-dev / Config v24 — 2026-10-08 23:30 UTC
 - Refines Role Fit current-weight adjustments and clarifies the operator-facing fit explanations.
 - Removes mission loads whose selected stowage becomes unavailable and directs operators to manage them in Mission Equipment.

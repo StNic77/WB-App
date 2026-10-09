@@ -28,7 +28,7 @@ function formatConfigurationReleaseTime(value){
    the new code doesn't expect. Increment STATE_SCHEMA whenever the session
    object shape in makeNewSession() changes.
    ========================= */
-const APP_VERSION  = "0.3.1-dev";  // human-facing release version (shown in UI / PDF)
+const APP_VERSION  = "0.4.1-dev";  // human-facing release version (shown in UI / PDF)
 const STATE_SCHEMA = 6;         // v6: mission quantities and per-location allocations
 
 const SESSION_KEY = "wb615_session";

@@ -21,7 +21,7 @@ test('Mission Config accounting built on restored baseline',async t=>{
   }
   await t.test('ordinary opening, baseline worker and corrected equipment identifiers',async()=>{
     assert.equal(await page.evaluate(()=>location.pathname),'/');assert.equal(await page.evaluate(()=>typeof window.WBStorage),'undefined');
-    assert.equal(await page.evaluate(()=>APP_VERSION),'0.3.1-dev');assert.equal(await page.evaluate(()=>AC.meta.configVersion),24);
+    assert.equal(await page.evaluate(()=>APP_VERSION),'0.4.1-dev');assert.equal(await page.evaluate(()=>AC.meta.configVersion),26);
     assert.deepEqual(await page.evaluate(()=>Object.values(AC.presets).flatMap(p=>[...p.roleFitOn,...p.roleFitOff]).filter(key=>!AC.roleFit[key])),[]);
   });
   async function isolateDefaults(){await page.evaluate(()=>{const s=STORE.sessions[STORE.selectedTail];for(const key of Object.keys(AC.roleFit))s.roleFitDeclarationOrigins[key]='manual';});}

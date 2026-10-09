@@ -179,7 +179,7 @@ const TABS = [
   {id:"FUEL", label:"Fuel"},
   {id:"CARGO", label:"Load Planning"},
   {id:"CERTIFY", label:"Certify W&B"},
-  {id:"EDITOR", label:"Editor"}
+  {id:"EDITOR", label:"W&B Editor"}
 ];
 
 let activeTab = "HOME";
@@ -1228,14 +1228,15 @@ function renderPatients(s){
   let host=document.getElementById('patientPositionsHost');
   if(!host){host=document.createElement('div');host.id='patientPositionsHost';host.className='card';document.getElementById('crewSummaryCard').after(host);}
   const rows=patientRows(s).filter(row=>row.available||row.occupied);
-  host.hidden=!rows.length;host.replaceChildren();if(!rows.length)return;
+  host.hidden=false;host.replaceChildren();
   const heading=document.createElement('h2');heading.textContent='Litter & PTA Patients';host.append(heading);
-  const summary=document.createElement('div');summary.className='small';const totals=computePatientTotals(s);summary.textContent=totals.count+' patient'+(totals.count===1?'':'s')+' · '+fmtDecimal(totals.w)+' kg';host.append(summary);
+  const summary=document.createElement('div');summary.className='small';const totals=computePatientTotals(s);summary.textContent='Standard patient weight: '+PATIENT_STANDARD_WEIGHT_KG.toFixed(2)+' kg · '+totals.count+' patient'+(totals.count===1?'':'s')+' · '+fmtDecimal(totals.w)+' kg';host.append(summary);
+  if(!rows.length){const empty=document.createElement('div');empty.className='small muted';empty.textContent='No patient positions are available for the current aircraft configuration.';host.append(empty);return;}
   for(const row of rows){
     const card=document.createElement('div');card.className='toggle';
     const left=document.createElement('div');left.className='left';
     const name=document.createElement('div');name.className='name';name.textContent=row.name;
-    const detail=document.createElement('div');detail.className='meta mono';detail.textContent='Patient 90.00 kg @ '+row.arm+' mm';
+    const detail=document.createElement('div');detail.className='meta mono';detail.textContent='Patient '+Number(row.weight).toFixed(2)+' kg @ '+row.arm+' mm';
     const status=document.createElement('div');status.className='meta';status.textContent=row.available?(row.occupied?'Occupied':'Empty'):'Position unavailable — clear patient or fit required equipment';
     left.append(name,detail,status);
     const button=document.createElement('button');button.className='btn';button.type='button';button.dataset.patientPosition=row.key;button.textContent=row.occupied?'Clear patient':'Assign patient';button.setAttribute('aria-label',(row.occupied?'Clear patient from ':'Assign patient to ')+row.name);

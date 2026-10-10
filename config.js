@@ -16,7 +16,7 @@ const AC_META = {
     {
       "version": 26,
       "at": "2026-10-09T04:06:09.000Z",
-      "note": "Standardizes Role-Fit stowage item titles to use a hyphen separator."
+      "note": "In Development and Verification"
     },
     {
       "version": 25,

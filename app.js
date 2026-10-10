@@ -179,7 +179,7 @@ const TABS = [
   {id:"FUEL", label:"Fuel"},
   {id:"CARGO", label:"Load Planning"},
   {id:"CERTIFY", label:"Certify W&B"},
-  {id:"EDITOR", label:"W&B Editor"}
+  {id:"EDITOR", label:"W&B App Editor"}
 ];
 
 let activeTab = "HOME";

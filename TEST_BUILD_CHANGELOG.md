@@ -1,5 +1,9 @@
 # CH-149-615 W&B Release History
 
+## v0.5.5-dev / Config v29 — 2026-10-21
+- Publishes the custodian-saved Port Fwd Shelf (Floor): arm 5331 mm, maximum load 66 kg, available in all four roles.
+- Includes the saved CASEVAC Port Fwd shelf selections and synchronizes the offline release with Config v29. Older device overrides are backed up so they cannot hide the newly published shelf.
+
 ## v0.5.4-dev / Config v28 — 2026-10-21
 - Releases editable stowage limits, operator availability and role membership controls, grouped stowage lists, and precise PDF capacity reporting.
 - Verified the complete Editor-to-operator workflow, reload/migration, export, tail-specific limits, extra-crew capacity, occupied-location protection and PDF boundary cases. Existing accounting-suite failures also reproduce on the original application code.

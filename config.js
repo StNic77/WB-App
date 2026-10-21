@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-10-21T00:08:24.437Z
- * Config data version: 28
+ * Exported by the Custodian Editor on 2026-10-21T05:04:22.680Z
+ * Config data version: 29
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,10 +10,19 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 28,
-  "configReleasedAt": "2026-10-21T04:37:26.087Z",
+  "configVersion": 29,
+  "configReleasedAt": "2026-10-21T05:04:22.680Z",
   "changelog": [
-    {"version": 28, "at": "2026-10-21T04:37:26.087Z", "note": "Supports editable stowage maximum loads; existing capacities and custodian data are preserved."},
+    {
+      "version": 29,
+      "at": "2026-10-21T05:04:22.680Z",
+      "note": "Port Fwd Shelf (Floor) added"
+    },
+    {
+      "version": 28,
+      "at": "2026-10-21T04:37:26.087Z",
+      "note": "Supports editable stowage maximum loads; existing capacities and custodian data are preserved."
+    },
     {
       "version": 27,
       "at": "2026-10-21T00:08:24.437Z",
@@ -801,6 +810,12 @@ const AC_STOWAGE = {
     "name": "Stowage - Internal Life Raft (Stbd B4 A)",
     "arm": 8600,
     "group": "Cabin"
+  },
+  "PORT_FWD_SHELF__FLOOR": {
+    "name": "Port Fwd Shelf (Floor)",
+    "arm": 5331,
+    "group": "Port Fwd Shelves",
+    "maxKg": 66
   }
 };
 
@@ -1729,6 +1744,12 @@ const AC_MISSION_EQUIP = {
     "group": "AIRCRAFT ALSE EQUIP",
     "followBasket": false,
     "description": "Fitted only when personnel carried on board is expected to exceed the capacity of the external life rafts"
+  },
+  "ME_STOWAGE_PORT_FWD_SHELF__FLOOR": {
+    "name": "Port Fwd Shelf (Floor)",
+    "w": 0,
+    "stow": "PORT_FWD_SHELF__FLOOR",
+    "group": "Stowage"
   }
 };
 const AC_CREW_EQUIPMENT_PLACEMENT = {
@@ -1875,7 +1896,8 @@ const AC_PRESETS = {
       "ME_SAR_MISSION_EQUIP_TALON_STRETCHER",
       "ME_CREW_COMFORT_EQUIP_BMS_BOX",
       "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG",
-      "ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL"
+      "ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL",
+      "ME_STOWAGE_PORT_FWD_SHELF__FLOOR"
     ],
     "missionOff": [],
     "active": true
@@ -2001,7 +2023,8 @@ const AC_PRESETS = {
       "ME_SAR_MISSION_EQUIP_TALON_STRETCHER",
       "ME_CREW_COMFORT_EQUIP_BMS_BOX",
       "ME_CREW_COMFORT_EQUIP_WATER_BOTTLE_STORAGE_BAG",
-      "ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL"
+      "ME_SERVICING_EQUIP_POL_CONTAINER_AND_POL",
+      "ME_STOWAGE_PORT_FWD_SHELF__FLOOR"
     ],
     "missionOff": [],
     "active": true
@@ -2079,7 +2102,11 @@ const AC_PRESETS = {
       "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25",
       "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG",
       "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG",
-      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG"
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG",
+      "ME_STOWAGE_PORT_FWD_SHELF__FLOOR",
+      "ME_PORT_FWD_SHELF_BOT",
+      "ME_PORT_FWD_SHELF_MID",
+      "ME_PORT_FWD_SHELF_TOP"
     ],
     "missionOff": [
       "ME_SAR_MEDICAL_EQUIP_MED_SLED",
@@ -2108,9 +2135,6 @@ const AC_PRESETS = {
       "ME_SAR_MISSION_EQUIP_NVG_SET_AND_CASE",
       "ME_SAR_MISSION_EQUIP_SAR_RIFLE",
       "ME_SAR_MEDICAL_EQUIP_NARCOTICS_KIT",
-      "ME_PORT_FWD_SHELF_TOP",
-      "ME_PORT_FWD_SHELF_MID",
-      "ME_PORT_FWD_SHELF_BOT",
       "ME_RAMP_SHELF_PORT_FWD",
       "ME_RAMP_SHELF_PORT_AFT",
       "ME_RAMP_SHELF_STBD_FWD",
@@ -2191,7 +2215,8 @@ const AC_PRESETS = {
       "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_B25",
       "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_EFB_BAG",
       "ME_CREW_PERSONAL_EQUIP_FLIGHT_ENGINEER_HELMET_BAG",
-      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG"
+      "ME_CREW_PERSONAL_EQUIP_AIRCRAFT_COMMANDER_EFB_BAG",
+      "ME_STOWAGE_PORT_FWD_SHELF__FLOOR"
     ],
     "missionOff": [],
     "active": true

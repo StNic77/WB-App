@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 const {chromium}=require('C:/Users/sstni/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root=path.resolve(__dirname,'..');let server,browser;
 after(async()=>{await browser?.close();if(server)await new Promise(r=>server.close(r));});
-test('Editor stowage capacities reach operators and survive reload and migration',async()=>{
+test('Editor stowage capacities reach operators, survive reload and export, and back up older overrides',async()=>{
   server=http.createServer((req,res)=>{const name=new URL(req.url,'http://localhost').pathname;const file=path.join(root,name==='/'?'index.html':name);res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.html')?'text/html':file.endsWith('.css')?'text/css':'application/octet-stream');try{res.end(fs.readFileSync(file));}catch{res.statusCode=404;res.end();}});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   browser=await chromium.launch({channel:'msedge',headless:true});
@@ -58,9 +58,11 @@ test('Editor stowage capacities reach operators and survive reload and migration
   await card.locator('[data-location="maxKg"]').fill('0');await card.locator('[data-location="maxKg"]').blur();assert.equal(await page.evaluate(id=>stowageLimits()[id],id),0);
   await card.locator('[data-location="maxKg"]').fill('');await card.locator('[data-location="maxKg"]').blur();assert.equal(await page.evaluate(id=>id in stowageLimits(),id),false);
   await card.locator('[data-location="maxKg"]').fill('12.5');await card.locator('[data-location="maxKg"]').blur();
-  await page.evaluate(()=>{const ov=JSON.parse(localStorage.getItem('ac_config_overrides'));ov.baseConfigVersion=27;localStorage.setItem('ac_config_overrides',JSON.stringify(ov));});
+  const validOverride=await page.evaluate(()=>{const raw=localStorage.getItem('ac_config_overrides'),ov=JSON.parse(raw);ov.baseConfigVersion=28;localStorage.setItem('ac_config_overrides',JSON.stringify(ov));return raw;});
   await page.reload();await page.waitForFunction(()=>typeof STORE!=='undefined');
-  assert.deepEqual(await page.evaluate(id=>({max:AC.stowage[id].maxKg,version:JSON.parse(localStorage.getItem('ac_config_overrides')).baseConfigVersion,backup:JSON.parse(localStorage.getItem('ac_config_overrides_before_config_update')).baseConfigVersion}),id),{max:12.5,version:28,backup:27});
+  assert.deepEqual(await page.evaluate(id=>({custom:!!AC.stowage[id],backup:JSON.parse(localStorage.getItem('ac_config_overrides_before_config_update')).baseConfigVersion,floorMax:AC.stowage.PORT_FWD_SHELF__FLOOR.maxKg,allRoles:Object.values(AC.presets).every(p=>p.missionOn.includes('ME_STOWAGE_PORT_FWD_SHELF__FLOOR'))}),id),{custom:false,backup:28,floorMax:66,allRoles:true});
+  await page.evaluate(raw=>localStorage.setItem('ac_config_overrides',raw),validOverride);
+  await page.reload();await page.waitForFunction(()=>typeof STORE!=='undefined');
   assert.deepEqual(await page.evaluate(id=>{
     const s=STORE.sessions[STORE.selectedTail],key=Object.keys(AC.missionEquip).find(k=>AC.missionEquip[k].unitWeight>0&&AC.missionEquip[k].group!=='Stowage');
     s.mission={[stowageMarker(id)]:true};s.missionLoads={};s.zones=[{id,w:12.5,arm:9000}];

@@ -560,14 +560,14 @@ class PDFContext {
     const stowDefs = (typeof getLoadStowages === "function") ? getLoadStowages() : [];
     const stowRows = stowDefs
       .map(def => {
-        const loaded = Math.round(occupied[def.id] || 0);
-        const over = loaded > (+def.max || 0);
+        const loaded = occupied[def.id] || 0;
+        const over = shelfLoadState(loaded,0,def.max).over;
         return { def, loaded, over };
       })
       .filter(r => r.loaded > 0)   // only show locations that hold something
       .map(r => [
         r.def.label,
-        `${r.loaded} kg`,
+        `${Number(r.loaded.toFixed(10))} kg`,
         `${r.def.max} kg`,
         r.over ? "OVER" : "OK"
       ]);
@@ -716,6 +716,7 @@ class PDFContext {
     const _stowDefs = (typeof getLoadStowages === "function") ? getLoadStowages() : [];
     const zoneRows = (s.zones || [])
       .filter(z => (z?.w ?? 0) > 0)
+      .sort((a,b)=>_stowDefs.findIndex(d=>d.id===a.id)-_stowDefs.findIndex(d=>d.id===b.id))
       .map(z => {
         const def = _stowDefs.find(d => d.id === z.id) || null;
         const label = def ? def.label : (z.id || "—");

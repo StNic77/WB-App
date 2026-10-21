@@ -17,8 +17,9 @@ function renderMissionLocationGroups(s,host){
     const count=group.rows.reduce((n,r)=>n+r.quantity,0);
     if(group.unavailable){
       const card=document.createElement('div');card.className='card stowage-unavailable';card.setAttribute('aria-disabled','true');
-      const title=document.createElement('b');title.textContent=group.name+' — Not fitted';card.append(title);
-      const help=document.createElement('div');help.className='small';help.textContent='To use this stowage location, fit it in Role Config.';card.append(help);host.append(card);continue;
+      const marker=stowageMarker(id),switchedOff=marker&&s.mission?.[marker]===false;
+      const title=document.createElement('b');title.textContent=group.name+(switchedOff?' — Not enabled':' — Not fitted');card.append(title);
+      const help=document.createElement('div');help.className='small';help.textContent=switchedOff?'Enable this location under Available Stowage Locations. Any supporting Role Fit equipment must also be fitted.':'To use this stowage location, fit it in Role Config.';card.append(help);host.append(card);continue;
     }
     const card=document.createElement('details');card.className='card';card.dataset.stowageGroup=id;
     card.open=!!s.ui.locationGroups?.[id];card.ontoggle=()=>{s.ui.locationGroups??={};s.ui.locationGroups[id]=card.open;};
@@ -60,7 +61,7 @@ function missionLocationOptions(s,row,item){
     }
   }
   for(const [id,loc] of Object.entries(missionLocations())){
-    const unavailable=(loc.group==='SAR Cabinet'&&!roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_FWD_SAR_CABINET'))||(loc.roleFitKey&&!roleFitIsInstalled(s,loc.roleFitKey))||(loc.missionKey&&!s.mission?.[loc.missionKey]);
+    const unavailable=!stowageAvailable(s,id)||(loc.missionKey&&!s.mission?.[loc.missionKey]);
     out+=`<option value="${esc(id)}" ${row.stow===id?'selected':''} ${unavailable?'disabled':''}>${esc(loc.name)} ${loc.arm==null?'': '('+loc.arm+' mm)'}${unavailable?' — unavailable':''}</option>`;
   }
   return out+`<option value="CUSTOM" ${row.stow==='CUSTOM'?'selected':''}>Custom arm</option>`;
@@ -130,6 +131,10 @@ function renderMissionEquipment(){
   for(const group of [...missionGroupNames(),'Stowage']){
     if(byLocation&&group!=='CREW PERSONAL EQUIP'&&group!=='Stowage')continue;
     const keys=sortSelectedFirst(Object.keys(AC.missionEquip).filter(k=>AC.missionEquip[k].group===group&&(AC.missionEquip[k].active!==false||s.mission[k])),k=>!!s.mission[k],k=>AC.missionEquip[k].name);if(!keys.length)continue;
+    if(group==='Stowage'){
+      const order=Object.keys(missionLocations());
+      keys.sort((a,b)=>order.indexOf(AC.missionEquip[a].stow)-order.indexOf(AC.missionEquip[b].stow));
+    }
     const card=document.createElement('details');card.className='card';card.open=!!s.ui.meGroups[group];
     const selected=keys.filter(k=>s.mission[k]).length;
     card.innerHTML=`<summary><b>${escapeHtml(group==='Stowage'?'Available Stowage Locations':group)}</b> · ${selected} ON</summary>`;
@@ -139,13 +144,13 @@ function renderMissionEquipment(){
       const row=document.createElement('div');row.className='card';row.style.cssText='padding:12px;margin-top:8px;box-shadow:none';row.dataset.missionKey=key;
       const label=document.createElement('label');label.className='row';
       const toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=on;toggle.style.cssText='width:20px;height:20px;flex:0 0 20px';toggle.setAttribute('aria-label','Carry '+item.name);
-      const loc=AC.stowage[item.stow],cabinetUnavailable=marker&&loc?.group==='SAR Cabinet'&&!roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_FWD_SAR_CABINET');toggle.disabled=cabinetUnavailable||(!on&&item.active===false);
+      const loc=AC.stowage[item.stow],fittingUnavailable=marker&&((loc?.group==='SAR Cabinet'&&!roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_FWD_SAR_CABINET'))||(loc?.roleFitKey&&!roleFitIsInstalled(s,loc.roleFitKey)));toggle.disabled=fittingUnavailable||(!on&&item.active===false);
       toggle.onchange=()=>{
-        if(marker&&!toggle.checked&&missionRows(s).some(r=>r.stowId===item.stow&&r.quantity>0)){alert('Relocate equipment from this location before making it unavailable.');toggle.checked=true;return;}
+        if(marker&&!toggle.checked&&(missionRows(s).some(r=>r.stowId===item.stow&&r.quantity>0)||(s.zones||[]).some(z=>z.id===item.stow&&z.w>0))){alert('Relocate equipment and additional load from this location before making it unavailable.');toggle.checked=true;return;}
         if(key==='ME_SAR_MISSION_EQUIP_STOKES_LITTER_CABIN'&&!toggle.checked&&!confirmCabinPatientClear(s)){toggle.checked=true;return;}
         s.mission[key]=toggle.checked;clearUnavailableCabinPatient(s);invalidateAccountingCertification(s);render();
       };
-      const title=document.createElement('b');title.textContent=item.name+(item.active===false?' (retired)':'');label.append(toggle,title);row.append(label);
+      const title=document.createElement('b');title.textContent=(marker?loc?.name||item.name:item.name)+(item.active===false?' (retired)':'');label.append(toggle,title);row.append(label);
       if(marker){const note=document.createElement('div');note.className='small';note.textContent=loc?.name||item.stow;row.append(note);card.append(row);continue;}
       const detail=document.createElement('div');detail.className='small muted';detail.textContent=`${item.unitWeight} kg each · Default ${item.defaultQuantity}${item.description?' · '+item.description:''}`;row.append(detail);
       if(on){

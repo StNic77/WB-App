@@ -335,7 +335,7 @@ function activateTailConfigurationForSession(tail){
   const s=STORE.sessions?.[tail];if(!s)return;
   s.roleFit??={};s.roleFitDeclarations??={};s.mission??={};s.seats??={};s.occupants??={};
   for(const [key,item] of Object.entries(AC.roleFit||{}))if(!(key in s.roleFit)){s.roleFit[key]=false;s.roleFitDeclarations[key]='NEUTRAL';}
-  for(const [key,item] of Object.entries(AC.missionEquip||{}))if(!(key in s.mission))s.mission[key]=missionAutomaticDefault(null,key,item);
+  for(const [key,item] of Object.entries(AC.missionEquip||{}))if(!(key in s.mission))s.mission[key]=item.group==='Stowage'?stowageIncludedInRole(key,AC.presets[s.preset]):missionAutomaticDefault(null,key,item);
   for(const [key,seat] of [...Object.entries(AC.crewSeats||{}),...Object.entries(AC.paxSeats||{})]){
     if(!(key in s.seats))s.seats[key]=!!(seat.alwaysInstalled||seat.normallyInstalled);
     if(!(key in s.occupants))s.occupants[key]=null;
@@ -1039,11 +1039,11 @@ function applyPreset(tail, presetKey){
   }
 
   // Stowage markers describe physical locations available for use, not preset load.
-  // Permanent locations default available; SAR Cabinet locations follow cabinet installation.
+  // Apply role availability choices and the supporting fitting requirements.
   for (const [k,it] of Object.entries(AC.missionEquip)) {
     if ((it.group || "") !== "Stowage" || (+it.w || 0) !== 0) continue;
     const loc = AC.stowage?.[it.stow];
-    s.mission[k] = (loc?.group === "SAR Cabinet") ? roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET") : true;
+    s.mission[k] = stowageIncludedInRole(k,p) && (!loc?.roleFitKey || roleFitIsInstalled(s,loc.roleFitKey)) && (loc?.group !== "SAR Cabinet" || roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET"));
   }
 
   // Dependency enforcement (hand controller, etc.)
@@ -1595,39 +1595,7 @@ function renderEnvelopeHeader(){
    CARGO / BAY RENDER
    ========================= */
 
-/* =========================
-   LOAD PLANNING — STOWAGE LOCATIONS
-   Single source of truth for identity/arm/name is AC.stowage (config.js
-   Section 7). This table adds ONLY the per-location capacity limit (max kg),
-   keyed by the SAME Section 7 stowage ID. A location appears in Load Planning
-   if and only if it has a max here — locations without a max are operating
-   positions (basket, litter, cot, ramp stow) accounted for via role/mission
-   equipment, NOT loose-load shelves.
-   ========================= */
-const STOW_MAX = {
-  // SAR Stowage Cabinet
-  SAR_CABINET_FWD_TOP: 22,
-  SAR_CABINET_FWD_BTM: 60,
-  SAR_CABINET_UPPER:   35,
-  SAR_CABINET_TOP:     63,
-  LOCKBOX_TOP:         18.5,
-  LOCKBOX_BTM:         18.5,
-  SAR_CABINET_MIDDLE:  100,
-  SAR_CABINET_BOTTOM:  125,
-  // Port Fwd Shelves
-  PORT_FWD_SHELF_TOP:  22,
-  PORT_FWD_SHELF_MID:  22,
-  PORT_FWD_SHELF_BOT:  22,
-  // Ramp Area Shelves
-  RAMP_PORT_FWD:       44,
-  RAMP_PORT_AFT:       22,
-  RAMP_STBD_FWD:       44,
-  RAMP_STBD_AFT:       22,
-  // Overhead Bins (permanent structure — always available)
-  OVERHEAD_PORT:       7.5,
-  OVERHEAD_STBD:       20.0
-};
-
+/* Load Planning and overload checks use the active configuration capacities. */
 function shelfLoadState(assignedKg, additionalKg, maximumKg){
   const totalKg = assignedKg + additionalKg;
   const remainingKg = maximumKg - totalKg;
@@ -1635,7 +1603,7 @@ function shelfLoadState(assignedKg, additionalKg, maximumKg){
 }
 
 function assignedShelfLoads(s){
-  const loads = Object.fromEntries(Object.keys(STOW_MAX).map(id => [id, 0]));
+  const loads = Object.fromEntries(Object.keys(stowageLimits()).map(id => [id, 0]));
   for (const item of missionRows(s)){
     if(item.stowId in loads) loads[item.stowId] += Math.max(0,item.w);
   }
@@ -1643,24 +1611,26 @@ function assignedShelfLoads(s){
 }
 
 function overloadedShelves(s){
+  const limits = stowageLimits();
   const assigned = assignedShelfLoads(s);
   const additional = {};
   for (const zone of (s.zones || [])){
-    if (zone?.id in STOW_MAX) additional[zone.id] = (+additional[zone.id] || 0) + (+zone.w || 0);
+    if (zone?.id in limits) additional[zone.id] = (+additional[zone.id] || 0) + (+zone.w || 0);
   }
-  return Object.keys(STOW_MAX).filter(id =>
-    shelfLoadState(assigned[id], additional[id] || 0, STOW_MAX[id]).over
+  return Object.keys(limits).filter(id =>
+    shelfLoadState(assigned[id], additional[id] || 0, limits[id]).over
   );
 }
 
 // Build the ordered list of load-planning stowage locations from AC.stowage,
 // keeping only those with a defined max. Arm + name come from config (Section 7).
 function getLoadStowages(){
+  const limits = stowageLimits();
   const list = [];
-  for (const id of Object.keys(AC.stowage || {})){
-    if (!(id in STOW_MAX)) continue;            // no max → operating position, skip
+  for (const id of Object.keys(missionLocations())){
+    if (!(id in limits)) continue; // No capacity check defined for this location.
     const loc = AC.stowage[id];
-    list.push({ id, label: loc.name, arm: loc.arm, group: loc.group, max: STOW_MAX[id] });
+    list.push({ id, label: loc.name, arm: loc.arm, group: loc.group, max: limits[id] });
   }
   return list;
 }
@@ -1836,35 +1806,7 @@ if (zoneHost){
   // in a location is captured — nothing bypasses the overload guard.
   const baseByZone = assignedShelfLoads(s);
 
-  // Availability gating — a stowage row appears only if its structure is fitted.
-  //   SAR Cabinet shelves  → RF_SAR_CABINET installed
-  //   Port Fwd / Ramp shelves → that shelf's own mission item is on
-  //   Overhead Bins        → permanent structure, always available
-  const SHELF_GATE = {
-    PORT_FWD_SHELF_TOP: "ME_PORT_FWD_SHELF_TOP",
-    PORT_FWD_SHELF_MID: "ME_PORT_FWD_SHELF_MID",
-    PORT_FWD_SHELF_BOT: "ME_PORT_FWD_SHELF_BOT",
-    RAMP_PORT_FWD:      "ME_RAMP_SHELF_PORT_FWD",
-    RAMP_PORT_AFT:      "ME_RAMP_SHELF_PORT_AFT",
-    RAMP_STBD_FWD:      "ME_RAMP_SHELF_STBD_FWD",
-    RAMP_STBD_AFT:      "ME_RAMP_SHELF_STBD_AFT"
-  };
-
-  const isZoneAvailable = (stowId) => {
-    const roleFit = (s && s.roleFit) ? s.roleFit : {};
-    const mission = (s && s.mission) ? s.mission : {};
-    const loc = AC.stowage[stowId];
-
-    // SAR Cabinet group gates on the cabinet being fitted
-    if (loc && loc.group === "SAR Cabinet") return roleFitIsInstalled(s,"RF_SAR_EQUIPMENT_FWD_SAR_CABINET");
-
-    // Shelves gate on their own mission-equipment item
-    const gateKey = SHELF_GATE[stowId];
-    if (gateKey) return !!mission[gateKey];
-
-    // Everything else with a max (overhead bins) is always available
-    return true;
-  };
+  const isZoneAvailable = stowId => stowageAvailable(s,stowId);
 
   const paintZoneTotal = (i) => {
     const def = STOWS[i];
@@ -1976,7 +1918,6 @@ totalEl.classList.toggle("over", over);
    STOWS.forEach((def, i) => {
     const entry = s.zones[i];
     const available = isZoneAvailable(def.id);
-    if (!available) entry.w = 0;
 
     const g = lpGroupFor(def.id);
     const host = bodies[g.key] || zoneHost;

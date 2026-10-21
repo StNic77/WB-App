@@ -24,7 +24,47 @@ function missionLocations(data=AC){
   const carriers={};
   for(const [key,it] of Object.entries(data.roleFit||{}))if(it.isStowage)carriers['ROLEFIT:'+key]={name:'In '+it.name,arm:it.arm,group:'Equipment',roleFitKey:key};
   for(const [key,it] of Object.entries(data.missionEquip||{}))if(it.isBasket)carriers['CARRIER:'+key]={name:'In '+it.name,arm:null,group:'Equipment',missionKey:key};
-  return {...data.stowage,...bays,...carriers};
+  const groups=new Map();
+  for(const [id,loc] of Object.entries({...data.stowage,...bays,...carriers})){
+    const group=loc.group||'Other';
+    if(!groups.has(group))groups.set(group,[]);
+    groups.get(group).push([id,loc]);
+  }
+  return Object.fromEntries([...groups.values()].flat());
+}
+
+// Compatibility defaults for configurations saved before capacities were editable.
+const LEGACY_STOWAGE_LIMITS = Object.freeze({
+  SAR_CABINET_FWD_TOP:22, SAR_CABINET_FWD_BTM:60, SAR_CABINET_UPPER:35,
+  SAR_CABINET_TOP:63, LOCKBOX_TOP:18.5, LOCKBOX_BTM:18.5,
+  SAR_CABINET_MIDDLE:100, SAR_CABINET_BOTTOM:125,
+  PORT_FWD_SHELF_TOP:22, PORT_FWD_SHELF_MID:22, PORT_FWD_SHELF_BOT:22,
+  RAMP_PORT_FWD:44, RAMP_PORT_AFT:22, RAMP_STBD_FWD:44, RAMP_STBD_AFT:22,
+  OVERHEAD_PORT:7.5, OVERHEAD_STBD:20
+});
+function stowageLimits(data=AC){
+  const limits={};
+  for(const [id,loc] of Object.entries(data.stowage||{})){
+    const max=Object.prototype.hasOwnProperty.call(loc,'maxKg')?loc.maxKg:LEGACY_STOWAGE_LIMITS[id];
+    if(Number.isFinite(max)&&max>=0)limits[id]=max;
+  }
+  return limits;
+}
+function stowageMarker(id,data=AC){
+  return Object.entries(data.missionEquip||{}).find(([,item])=>item.group==='Stowage'&&item.stow===id)?.[0];
+}
+function stowageIncludedInRole(key,preset){
+  if((preset?.missionOff||[]).includes(key))return false;
+  // Preserve availability for older roles that have no explicit location choice.
+  return true;
+}
+function stowageAvailable(s,id){
+  const loc=missionLocations()[id];
+  if(!loc)return false;
+  if(loc.roleFitKey&&!roleFitIsInstalled(s,loc.roleFitKey))return false;
+  if(loc.group==='SAR Cabinet'&&!roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_FWD_SAR_CABINET'))return false;
+  const marker=stowageMarker(id);
+  return !marker||(s.mission?.[marker]??stowageIncludedInRole(marker,AC.presets[s.preset]));
 }
 
 function missionConfigurationIssues(data){
@@ -42,7 +82,10 @@ function missionConfigurationIssues(data){
     }
   }
   if(data.appOptions&&typeof data.appOptions.allowRfmBasicWeight!=='boolean')issues.push('RFM Basic Weight availability must be enabled or disabled.');
-  for(const [id,loc] of Object.entries(data.stowage||{}))if(loc.roleFitKey&&!data.roleFit?.[loc.roleFitKey])issues.push(id+': linked Role Fit item is missing.');
+  for(const [id,loc] of Object.entries(data.stowage||{})){
+    if(loc.roleFitKey&&!data.roleFit?.[loc.roleFitKey])issues.push(id+': linked Role Fit item is missing.');
+    if(loc.maxKg!==undefined&&loc.maxKg!==null&&(!Number.isFinite(loc.maxKg)||loc.maxKg<0))issues.push(id+': maximum load must be a nonnegative number or blank.');
+  }
   for(const [key,position] of Object.entries(data.patientPositions||{})){
     if(!/^[A-Z0-9_]+$/.test(key))issues.push(key+': patient position key must use uppercase letters, numbers and underscores.');
     if(!String(position.name||'').trim())issues.push(key+': patient position needs a name.');
@@ -140,7 +183,8 @@ function loadEquipmentOverrides(){
     const migrateV23 = ov.baseConfigVersion===23 && AC.meta.configVersion===24;
     const migrateV24 = Number(ov.baseConfigVersion)===24 && AC.meta.configVersion>=25 && AC.meta.configVersion<=26;
     const migrateV25 = Number(ov.baseConfigVersion)===25 && AC.meta.configVersion===26;
-    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22 || migrateV23 || migrateV24 || migrateV25;
+    const migrateStowageLimits = Number(ov.baseConfigVersion)>=24 && Number(ov.baseConfigVersion)<=27 && AC.meta.configVersion===28;
+    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22 || migrateV23 || migrateV24 || migrateV25 || migrateStowageLimits;
     // Other old complete catalogues must not mask incompatible shipped updates.
     if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
@@ -260,6 +304,7 @@ function resolveMissionLocation(s,row,seen=new Set()){
   if(row.stow==='CUSTOM')return {arm:Number.isFinite(row.customArm)?row.customArm:null,stowId:'CUSTOM',stow:'Custom ('+row.customArm+' mm)',error:Number.isFinite(row.customArm)?null:'enter a custom arm'};
   const loc=missionLocations()[row.stow];
   if(!loc)return {arm:null,stowId:row.stow,stow:'Missing location',error:'select a valid location'};
+  if(!stowageAvailable(s,row.stow))return {arm:null,stowId:row.stow,stow:loc.name,error:'stowage location is unavailable; enable it in Available Stowage Locations or choose another location'};
   if(loc.roleFitKey&&!roleFitIsInstalled(s,loc.roleFitKey))return {arm:null,stow:loc.name,error:'carrying item is not fitted; choose another stowage location'};
   const unavailable=loc.group==='SAR Cabinet'&&!roleFitIsInstalled(s,'RF_SAR_EQUIPMENT_FWD_SAR_CABINET');
   return {arm:loc.arm,stowId:row.stow,stow:loc.name,stowGroup:loc.group,error:unavailable?'cabinet is unavailable; select another location':null};
@@ -289,6 +334,7 @@ function missionIssues(s){
     if(allocations.some(r=>!Number.isInteger(r.quantity)||r.quantity<0)||q<(it.minQuantity??0)||q>(it.maxQuantity??Infinity))issues.push(it.name+': quantity is outside its limits.');
   }
   for(const row of missionRows(s))if(row.quantity>0&&row.error)issues.push(row.name+': '+row.error+'.');
+  for(const zone of s.zones||[])if(zone.w>0&&!stowageAvailable(s,zone.id))issues.push('Additional load at '+(AC.stowage[zone.id]?.name||zone.id)+': stowage is unavailable; enable the location or relocate the load.');
   return [...new Set(issues)];
 }
 function missionAutomaticDefault(s,key,it){
@@ -299,5 +345,6 @@ function applyMissionPreset(s,p){
   // Keep retired references visible and blocking review rather than silently dropping mass.
   for(const [key,it] of Object.entries(AC.missionEquip))s.mission[key]=missionAutomaticDefault(s,key,it)||((p.missionOn||[]).includes(key)&&!(p.missionOff||[]).includes(key));
   for(const key of p.missionOn||[])if(!AC.missionEquip[key])s.mission[key]=true;
+  for(const [key,item] of Object.entries(AC.missionEquip))if(item.group==='Stowage')s.mission[key]=stowageIncludedInRole(key,p);
   s.missionReviewRequired=false;
 }

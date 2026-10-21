@@ -1,5 +1,24 @@
 # CH-149-615 W&B Release History
 
+## v0.5.4-dev / Config v28 — 2026-10-21
+- Releases editable stowage limits, operator availability and role membership controls, grouped stowage lists, and precise PDF capacity reporting.
+- Verified the complete Editor-to-operator workflow, reload/migration, export, tail-specific limits, extra-crew capacity, occupied-location protection and PDF boundary cases. Existing accounting-suite failures also reproduce on the original application code.
+
+## v0.5.3-dev / Config v28 — 2026-10-21
+- Uses the grouped stowage order in PDF limit checks and additional-load tables. PDF capacity status uses the exact combined load, including fractional kilograms, instead of rounding to whole kilograms first.
+
+## v0.5.2-dev / Config v28 — 2026-10-21
+- Keeps Mission Equipment stowage lists together by their saved location group, including newly added shelves. Available Stowage Locations uses the same location order so enabled/disabled status does not split a group.
+
+## v0.5.1-dev / Config v28 — 2026-10-21
+- Adds Show in Available Stowage Locations and role membership controls to each Editor location, plus an Available Stowage Locations section in each role. Role defaults now apply to operator availability, mission location choices and Load Planning.
+- Preserves additional loads when a role makes their location unavailable and flags them for relocation instead of clearing their weight.
+
+## v0.5.0-dev / Config v28 — 2026-10-21
+- Adds Maximum load (kg) to Stowage Locations in the Editor. A defined limit makes the location available in Load Planning and checks combined assigned equipment and additional load, including extra-crew allocations and PDF capacity checks.
+- Preserves existing shelf limits and compatible v24–v27 Editor overrides. Blank limits mean capacity is not checked; zero is a valid limit.
+- Load Planning respects the supporting Role Fit item selected for a new location.
+
 ## v0.4.1-dev / Config v26 — 2026-10-09 04:06 UTC
 - Moves Patient Positions into the Crew, Pax, Patients & Seating Editor tab and aligns the tab label with the operator-facing app.
 - Standardizes Role-Fit stowage equipment titles to use “Stowage - Title” throughout the app.

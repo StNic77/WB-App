@@ -1,17 +1,18 @@
 function extraCrewStowageCheck(s,gear){
-  const loads=assignedShelfLoads(s),added={};
-  for(const zone of s.zones||[])if(zone.id in STOW_MAX)loads[zone.id]+=(Number(zone.w)||0);
+  const loads=assignedShelfLoads(s),added={},limits=stowageLimits();
+  for(const zone of s.zones||[])if(zone.id in limits)loads[zone.id]+=(Number(zone.w)||0);
   for(const {key,allocation} of gear){
     const loc=resolveMissionLocation(s,allocation),weight=Math.max(0,AC.missionEquip[key]?.unitWeight||0);
-    if(!loc.error&&loc.stowId in STOW_MAX)added[loc.stowId]=(added[loc.stowId]||0)+weight;
+    if(!loc.error&&loc.stowId in limits)added[loc.stowId]=(added[loc.stowId]||0)+weight;
   }
-  return Object.entries(added).filter(([id,w])=>shelfLoadState(loads[id]||0,w,STOW_MAX[id]).over).map(([id,w])=>({id,message:(AC.stowage[id]?.name||id)+' would carry '+fmtDecimal((loads[id]||0)+w)+' kg; limit '+fmtDecimal(STOW_MAX[id])+' kg. Choose another location.'}));
+  return Object.entries(added).filter(([id,w])=>shelfLoadState(loads[id]||0,w,limits[id]).over).map(([id,w])=>({id,message:(AC.stowage[id]?.name||id)+' would carry '+fmtDecimal((loads[id]||0)+w)+' kg; limit '+fmtDecimal(limits[id])+' kg. Choose another location.'}));
 }
 function extraCrewCapacityAllows(s,gear,id){
-  if(!(id in STOW_MAX))return true;
-  const loads=assignedShelfLoads(s);for(const zone of s.zones||[])if(zone.id in STOW_MAX)loads[zone.id]+=(Number(zone.w)||0);
+  const limits=stowageLimits();
+  if(!(id in limits))return true;
+  const loads=assignedShelfLoads(s);for(const zone of s.zones||[])if(zone.id in limits)loads[zone.id]+=(Number(zone.w)||0);
   const pending=gear.filter(g=>resolveMissionLocation(s,g.allocation).stowId===id).reduce((sum,g)=>sum+Math.max(0,AC.missionEquip[g.key]?.unitWeight||0),0);
-  return !shelfLoadState(loads[id]||0,pending,STOW_MAX[id]).over;
+  return !shelfLoadState(loads[id]||0,pending,limits[id]).over;
 }
 function extraCrewPreferredAllocation(s,role,key,seat,selectedGear){
   const rule=AC.crewEquipmentPlacement||{},isSeat=(rule.seatAssociatedItems||[]).includes(key);
@@ -119,7 +120,7 @@ function renderExtraCrew(s){
         const armInput=document.createElement('input');armInput.type='number';armInput.step='any';armInput.setAttribute('aria-label',(item?.name||choice.key)+' extra crew custom arm');armInput.value=Number.isFinite(choice.allocation.customArm)?choice.allocation.customArm:'';armLabel.append(armInput);
         armInput.oninput=()=>{choice.allocation.customArm=Number.isFinite(armInput.valueAsNumber)?armInput.valueAsNumber:null;refresh();};
         const note=document.createElement('div');note.className='small';
-        const update=(overloads=[])=>{location.disabled=!choice.checked;armLabel.hidden=choice.allocation.stow!=='CUSTOM';armInput.disabled=!choice.checked;const loc=resolveMissionLocation(s,{...choice.allocation,crewId:'pending'}),over=choice.checked&&overloads.find(x=>x.id===loc.stowId);note.textContent=!choice.checked?'':choice.allocation.bayOnlyFallback?'Preferred location unavailable or at capacity. Select an available cabin bay.':loc.error?'Stowage unavailable. Where will this item be carried?':over?over.message:loc.stowId in STOW_MAX?'Within the defined stowage limit.':'No capacity limit is defined for this location; capacity has not been checked.';note.setAttribute('role',over?'alert':'status');note.style.color=over?'var(--bad)':'';};
+        const update=(overloads=[])=>{location.disabled=!choice.checked;armLabel.hidden=choice.allocation.stow!=='CUSTOM';armInput.disabled=!choice.checked;const loc=resolveMissionLocation(s,{...choice.allocation,crewId:'pending'}),over=choice.checked&&overloads.find(x=>x.id===loc.stowId);note.textContent=!choice.checked?'':choice.allocation.bayOnlyFallback?'Preferred location unavailable or at capacity. Select an available cabin bay.':loc.error?'Stowage unavailable. Where will this item be carried?':over?over.message:loc.stowId in stowageLimits()?'Within the defined stowage limit.':'No capacity limit is defined for this location; capacity has not been checked.';note.setAttribute('role',over?'alert':'status');note.style.color=over?'var(--bad)':'';};
         updates.push(update);
         check.onchange=()=>{choice.checked=check.checked;refresh();};
         location.onchange=()=>{const v=location.value;choice.allocation={...choice.allocation,stow:v,basketRef:null};delete choice.allocation.bayOnlyFallback;if(v.startsWith('BASKET:')){const [,key,id]=v.split(':');choice.allocation.stow='BASKET';choice.allocation.basketRef={key,id};}refresh();};

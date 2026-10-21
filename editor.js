@@ -517,6 +517,15 @@ function renderEditorConfigurations(host){
       }
       equipment.append(section);
     }
+    const stowage=document.createElement('section');stowage.className='aircraft-role-section';stowage.dataset.configStowage='';
+    stowage.innerHTML='<h3>Available Stowage Locations</h3><p class="small muted">Checked locations are enabled when this role is loaded. Supporting Role Fit equipment must also be fitted. Add locations to this list in the Stowage Locations Editor.</p>';
+    for(const [id,item] of sortSelectedFirst(Object.entries(EDITOR.draft.missionEquip).filter(([,it])=>it.group==='Stowage'),([id])=>stowageIncludedInRole(id,p),([,it])=>EDITOR.draft.stowage[it.stow]?.name||it.name)){
+      const label=document.createElement('label');label.className='small';label.style.cssText='display:block;margin:8px 0';
+      const check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.dataset.configStowageKey=id;check.checked=stowageIncludedInRole(id,p);
+      check.onchange=()=>{editorSetStowageRole(p,id,check.checked);editorSaveDraft();};
+      label.append(check,document.createTextNode(' '+(EDITOR.draft.stowage[item.stow]?.name||item.name)));stowage.append(label);
+    }
+    equipment.closest('section').after(stowage);
     const roleFitHost=card.querySelector('[data-config-rolefit]');
     const roleFitGroups=new Map();
     for(const [id,it] of Object.entries(EDITOR.draft.roleFit)){
@@ -1111,15 +1120,16 @@ function renderCrewEquipmentPlacementEditor(host){
 
 /* =========================
    STOWAGE LOCATIONS EDITOR
-   Permanently-installed stowage structure (port-fwd shelves, ramp shelves,
-   overhead bins) — items with group "Stowage". These are AC.missionEquip
-   entries (so load planning, gating, and the overload guard keep working),
-   but they are edited here, separated from per-sortie mission kit. The SAR
-   cabinet is excluded — it is a role-fit item, edited in Role-Fit.
+   Named locations, capacity limits and supporting fittings.
    ========================= */
 
+function editorSetStowageRole(preset,key,included){
+  preset.missionOn=(preset.missionOn||[]).filter(id=>id!==key);
+  preset.missionOff=(preset.missionOff||[]).filter(id=>id!==key);
+  (included?preset.missionOn:preset.missionOff).push(key);
+}
 function renderEditorStowage(host){
-  host.innerHTML='<div class="small muted">Location reference arms are shared by equipment and mission allocations. Cabinet mass and shelf arms remain distinct.</div><div id="locationCards"></div><div class="card"><label>New stowage location key<input id="locationNewKey" placeholder="e.g. cabin spare radio position"></label><p class="small">Type the location group and description. Capitals and underscores are added automatically. After adding the key, name the location and enter its details. The key cannot be renamed.</p><div id="locationKeyPreview" class="small mono" style="overflow-wrap:anywhere"></div><button class="btn good" id="locationAdd">Add Stowage Location</button></div>';
+  host.innerHTML='<div class="small muted">Location reference arms are shared by equipment and mission allocations. Cabinet mass and shelf arms remain distinct. Enter the approved maximum load to show a location in Load Planning and check its combined mission equipment and additional load. Blank means no capacity check is defined; it does not mean unlimited.</div><div id="locationCards"></div><div class="card"><label>New stowage location key<input id="locationNewKey" placeholder="e.g. cabin spare radio position"></label><p class="small">Type the location group and description. Capitals and underscores are added automatically. After adding the key, name the location and enter its details. The key cannot be renamed.</p><div id="locationKeyPreview" class="small mono" style="overflow-wrap:anywhere"></div><button class="btn good" id="locationAdd">Add Stowage Location</button></div>';
   const list=host.querySelector('#locationCards');
   const panels=new Map();
   const groupPanel=group=>{
@@ -1137,8 +1147,35 @@ function renderEditorStowage(host){
   for(const [id,loc] of Object.entries(EDITOR.draft.stowage)){
     const row=document.createElement('div');row.className='card';row.style.padding='12px';
     row.dataset.locationKey=id;
-    row.innerHTML=`<div class="small mono muted">${escHtml(id)}</div><div class="row"><label style="flex:2">Name<input data-location="name" value="${escHtml(loc.name)}"></label><label>Arm (mm)<input type="number" step="any" data-location="arm" value="${loc.arm}"></label><label>Location group<select data-location="group">${editorStowageGroupNames().map(g=>`<option ${loc.group===g?'selected':''}>${escHtml(g)}</option>`).join('')}</select></label><button class="btn bad" data-location-delete>Delete</button></div>`;
-    row.querySelectorAll('[data-location]').forEach(el=>el.onchange=()=>{const field=el.dataset.location;if(field==='arm'&&!Number.isFinite(el.valueAsNumber)){el.value=loc.arm;return;}loc[field]=field==='arm'?el.valueAsNumber:el.value;editorSaveDraft();if(field==='group'){EDITOR.openPanels??={};EDITOR.openPanels['stowage:'+loc.group]=true;renderEditor();}});
+    row.innerHTML=`<div class="small mono muted">${escHtml(id)}</div><div class="row"><label style="flex:2">Name<input data-location="name" value="${escHtml(loc.name)}"></label><label>Arm (mm)<input type="number" step="any" data-location="arm" value="${loc.arm}"></label><label>Maximum load (kg)<input type="number" min="0" step="any" data-location="maxKg" value="${stowageLimits(EDITOR.draft)[id]??''}" placeholder="No capacity check"></label><label>Location group<select data-location="group">${editorStowageGroupNames().map(g=>`<option ${loc.group===g?'selected':''}>${escHtml(g)}</option>`).join('')}</select></label><button class="btn bad" data-location-delete>Delete</button></div>`;
+    row.querySelectorAll('[data-location]').forEach(el=>el.onchange=()=>{const field=el.dataset.location;if(field==='maxKg'){if(el.value.trim()==='')loc.maxKg=null;else if(!Number.isFinite(el.valueAsNumber)||el.valueAsNumber<0){el.value=stowageLimits(EDITOR.draft)[id]??'';return;}else loc.maxKg=el.valueAsNumber;}else{if(field==='arm'&&!Number.isFinite(el.valueAsNumber)){el.value=loc.arm;return;}loc[field]=field==='arm'?el.valueAsNumber:el.value;}editorSaveDraft();if(field==='group'){EDITOR.openPanels??={};EDITOR.openPanels['stowage:'+loc.group]=true;renderEditor();}});
+    const markerKey=stowageMarker(id,EDITOR.draft);
+    const showLabel=document.createElement('label');showLabel.className='small';
+    const show=document.createElement('input');show.type='checkbox';show.style.width='auto';show.dataset.locationShow=id;show.checked=!!markerKey;
+    show.onchange=()=>{
+      if(show.checked){
+        const key='ME_STOWAGE_'+id;
+        if(EDITOR.draft.missionEquip[key]){alert('This location key conflicts with an equipment entry.');show.checked=false;return;}
+        EDITOR.draft.missionEquip[key]={name:loc.name,w:0,stow:id,group:'Stowage'};
+        for(const preset of Object.values(EDITOR.draft.presets))editorSetStowageRole(preset,key,false);
+      }else{
+        const used=Object.values(EDITOR.draft.presets).some(p=>stowageIncludedInRole(markerKey,p))||Object.values(STORE.sessions).some(s=>s.mission?.[markerKey]);
+        if(used){alert('Remove this location from its roles and switch it off in active missions before hiding it.');show.checked=true;return;}
+        delete EDITOR.draft.missionEquip[markerKey];editorRemovePresetItem(markerKey,['missionOn','missionOff']);
+      }
+      editorSaveDraft();renderEditor();
+    };
+    showLabel.append(show,document.createTextNode(' Show in Available Stowage Locations'));row.append(showLabel);
+    if(markerKey){
+      const roles=document.createElement('div');roles.className='small';roles.textContent='Included in roles (defaults applied when the role is loaded):';
+      for(const [role,preset] of sortConfigurationsByDisplayOrder(Object.entries(EDITOR.draft.presets))){
+        const label=document.createElement('label');label.style.marginLeft='12px';
+        const check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.dataset.locationRole=role;check.checked=stowageIncludedInRole(markerKey,preset);
+        check.onchange=()=>{editorSetStowageRole(preset,markerKey,check.checked);editorSaveDraft();};
+        label.append(check,document.createTextNode(' '+preset.name));roles.append(label);
+      }
+      row.append(roles);
+    }
     const requirement=document.createElement('label');requirement.className='small';requirement.textContent='Available when this Role Fit item is fitted';
     const select=document.createElement('select');select.dataset.locationRequirement=id;
     select.innerHTML='<option value="">No removable fitting required</option>'+Object.entries(EDITOR.draft.roleFit).map(([key,it])=>`<option value="${escHtml(key)}">${escHtml(it.name)}</option>`).join('');

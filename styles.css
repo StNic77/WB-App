@@ -1313,6 +1313,18 @@ body.theme-light .xcheck-input-card {
 .config-occupant-row > input:disabled { opacity: .35; }
 
 /* Keep narrow layouts inside the viewport without clipping their contents. */
+.editor-stowage-fields { display:grid; grid-template-columns:minmax(260px,1fr) 110px 150px 170px auto; gap:10px; align-items:end; margin-top:8px; }
+.editor-stowage-fields > * { min-width:0; }
+.editor-stowage-fields input, .editor-stowage-fields select { width:100%; }
+@media(max-width:1000px){
+  .editor-stowage-fields { grid-template-columns:110px 150px minmax(130px,1fr) auto; }
+  .editor-stowage-name { grid-column:1 / -1; }
+}
+@media(max-width:600px){
+  .editor-stowage-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .editor-stowage-group { grid-column:1 / -1; }
+  .editor-stowage-fields [data-location-delete] { justify-self:start; }
+}
 .grid > *, .twoCol > *, .row > *, .certify-step-header > div { min-width: 0; }
 main { overflow-anchor: none; }
 main img { max-width: 100%; height: auto; }

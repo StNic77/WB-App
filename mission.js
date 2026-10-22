@@ -67,6 +67,25 @@ function stowageAvailable(s,id){
   return !marker||(s.mission?.[marker]??stowageIncludedInRole(marker,AC.presets[s.preset]));
 }
 
+// Role defaults are copied into sortie allocations only when loading the full
+// configuration. Reading a location must never relocate an existing load.
+function roleMissionLocationWarning(p,key,data=AC){
+  const item=data.missionEquip?.[key];
+  if(!item||(!item.alwaysInclude&&(!(p.missionOn||[]).includes(key)||(p.missionOff||[]).includes(key))))return '';
+  const locations=p.missionStowageOverrides?.[key]
+    ? [p.missionStowageOverrides[key]]
+    : (item.defaultAllocations?.map(row=>row.stow)||[item.stow]);
+  const warnings=[];
+  for(const id of new Set(locations)){
+    const loc=missionLocations(data)[id];if(!loc)continue;
+    const marker=stowageMarker(id,data);
+    if(marker&&!stowageIncludedInRole(marker,p))warnings.push(loc.name+' must be enabled in Available Stowage Locations.');
+    const fittings=[loc.roleFitKey,loc.group==='SAR Cabinet'?'RF_SAR_EQUIPMENT_FWD_SAR_CABINET':null].filter(Boolean);
+    for(const fitting of new Set(fittings))if((p.roleFitOff||[]).includes(fitting)||(!(p.roleFitOn||[]).includes(fitting)&&!data.roleFit?.[fitting]?.normally))warnings.push('Requires '+(data.roleFit?.[fitting]?.name||fitting)+' installed in Role-Fit Equipment.');
+  }
+  return [...new Set(warnings)].join(' ');
+}
+
 function missionConfigurationIssues(data){
   const issues=[];
   if(data.tails){
@@ -141,6 +160,14 @@ function missionConfigurationIssues(data){
       else presetDisplayOrders.add(p.displayOrder);
     }
     for(const id of [...(p.missionOn||[]),...(p.missionOff||[])])if(!data.missionEquip[id])issues.push(key+': missing equipment '+id);
+    if(p.missionStowageOverrides!=null){
+      if(typeof p.missionStowageOverrides!=='object'||Array.isArray(p.missionStowageOverrides))issues.push(key+': equipment location defaults must be an object.');
+      else for(const [id,stow] of Object.entries(p.missionStowageOverrides)){
+        const item=data.missionEquip?.[id],loc=missionLocations(data)[stow];
+        if(!item||item.group==='Stowage')issues.push(key+': location default references missing equipment '+id+'.');
+        if(typeof stow!=='string'||!loc||!Number.isFinite(loc.arm)||loc.missionKey)issues.push(key+': choose a valid fixed installation location for '+id+'.');
+      }
+    }
     for(const id of [...(p.roleFitOn||[]),...(p.roleFitOff||[])])if(!data.roleFit[id])issues.push(key+': missing role fit '+id);
     for(const id of [...(p.seats?.crew||[]),...(p.seats?.pax||[]),...(p.occupants||[])])if(!data.crewSeats[id]&&!data.paxSeats[id])issues.push(key+': missing seat '+id);
   }
@@ -184,7 +211,9 @@ function loadEquipmentOverrides(){
     const migrateV24 = Number(ov.baseConfigVersion)===24 && AC.meta.configVersion>=25 && AC.meta.configVersion<=26;
     const migrateV25 = Number(ov.baseConfigVersion)===25 && AC.meta.configVersion===26;
     const migrateStowageLimits = Number(ov.baseConfigVersion)>=24 && Number(ov.baseConfigVersion)<=27 && AC.meta.configVersion===28;
-    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22 || migrateV23 || migrateV24 || migrateV25 || migrateStowageLimits;
+    // Role location defaults are optional; preserve custodian fleet/tail edits.
+    const migrateRoleLocations = Number(ov.baseConfigVersion)===29 && AC.meta.configVersion===30;
+    const migrateCompatible = migrateV18 || migrateV19 || migrateV20 || migrateV22 || migrateV23 || migrateV24 || migrateV25 || migrateStowageLimits || migrateRoleLocations;
     // Other old complete catalogues must not mask incompatible shipped updates.
     if(ov.baseConfigVersion!==AC.meta.configVersion && !migrateCompatible){
       localStorage.setItem('ac_config_overrides_before_config_update',raw);
@@ -346,5 +375,9 @@ function applyMissionPreset(s,p){
   for(const [key,it] of Object.entries(AC.missionEquip))s.mission[key]=missionAutomaticDefault(s,key,it)||((p.missionOn||[]).includes(key)&&!(p.missionOff||[]).includes(key));
   for(const key of p.missionOn||[])if(!AC.missionEquip[key])s.mission[key]=true;
   for(const [key,item] of Object.entries(AC.missionEquip))if(item.group==='Stowage')s.mission[key]=stowageIncludedInRole(key,p);
+  for(const [key,stow] of Object.entries(p.missionStowageOverrides||{})){
+    if(!s.mission[key]||!AC.missionEquip[key]||AC.missionEquip[key].group==='Stowage')continue;
+    s.missionLoads[key]=missionDefaultAllocations(key).map(row=>({...row,stow,customArm:null,basketRef:null}));
+  }
   s.missionReviewRequired=false;
 }

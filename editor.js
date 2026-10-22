@@ -506,14 +506,34 @@ function renderEditorConfigurations(host){
       if(!confirm('Delete configuration "'+p.name+'"?'))return;delete presets[key];refresh();
     };
     const equipment=card.querySelector('[data-config-equipment]');
+    const locationWarnings=[];
+    const updateLocationWarnings=()=>locationWarnings.forEach(({id,note})=>{note.textContent=roleMissionLocationWarning(p,id,EDITOR.draft);note.hidden=!note.textContent;});
+    const locationHelp=document.createElement('p');locationHelp.className='small muted';locationHelp.textContent='Choose the installation location used by the full standard configuration. Required stowage fittings must also be installed in Role-Fit Equipment. Role-Fit Equipment Only keeps the current mission locations.';equipment.append(locationHelp);
     for(const group of missionGroupNames(EDITOR.draft)){
       const section=document.createElement('details');section.innerHTML='<summary>'+escHtml(group)+'</summary>';
       const equipmentRows=sortSelectedFirst(Object.entries(EDITOR.draft.missionEquip).filter(([,it])=>it.group===group),([id])=>(p.missionOn||[]).includes(id)||!!EDITOR.draft.missionEquip[id].alwaysInclude,([,it])=>it.name);
       for(const [id,it] of equipmentRows){
         const label=document.createElement('label');label.className='small';label.style.cssText='display:block;margin:8px 0';
         const check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.checked=(p.missionOn||[]).includes(id)||!!it.alwaysInclude;check.disabled=!!it.alwaysInclude||(it.active===false&&!check.checked);
-        check.onchange=()=>{p.missionOn=(p.missionOn||[]).filter(k=>k!==id);p.missionOff=(p.missionOff||[]).filter(k=>k!==id);if(check.checked)p.missionOn.push(id);editorSaveDraft();};
+        check.onchange=()=>{p.missionOn=(p.missionOn||[]).filter(k=>k!==id);p.missionOff=(p.missionOff||[]).filter(k=>k!==id);if(check.checked)p.missionOn.push(id);location.disabled=!check.checked;editorSaveDraft();updateLocationWarnings();};
         label.append(check,document.createTextNode(' '+it.name+(it.active===false?' (retired)':'')+(it.alwaysInclude?' · Every configuration':'')));section.append(label);
+        const locationLabel=document.createElement('label');locationLabel.className='small';locationLabel.style.cssText='display:block;margin:0 0 8px 24px';locationLabel.append(document.createTextNode('Standard installation location '));
+        const location=document.createElement('select');location.dataset.configMissionLocation=id;location.setAttribute('aria-label',it.name+' standard installation location');location.style.cssText='max-width:100%;width:100%';
+        const fallback=document.createElement('option');fallback.value='';fallback.textContent='Use equipment default';location.append(fallback);
+        for(const [stow,loc] of Object.entries(missionLocations(EDITOR.draft))){
+          if(!Number.isFinite(loc.arm)||loc.missionKey)continue;
+          const option=document.createElement('option');option.value=stow;option.textContent=loc.name+' ('+loc.arm+' mm)';location.append(option);
+        }
+        location.value=p.missionStowageOverrides?.[id]||'';location.disabled=!check.checked;
+        location.onchange=()=>{
+          const before=p.missionStowageOverrides?{...p.missionStowageOverrides}:undefined;
+          p.missionStowageOverrides??={};if(location.value)p.missionStowageOverrides[id]=location.value;else delete p.missionStowageOverrides[id];
+          if(!Object.keys(p.missionStowageOverrides).length)delete p.missionStowageOverrides;
+          if(!editorSaveDraft()){if(before)p.missionStowageOverrides=before;else delete p.missionStowageOverrides;location.value=p.missionStowageOverrides?.[id]||'';}
+          updateLocationWarnings();
+        };
+        locationLabel.append(location);section.append(locationLabel);
+        const note=document.createElement('div');note.className='small';note.style.cssText='margin:0 0 10px 24px;color:var(--bad)';note.dataset.configMissionLocationWarning=id;note.setAttribute('role','status');section.append(note);locationWarnings.push({id,note});
       }
       equipment.append(section);
     }
@@ -522,7 +542,7 @@ function renderEditorConfigurations(host){
     for(const [id,item] of sortSelectedFirst(Object.entries(EDITOR.draft.missionEquip).filter(([,it])=>it.group==='Stowage'),([id])=>stowageIncludedInRole(id,p),([,it])=>EDITOR.draft.stowage[it.stow]?.name||it.name)){
       const label=document.createElement('label');label.className='small';label.style.cssText='display:block;margin:8px 0';
       const check=document.createElement('input');check.type='checkbox';check.style.width='auto';check.dataset.configStowageKey=id;check.checked=stowageIncludedInRole(id,p);
-      check.onchange=()=>{editorSetStowageRole(p,id,check.checked);editorSaveDraft();};
+      check.onchange=()=>{editorSetStowageRole(p,id,check.checked);editorSaveDraft();updateLocationWarnings();};
       label.append(check,document.createTextNode(' '+(EDITOR.draft.stowage[item.stow]?.name||item.name)));stowage.append(label);
     }
     equipment.closest('section').after(stowage);
@@ -542,10 +562,11 @@ function renderEditorConfigurations(host){
         const label=document.createElement('label');label.className='config-rolefit-row small';
         const name=document.createElement('span');name.textContent=it.name;label.append(name);
         const select=document.createElement('select');select.innerHTML=`<option value="">Aircraft Default — ${it.normally?'Installed':'Not Installed'}</option><option value="on">Installed</option><option value="off">Removed</option>`;select.value=(p.roleFitOn||[]).includes(id)?'on':(p.roleFitOff||[]).includes(id)?'off':'';
-        select.onchange=()=>{p.roleFitOn=(p.roleFitOn||[]).filter(k=>k!==id);p.roleFitOff=(p.roleFitOff||[]).filter(k=>k!==id);if(select.value==='on')p.roleFitOn.push(id);if(select.value==='off')p.roleFitOff.push(id);editorSaveDraft();};label.append(select);section.append(label);
+        select.onchange=()=>{p.roleFitOn=(p.roleFitOn||[]).filter(k=>k!==id);p.roleFitOff=(p.roleFitOff||[]).filter(k=>k!==id);if(select.value==='on')p.roleFitOn.push(id);if(select.value==='off')p.roleFitOff.push(id);editorSaveDraft();updateLocationWarnings();};label.append(select);section.append(label);
       }
       roleFitHost.append(section);
     }
+    updateLocationWarnings();
     const seatsHosts={crew:card.querySelector('[data-config-seats-crew]'),pax:card.querySelector('[data-config-seats-pax]')};
     const installedControls=new Map(),occupantControls=new Map();
     for(const [kind,catalogue] of [['crew',EDITOR.draft.crewSeats],['pax',EDITOR.draft.paxSeats]])for(const [id,it] of Object.entries(catalogue)){
@@ -840,7 +861,7 @@ function renderEditorMission(host) {
 
   host.innerHTML = `
     <div class="small muted" style="margin-bottom:10px;">
-      Manage the mission equipment available in the W&amp;B application. Set each item’s weight and stowage location, its default load, and whether it is carried by default in each Role Config. Changes save automatically as you edit.
+      Manage the mission equipment available in the W&amp;B application. Set each item’s weight, default stowage location and default load. Aircraft Roles can specify another installation location for each role. Changes save automatically as you edit.
     </div>
 
     <div id="missionItemList"></div>
@@ -894,10 +915,12 @@ function renderEditorMission(host) {
           <input type="number" step="any" data-k="${k}" data-f="unitWeight" value="${it.unitWeight}">
         </div>
         <div style="flex: 2 1 240px;">
-          <div class="lbl">Stowage</div>
+          <div class="lbl">Default stowage location</div>
           <select data-k="${k}" data-f="stow">
             ${stowOptionsHtml(it.stow)}
           </select>
+          <div class="small muted">Used unless an Aircraft Role specifies another location.</div>
+          <button type="button" class="btn small" data-configure-role-locations="${k}" style="margin-top:6px;">Configure locations by role</button>
         </div>
         <div style="flex: 0 0 110px; display:${it.stow === "CUSTOM" ? "block" : "none"};" data-customarm-wrap="${k}">
           <div class="lbl">Arm (mm)</div>
@@ -911,7 +934,7 @@ function renderEditorMission(host) {
       </div>
       <div class="row" style="margin-top:10px;gap:10px;">
         <label style="flex:2 1 220px;">Description<input data-k="${k}" data-f="description" value="${escHtml(it.description||'')}"></label>
-      </div><h3>Default Load</h3><p class="small muted">Set the quantity and stowage locations used to build the item’s default load. Changing a mission’s load does not change these defaults.</p><div class="row">
+      </div><h3>Default Load</h3><p class="small muted">Set the quantity and stowage locations used to build the item’s default load. A role-specific installation location takes precedence when the full standard configuration is applied. Changing a mission’s load does not change these defaults.</p><div class="row">
         <label>Default quantity<input style="width:100px" type="number" min="0" step="1" data-k="${k}" data-f="defaultQuantity" value="${it.defaultQuantity}"></label>
         <label>Minimum<input style="width:90px" type="number" min="0" step="1" data-k="${k}" data-f="minQuantity" value="${it.minQuantity??''}"></label>
         <label>Maximum<input style="width:130px" type="number" min="0" step="1" data-k="${k}" data-f="maxQuantity" value="${it.maxQuantity??''}" placeholder="No maximum" title="No maximum when left blank"></label>
@@ -944,6 +967,20 @@ function renderEditorMission(host) {
     `;
     list.appendChild(row);
   }
+
+  list.querySelectorAll('[data-configure-role-locations]').forEach(button=>button.onclick=()=>{
+    const key=button.dataset.configureRoleLocations;
+    EDITOR.activeSection='CONFIGURATIONS';renderEditor();
+    const controls=[...document.querySelectorAll('[data-config-mission-location]')].filter(control=>control.dataset.configMissionLocation===key);
+    const included=controls.filter(control=>!control.disabled);
+    const current=typeof STORE!=='undefined'?STORE.sessions?.[STORE.selectedTail]?.preset:null;
+    const target=included.find(control=>control.closest('[data-configuration-key]')?.dataset.configurationKey===current)||included[0]||controls[0];
+    if(target){
+      for(let node=target.parentElement;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
+      const focusTarget=target.disabled?target.closest('[data-configuration-key]').querySelector('summary'):target;
+      focusTarget.focus({preventScroll:true});target.scrollIntoView({block:'center',behavior:'instant'});
+    }
+  });
 
   // Field changes — text/number/select save silently, no re-render.
   list.querySelectorAll("[data-k][data-f]").forEach(el => {
@@ -1147,7 +1184,7 @@ function renderEditorStowage(host){
   for(const [id,loc] of Object.entries(EDITOR.draft.stowage)){
     const row=document.createElement('div');row.className='card';row.style.padding='12px';
     row.dataset.locationKey=id;
-    row.innerHTML=`<div class="small mono muted">${escHtml(id)}</div><div class="row"><label style="flex:2">Name<input data-location="name" value="${escHtml(loc.name)}"></label><label>Arm (mm)<input type="number" step="any" data-location="arm" value="${loc.arm}"></label><label>Maximum load (kg)<input type="number" min="0" step="any" data-location="maxKg" value="${stowageLimits(EDITOR.draft)[id]??''}" placeholder="No capacity check"></label><label>Location group<select data-location="group">${editorStowageGroupNames().map(g=>`<option ${loc.group===g?'selected':''}>${escHtml(g)}</option>`).join('')}</select></label><button class="btn bad" data-location-delete>Delete</button></div>`;
+    row.innerHTML=`<div class="small mono muted">${escHtml(id)}</div><div class="editor-stowage-fields"><label class="editor-stowage-name">Name<input data-location="name" value="${escHtml(loc.name)}"></label><label>Arm (mm)<input type="number" step="any" data-location="arm" value="${loc.arm}"></label><label>Maximum load (kg)<input type="number" min="0" step="any" data-location="maxKg" value="${stowageLimits(EDITOR.draft)[id]??''}" placeholder="No capacity check"></label><label class="editor-stowage-group">Location group<select data-location="group">${editorStowageGroupNames().map(g=>`<option ${loc.group===g?'selected':''}>${escHtml(g)}</option>`).join('')}</select></label><button class="btn bad" data-location-delete>Delete</button></div>`;
     row.querySelectorAll('[data-location]').forEach(el=>el.onchange=()=>{const field=el.dataset.location;if(field==='maxKg'){if(el.value.trim()==='')loc.maxKg=null;else if(!Number.isFinite(el.valueAsNumber)||el.valueAsNumber<0){el.value=stowageLimits(EDITOR.draft)[id]??'';return;}else loc.maxKg=el.valueAsNumber;}else{if(field==='arm'&&!Number.isFinite(el.valueAsNumber)){el.value=loc.arm;return;}loc[field]=field==='arm'?el.valueAsNumber:el.value;}editorSaveDraft();if(field==='group'){EDITOR.openPanels??={};EDITOR.openPanels['stowage:'+loc.group]=true;renderEditor();}});
     const markerKey=stowageMarker(id,EDITOR.draft);
     const showLabel=document.createElement('label');showLabel.className='small';

@@ -1,5 +1,12 @@
 # CH-149-615 W&B Release History
 
+## v0.6.0-dev / Config v30 — 2026-10-22
+- Adds a standard mission-equipment installation location per aircraft role while retaining one shared equipment definition, weight and existing manual relocation. Full standard configurations apply the location; Role-Fit Equipment Only preserves mission allocations.
+- Transport loads the internal life raft at B3 Stbd Fwd; CASEVAC uses B4 Stbd Aft, with the associated stowage fittings. Existing manual and accepted-aircraft fitting restrictions remain authoritative.
+- Clarifies the general default stowage field and links directly to Aircraft Roles. Widens stowage names and sizes arm/load fields for desktop, tablet and phone layouts.
+- Backs up and preserves compatible v29 Editor configurations, including fleet/tail roles and existing location defaults. Roles without overrides keep their general defaults; existing locally edited roles are not replaced by shipped role defaults.
+- Verified role switching, quantities, fitting dependencies, manual W&B changes, Editor persistence, configuration export/reload, actual-load PDF output and stowage regressions.
+
 ## v0.5.5-dev / Config v29 — 2026-10-21
 - Publishes the custodian-saved Port Fwd Shelf (Floor): arm 5331 mm, maximum load 66 kg, available in all four roles.
 - Includes the saved CASEVAC Port Fwd shelf selections and synchronizes the offline release with Config v29. Older device overrides are backed up so they cannot hide the newly published shelf.

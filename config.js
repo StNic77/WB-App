@@ -1,7 +1,7 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-10-21T05:04:22.680Z
- * Config data version: 29
+ * Development release prepared on 2026-10-22T04:43:10.000Z
+ * Config data version: 30
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -10,9 +10,14 @@
 
 // SECTION 11 — CONFIG META (data version, separate from app code version)
 const AC_META = {
-  "configVersion": 29,
-  "configReleasedAt": "2026-10-21T05:04:22.680Z",
+  "configVersion": 30,
+  "configReleasedAt": "2026-10-22T04:43:10.000Z",
   "changelog": [
+    {
+      "version": 30,
+      "at": "2026-10-22T04:43:10.000Z",
+      "note": "Adds role-specific mission equipment installation locations, with Transport and CASEVAC life raft defaults and required stowage fittings."
+    },
     {
       "version": 29,
       "at": "2026-10-21T05:04:22.680Z",
@@ -2035,6 +2040,9 @@ const AC_PRESETS = {
       "P3": "SAR Tech"
     },
     "name": "CASEVAC",
+    "missionStowageOverrides": {
+      "ME_AIRCRAFT_ALSE_EQUIP_INTERNAL_LIFE_RAFT": "INT_LIFE_RAFT_B4_STBD_A"
+    },
     "displayOrder": 4,
     "notes": "Sensor WS removed; SAR cabinet removed; mission gear baseline off. Four independently selectable stretcher racks, 30.0225 kg each at their patient-position arms; total 120.09 kg including litters.",
     "image": "images/CASEVAC.png",
@@ -2058,6 +2066,7 @@ const AC_PRESETS = {
       "P3"
     ],
     "roleFitOn": [
+      "RF_STOW_LIFERAFT_STBD_B4_A",
       "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
       "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
       "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
@@ -2095,6 +2104,7 @@ const AC_PRESETS = {
       "RF_STOW_BASKET_STBD"
     ],
     "missionOn": [
+      "ME_AIRCRAFT_ALSE_EQUIP_INTERNAL_LIFE_RAFT",
       "ME_OVERHEAD_PORT",
       "ME_OVERHEAD_STBD",
       "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25",
@@ -2144,6 +2154,9 @@ const AC_PRESETS = {
   },
   "TRANSPORT": {
     "name": "Transport",
+    "missionStowageOverrides": {
+      "ME_AIRCRAFT_ALSE_EQUIP_INTERNAL_LIFE_RAFT": "INT_LIFE_RAFT_B3_STBD_F"
+    },
     "displayOrder": 3,
     "notes": "Transport: SAR cabinet removed; Sensor WS removed; EO/IR + TRAKKA stay.",
     "image": "images/Transport.png",
@@ -2180,6 +2193,7 @@ const AC_PRESETS = {
       "C4"
     ],
     "roleFitOn": [
+      "RF_STOW_LIFERAFT_STBD_B3_F",
       "RF_AIRCRAFT_SYSTEMS_SECONDARY_HOIST",
       "RF_SENSOR_SYSTEMS_TRAKKA_SRCHLT",
       "RF_AIRCRAFT_SYSTEMS_SEA_TRAY",
@@ -2208,6 +2222,7 @@ const AC_PRESETS = {
       "RF_SENSOR_SYSTEMS_SENSOR_WORKSTATION"
     ],
     "missionOn": [
+      "ME_AIRCRAFT_ALSE_EQUIP_INTERNAL_LIFE_RAFT",
       "ME_OVERHEAD_PORT",
       "ME_OVERHEAD_STBD",
       "ME_CREW_PERSONAL_EQUIP_FIRST_OFFICER_B25",
